@@ -19,6 +19,14 @@ lightning build app app_cpu.py
 
 In order to run the application cloud, run the following commands
 
+### On CPU
+
 ```
 lightning build app app_cpu.py --cloud
+```
+
+### On GPU
+
+```
+lightning build app app_gpu.py --cloud
 ```
