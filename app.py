@@ -45,7 +45,7 @@ class RootFlow(LightningFlow):
             self._exit("Hello World End")
 
     def configure_layout(self):
-        return [{"name": "API Service", "content": self.serve.exposed_url("serving") + "/docs"}]
+        return [{"name": "API", "content": self.serve.exposed_url("serving") + "/docs"}]
 
 
 app = LightningApp(RootFlow(use_gpu=bool(int(os.getenv("USE_GPU", "0")))))
