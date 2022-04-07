@@ -1,13 +1,14 @@
 import os
 import sys
 import argparse
+from lightning import LightningApp, LightningFlow, CloudCompute
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from components import PyTorchLightningScript, ServeScript
-from train.train import train_script_path
-from serve.serve import serve_script_path
-from lightning import LightningApp, LightningFlow, CloudCompute
+from quick_start.components import PyTorchLightningScript, ServeScript
+from quick_start.train.train import train_script_path
+from quick_start.serve.serve import serve_script_path
+
 
 class RootFlow(LightningFlow):
     def __init__(self, use_gpu: bool = False):
