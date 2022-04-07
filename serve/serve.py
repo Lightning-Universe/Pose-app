@@ -1,19 +1,26 @@
 import argparse
 import base64
 import os
+import sys
 from io import BytesIO
 
-import torch
-import torchvision.transforms as T
 import uvicorn
 from fastapi import FastAPI
 from fastapi.requests import Request
-from PIL import Image
 
-from examples.hello_world.train.net import Net
+from lightning.utilities.imports import requires
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+serve_script_path = __file__
 
 
+@requires("torchvision")
 def main():
+    import torchvision.transforms as T
+    from PIL import Image
+
+    from lightning.demo.quick_start.train.net import Net
 
     parser = argparse.ArgumentParser("Server Parser")
     parser.add_argument("--checkpoint_path", type=str, help="Where to find the `checkpoint_path`")
@@ -22,12 +29,6 @@ def main():
 
     fastapi_service = FastAPI()
     model = Net()
-
-    if not os.path.exists(str(hparams.checkpoint_path)):
-        raise Exception(f"The checkpoint path {hparams.checkpoint_path} doesn't exists.")
-
-    state_dict = torch.load(hparams.checkpoint_path)["state_dict"]
-    model.load_state_dict({k.replace("model.", ""): v for k, v in state_dict.items()})
 
     model.eval()
 
