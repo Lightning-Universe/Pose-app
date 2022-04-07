@@ -7,20 +7,17 @@ from io import BytesIO
 import uvicorn
 from fastapi import FastAPI
 from fastapi.requests import Request
+import torchvision.transforms as T
+from PIL import Image
+import sys
 
-from lightning.utilities.imports import requires
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from train.net import Net
 
 serve_script_path = __file__
 
-
-@requires("torchvision")
-def main():
-    import torchvision.transforms as T
-    from PIL import Image
-
-    from lightning.demo.quick_start.train.net import Net
+if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Server Parser")
     parser.add_argument("--checkpoint_path", type=str, help="Where to find the `checkpoint_path`")
@@ -50,7 +47,3 @@ def main():
     print(f"Running the Serve Serve on port {hparams.port}")
 
     uvicorn.run(app=fastapi_service, host="0.0.0.0", port=hparams.port)
-
-
-if __name__ == "__main__":
-    main()

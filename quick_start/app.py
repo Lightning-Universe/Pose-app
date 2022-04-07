@@ -1,9 +1,16 @@
-from lightning import CloudCompute, LightningApp, LightningFlow
-from lightning.demo.quick_start import PyTorchLightningScript, serve_script_path, ServeScript, train_script_path
+import os
+import sys
+import argparse
 
+sys.path.insert(0, os.path.dirname(__file__))
+
+from components import PyTorchLightningScript, ServeScript
+from train.train import train_script_path
+from serve.serve import serve_script_path
+from lightning import LightningApp, LightningFlow, CloudCompute
 
 class RootFlow(LightningFlow):
-    def __init__(self):
+    def __init__(self, use_gpu: bool = False):
         super().__init__()
         # Those are custom components for demo purposes
         # and you can modify them or create your own.
@@ -16,7 +23,7 @@ class RootFlow(LightningFlow):
                 "--trainer.callbacks=ModelCheckpoint",
                 "--trainer.callbacks.monitor=val_acc",
             ],
-            cloud_compute=CloudCompute("gpu", 2),
+            cloud_compute=CloudCompute("gpu" if use_gpu else "cpu", 1),
         )
 
         self.serve = ServeScript(
@@ -31,7 +38,7 @@ class RootFlow(LightningFlow):
 
         # 2. Will be True when a checkpoint is created by the ``train_script_path``
         # and added to the train work state.
-        if self.train.best_model_path is not None:
+        if self.train.best_model_path:
             # 3. Serve the model until killed.
             self.serve.run(self.train.best_model_path)
             self._exit("Hello World End")
@@ -40,4 +47,4 @@ class RootFlow(LightningFlow):
         return [{"name": "API Service", "content": self.serve.exposed_url("serving") + "/docs"}]
 
 
-app = LightningApp(RootFlow())
+app = LightningApp(RootFlow(use_gpu=bool(int(os.getenv("USE_GPU", "0")))))

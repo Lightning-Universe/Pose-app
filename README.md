@@ -12,7 +12,7 @@ In order to run the application locally, run the following commands
 
 ```
 pip install -r requirements.txt
-lightning build app app_cpu.py
+lightning build app quick_start/app.py
 ```
 
 ### Cloud
@@ -22,11 +22,11 @@ In order to run the application cloud, run the following commands
 ### On CPU
 
 ```
-lightning build app app_cpu.py --cloud
+lightning build app quick_start/app.py --cloud
 ```
 
 ### On GPU
 
 ```
-lightning build app app_gpu.py --cloud
+USE_GPU=1 lightning build app quick_start/app.py --cloud
 ```

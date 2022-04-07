@@ -2,6 +2,10 @@ import logging
 import warnings
 from typing import Dict
 
+import os
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+
 from lightning.components.python import PopenPythonScript, TracerPythonScript
 
 logger = logging.getLogger(__name__)

@@ -1,20 +1,19 @@
 from lightning.utilities.imports import requires
+import torch
+import sys
+import os
+import torchvision.transforms as T
+from pytorch_lightning import LightningDataModule, LightningModule
+from pytorch_lightning.utilities.cli import LightningCLI
+from torch.nn import functional as F
+from torchmetrics import Accuracy
+from torchvision.datasets import MNIST
+
+from train.net import Net
 
 train_script_path = __file__
 
-
-@requires("pytorch_lightning")
-@requires("torchvision")
-def main():
-    import torch
-    import torchvision.transforms as T
-    from pytorch_lightning import LightningDataModule, LightningModule
-    from pytorch_lightning.utilities.cli import LightningCLI
-    from torch.nn import functional as F
-    from torchmetrics import Accuracy
-    from torchvision.datasets import MNIST
-
-    from lightning.demo.quick_start.train.net import Net
+if __name__ == "__main__":
 
     class ImageClassifier(LightningModule):
         def __init__(self, model=None, lr=1.0, gamma=0.7, batch_size=32):
@@ -66,8 +65,3 @@ def main():
         ImageClassifier, MNISTDataModule, seed_everything_default=42, save_config_overwrite=True, run=False
     )
     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
-    return cli
-
-
-if __name__ == "__main__":
-    cli = main()  # The CLI would be accessed by the Tracer.
