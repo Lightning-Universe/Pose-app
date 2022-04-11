@@ -5,7 +5,6 @@ from pytorch_lightning.utilities.cli import LightningCLI
 from torch.nn import functional as F
 from torchmetrics import Accuracy
 from torchvision.datasets import MNIST
-
 from train.net import Net
 
 train_script_path = __file__

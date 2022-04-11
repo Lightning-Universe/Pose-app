@@ -1,9 +1,10 @@
 import os
-from lightning import LightningApp, LightningFlow, CloudCompute
+
+from lightning import CloudCompute, LightningApp, LightningFlow
 
 from quick_start.components import PyTorchLightningScript, ServeScript
-from quick_start.train.train import train_script_path
 from quick_start.serve.serve import serve_script_path
+from quick_start.train.train import train_script_path
 
 
 class RootFlow(LightningFlow):

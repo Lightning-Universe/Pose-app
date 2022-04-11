@@ -1,9 +1,11 @@
 import logging
-import warnings
-from typing import Dict
-from lightning.storage import Path
 import os
 import sys
+import warnings
+from typing import Dict
+
+from lightning.storage import Path
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from lightning.components.python import PopenPythonScript, TracerPythonScript
@@ -22,7 +24,9 @@ class PyTorchLightningScript(TracerPythonScript):
         super().run(*args, **kwargs)
 
     def on_after_run(self, res):
-        self.best_model_path = Path(res["cli"].trainer.checkpoint_callback.best_model_path)
+        self.best_model_path = Path(
+            res["cli"].trainer.checkpoint_callback.best_model_path
+        )
 
 
 class ServeScript(PopenPythonScript):
