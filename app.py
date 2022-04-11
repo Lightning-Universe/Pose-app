@@ -37,7 +37,7 @@ class RootFlow(LightningFlow):
         # and added to the train work state.
         if self.train.best_model_path:
             # 3. Serve the model until killed.
-            self.serve.run(self.train.best_model_path)
+            self.serve.run(checkpoint_path=self.train.best_model_path)
             self._exit("Hello World End")
 
     def configure_layout(self):

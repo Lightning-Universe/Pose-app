@@ -37,8 +37,7 @@ class ServeScript(PopenPythonScript):
             **kwargs,
         )
 
-    def run(self, model_path: Path) -> None:
-        print(" ")
+    def run(self, checkpoint_path: Path) -> None:
         logger.info(f"Running serve_script: {self.script_path}")
-        self.script_args.append(f"--checkpoint_path={str(model_path)}")
+        self.script_args.append(f"--checkpoint_path={str(checkpoint_path)}")
         super().run()
