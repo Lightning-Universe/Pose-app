@@ -1,7 +1,7 @@
 import argparse
 import base64
 import os
-import sys
+import torch
 from io import BytesIO
 
 import uvicorn
@@ -26,7 +26,9 @@ if __name__ == "__main__":
 
     fastapi_service = FastAPI()
     model = Net()
-
+    checkpoint = torch.load(hparams.checkpoint_path)
+    state_dict = {k.replace("model.", ""): v for k, v in checkpoint["state_dict"].items()}
+    model.load_state_dict(state_dict)
     model.eval()
 
     def deserialize_image(data):
