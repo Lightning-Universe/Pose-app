@@ -26,7 +26,7 @@ class RootFlow(LightningFlow):
 
         self.serve = ServeScript(
             script_path=serve_script_path,
-            exposed_ports={"serving": 1112},
+            exposed_ports={"serving": 1111},
             cloud_compute=CloudCompute("cpu", 1),
         )
 
