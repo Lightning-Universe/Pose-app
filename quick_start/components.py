@@ -1,9 +1,11 @@
 import logging
+import os
+import sys
 import warnings
 from typing import Dict
 
-import os
-import sys
+from lightning.storage import Path
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from lightning.components.python import PopenPythonScript, TracerPythonScript
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 class PyTorchLightningScript(TracerPythonScript):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, raise_exception=True, **kwargs)
-        self.best_model_path = False
+        self.best_model_path = None
 
     def run(self, *args, **kwargs):
         warnings.simplefilter("ignore")
@@ -22,7 +24,9 @@ class PyTorchLightningScript(TracerPythonScript):
         super().run(*args, **kwargs)
 
     def on_after_run(self, res):
-        self.best_model_path = True  # Path(res["cli"].trainer.checkpoint_callback.best_model_path)
+        self.best_model_path = Path(
+            res["cli"].trainer.checkpoint_callback.best_model_path
+        )
 
 
 class ServeScript(PopenPythonScript):
@@ -37,8 +41,7 @@ class ServeScript(PopenPythonScript):
             **kwargs,
         )
 
-    def run(self, checkpoint_encoding: str) -> None:
-        print(" ")
+    def run(self, checkpoint_path: Path) -> None:
         logger.info(f"Running serve_script: {self.script_path}")
-        self.script_args.append("--checkpoint_path=model.pt")
+        self.script_args.append(f"--checkpoint_path={str(checkpoint_path)}")
         super().run()

@@ -1,9 +1,10 @@
 import os
-from lightning import LightningApp, LightningFlow, CloudCompute
+
+from lightning import CloudCompute, LightningApp, LightningFlow
 
 from quick_start.components import PyTorchLightningScript, ServeScript
-from quick_start.train.train import train_script_path
 from quick_start.serve.serve import serve_script_path
+from quick_start.train.train import train_script_path
 
 
 class RootFlow(LightningFlow):
@@ -37,7 +38,7 @@ class RootFlow(LightningFlow):
         # and added to the train work state.
         if self.train.best_model_path:
             # 3. Serve the model until killed.
-            self.serve.run(self.train.best_model_path)
+            self.serve.run(checkpoint_path=self.train.best_model_path)
             self._exit("Hello World End")
 
     def configure_layout(self):
