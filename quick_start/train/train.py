@@ -1,3 +1,4 @@
+import os
 import torch
 import torchvision.transforms as T
 from pytorch_lightning import LightningDataModule, LightningModule
@@ -24,13 +25,14 @@ class ImageClassifier(LightningModule):
         x, y = batch
         logits = self.forward(x)
         loss = F.nll_loss(logits, y.long())
+        self.log("train_loss", loss, on_step=True, on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         logits = self.forward(x)
         loss = F.nll_loss(logits, y.long())
-        self.log("val_acc", self.val_acc(logits, y))
+        self.log("val_acc", self.val_acc(logits, y), on_step=True, on_epoch=True)
         self.log("val_loss", loss)
 
     def configure_optimizers(self):
@@ -59,6 +61,8 @@ class MNISTDataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
+    os.environ["WANDB_API_KEY"] = "0f7ef1a1fd67298367d8ebaf0ffae58272e6eb17"
+
     cli = LightningCLI(
         ImageClassifier, MNISTDataModule, seed_everything_default=42, save_config_overwrite=True, run=False
     )
