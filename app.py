@@ -19,6 +19,8 @@ class RootFlow(LightningFlow):
                 "--trainer.limit_val_batches=4",
                 "--trainer.callbacks=ModelCheckpoint",
                 "--trainer.callbacks.monitor=val_acc",
+                "--trainer.logger=WandbLogger",
+                "--trainer.logger.save_dir=lightning_logs",
             ],
             cloud_compute=CloudCompute("gpu" if use_gpu else "cpu", 1),
         )
@@ -41,7 +43,10 @@ class RootFlow(LightningFlow):
             self._exit("Hello World End")
 
     def configure_layout(self):
-        return [{"name": "API", "content": self.serve.exposed_url("serving") + "/docs"}]
+        return [
+            {"name": "API", "content": self.serve.exposed_url("serving") + "/docs"},
+            {"name": "Wandb Run", "content": self.train.run_url},
+        ]
 
 
 app = LightningApp(RootFlow(use_gpu=bool(int(os.getenv("USE_GPU", "0")))))

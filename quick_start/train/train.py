@@ -9,7 +9,9 @@ from torch.nn import functional as F
 from torchmetrics import Accuracy
 from torchvision.datasets import MNIST
 
-from train.net import Net
+sys.path.append(os.path.dirname(__file__))
+
+from net import Net
 
 train_script_path = __file__
 
@@ -29,13 +31,14 @@ if __name__ == "__main__":
             x, y = batch
             logits = self.forward(x)
             loss = F.nll_loss(logits, y.long())
+            self.log("train_loss", loss, on_step=True, on_epoch=True)
             return loss
 
         def validation_step(self, batch, batch_idx):
             x, y = batch
             logits = self.forward(x)
             loss = F.nll_loss(logits, y.long())
-            self.log("val_acc", self.val_acc(logits, y))
+            self.log("val_acc", self.val_acc(logits, y), on_step=True, on_epoch=True)
             self.log("val_loss", loss)
 
         def configure_optimizers(self):

@@ -133,3 +133,5 @@ lightning_logs
 data
 *.pt
 __py
+wandb
+config.yaml
