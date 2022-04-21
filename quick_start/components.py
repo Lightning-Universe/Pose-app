@@ -19,7 +19,7 @@ class PyTorchLightningScript(TracerPythonScript):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, raise_exception=True, **kwargs)
         self.best_model_path = None
-        self.run_url = ""
+        self.run_url = None
 
     def configure_tracer(self):
         from pytorch_lightning import Trainer

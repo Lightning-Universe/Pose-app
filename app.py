@@ -42,9 +42,10 @@ class RootFlow(LightningFlow):
             self._exit("Hello World End")
 
     def configure_layout(self):
+        spinner_url = "https://freefrontend.com/assets/img/css-spinners/Rainbow-Spinner.gif"
         return [
-            {"name": "API", "content": self.serve.exposed_url("serving") + "/docs"},
-            {"name": "Wandb Run", "content": self.train.run_url},
+            {"name": "Wandb Run", "content": self.train.run_url or spinner_url},
+            {"name": "API", "content": self.serve.exposed_url("serving") + "/docs" if self.serve.has_started else spinner_url},
         ]
 
 
