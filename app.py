@@ -2,7 +2,7 @@ import os
 
 from lightning import CloudCompute, LightningApp, LightningFlow
 
-from quick_start.components import PyTorchLightningScript, ServeScript
+from quick_start.components import PyTorchLightningScript, ServeScript, DemoUI
 from quick_start.serve.serve import serve_script_path
 from quick_start.train.train import train_script_path
 
@@ -15,7 +15,7 @@ class RootFlow(LightningFlow):
         self.train = PyTorchLightningScript(
             script_path=train_script_path,
             script_args=[
-                "--trainer.max_epochs=4",
+                "--trainer.max_epochs=5",
                 "--trainer.limit_train_batches=4",
                 "--trainer.limit_val_batches=4",
                 "--trainer.callbacks=ModelCheckpoint",
@@ -29,6 +29,7 @@ class RootFlow(LightningFlow):
             exposed_ports={"serving": 1111},
             cloud_compute=CloudCompute("cpu", 1),
         )
+        self.demo = DemoUI()
 
     def run(self):
         # 1. Run the ``train_script_path`` that trains a PyTorch model.
@@ -39,13 +40,13 @@ class RootFlow(LightningFlow):
         if self.train.best_model_path:
             # 3. Serve the model until killed.
             self.serve.run(checkpoint_path=self.train.best_model_path)
-            self._exit("Hello World End")
+            self.demo.run(serve_url=self.serve.exposed_url("serving"))
 
     def configure_layout(self):
-        spinner_url = "https://pl-flash-data.s3.amazonaws.com/assets_lightning/large_spinner.gif"
         return [
-            {"name": "Wandb Run", "content": self.train.run_url or spinner_url},
-            {"name": "API", "content": self.serve.exposed_url("serving") + "/docs" if self.serve.has_started else spinner_url},
+            {"name": "Wandb Run", "content": self.train.run_url},
+            {"name": "Demo", "content": self.demo},
+            {"name": "API", "content": self.serve.exposed_url("serving") + "/docs"},
         ]
 
 

@@ -6,7 +6,7 @@ from pytorch_lightning.utilities.cli import LightningCLI
 from torch.nn import functional as F
 from torchmetrics import Accuracy
 from torchvision.datasets import MNIST
-from train.net import Net
+from quick_start.train.net import Net
 
 train_script_path = __file__
 
@@ -17,6 +17,14 @@ class ImageClassifier(LightningModule):
         self.save_hyperparameters(ignore="model")
         self.model = model or Net()
         self.val_acc = Accuracy()
+
+        checkpoint_path = os.path.join(os.path.dirname(__file__), "demo_weights")
+        if os.path.exists(checkpoint_path):
+            self.load_state_dict(torch.load(checkpoint_path).state_dict())
+
+    @property
+    def example_input_array(self):
+        return torch.zeros((1, 1, 28, 28))
 
     def forward(self, x):
         return self.model(x)

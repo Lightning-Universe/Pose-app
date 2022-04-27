@@ -1,0 +1,188 @@
+running sdist
+running egg_info
+writing lightning.egg-info/PKG-INFO
+writing dependency_links to lightning.egg-info/dependency_links.txt
+writing entry points to lightning.egg-info/entry_points.txt
+writing requirements to lightning.egg-info/requires.txt
+writing top-level names to lightning.egg-info/top_level.txt
+reading manifest file 'lightning.egg-info/SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no directories found matching 'wheelhouse'
+warning: no previously-included files matching '*.py[cod]' found under directory '__pycache__'
+warning: no previously-included files matching '*.orig' found under directory '__pycache__'
+warning: no previously-included files found matching 'local.py'
+warning: no files found matching '*.md' under directory 'lightning'
+warning: no files found matching 'lightning/demo/quick_start/requirements.txt'
+warning: no files found matching 'lightning/demo/quick_start/.lightning'
+warning: no previously-included files found matching '*.sh'
+warning: no previously-included files found matching '*.svg'
+warning: no previously-included files found matching '*.yml'
+warning: no previously-included files found matching '*.yaml'
+warning: no previously-included files found matching '*.html'
+warning: no previously-included files found matching '*.png'
+warning: no previously-included files found matching '*.jpg'
+warning: no previously-included files found matching '*.lightning'
+warning: no previously-included files matching '*' found under directory 'app_templates'
+warning: no previously-included files matching '*' found under directory 'site'
+warning: no previously-included files matching '*' found under directory 'hackathon'
+warning: no previously-included files matching '*' found under directory 'dockers'
+warning: no previously-included files found matching 'tests'
+warning: manifest_maker: MANIFEST.in, line 34: 'recursive-exclude' expects <dir> <pattern1> <pattern2> ...
+
+warning: manifest_maker: MANIFEST.in, line 35: 'recursive-exclude' expects <dir> <pattern1> <pattern2> ...
+
+warning: no previously-included files matching '*' found under directory 'demo'
+warning: no previously-included files found matching 'demo'
+warning: no previously-included files found matching 'dockers'
+warning: no previously-included files found matching '.dockerignore'
+warning: no previously-included files matching '*' found under directory 'docs'
+warning: no previously-included files found matching 'docs'
+warning: no previously-included files found matching 'Makefile'
+no previously-included directories found matching '.git'
+no previously-included directories found matching '.github'
+no previously-included directories found matching '.circleci'
+no previously-included directories found matching 'notebook*'
+no previously-included directories found matching 'temp*'
+no previously-included directories found matching 'test*'
+no previously-included directories found matching 'benchmark*'
+writing manifest file 'lightning.egg-info/SOURCES.txt'
+running check
+creating lightning-0.0.32
+creating lightning-0.0.32/lightning
+creating lightning-0.0.32/lightning.egg-info
+creating lightning-0.0.32/lightning/cli
+creating lightning-0.0.32/lightning/components
+creating lightning-0.0.32/lightning/components/python
+creating lightning-0.0.32/lightning/components/serve
+creating lightning-0.0.32/lightning/components/serve/types
+creating lightning-0.0.32/lightning/core
+creating lightning-0.0.32/lightning/frontend
+creating lightning-0.0.32/lightning/runners
+creating lightning-0.0.32/lightning/runners/backends
+creating lightning-0.0.32/lightning/storage
+creating lightning-0.0.32/lightning/testing
+creating lightning-0.0.32/lightning/ui
+creating lightning-0.0.32/lightning/ui/static
+creating lightning-0.0.32/lightning/ui/static/css
+creating lightning-0.0.32/lightning/ui/static/js
+creating lightning-0.0.32/lightning/ui/static/media
+creating lightning-0.0.32/lightning/utilities
+creating lightning-0.0.32/lightning/utilities/packaging
+creating lightning-0.0.32/requirements
+creating lightning-0.0.32/scripts
+copying files to lightning-0.0.32...
+copying CHANGELOG.md -> lightning-0.0.32
+copying LICENSE -> lightning-0.0.32
+copying MANIFEST.in -> lightning-0.0.32
+copying README.md -> lightning-0.0.32
+copying requirements.txt -> lightning-0.0.32
+copying setup.cfg -> lightning-0.0.32
+copying setup.py -> lightning-0.0.32
+copying lightning/__about__.py -> lightning-0.0.32/lightning
+copying lightning/__init__.py -> lightning-0.0.32/lightning
+copying lightning/__main__.py -> lightning-0.0.32/lightning
+copying lightning/setup_tools.py -> lightning-0.0.32/lightning
+copying lightning.egg-info/PKG-INFO -> lightning-0.0.32/lightning.egg-info
+copying lightning.egg-info/SOURCES.txt -> lightning-0.0.32/lightning.egg-info
+copying lightning.egg-info/dependency_links.txt -> lightning-0.0.32/lightning.egg-info
+copying lightning.egg-info/entry_points.txt -> lightning-0.0.32/lightning.egg-info
+copying lightning.egg-info/not-zip-safe -> lightning-0.0.32/lightning.egg-info
+copying lightning.egg-info/requires.txt -> lightning-0.0.32/lightning.egg-info
+copying lightning.egg-info/top_level.txt -> lightning-0.0.32/lightning.egg-info
+copying lightning/cli/__init__.py -> lightning-0.0.32/lightning/cli
+copying lightning/cli/lightning_cli.py -> lightning-0.0.32/lightning/cli
+copying lightning/components/python/__init__.py -> lightning-0.0.32/lightning/components/python
+copying lightning/components/python/popen.py -> lightning-0.0.32/lightning/components/python
+copying lightning/components/python/tracer.py -> lightning-0.0.32/lightning/components/python
+copying lightning/components/serve/__init__.py -> lightning-0.0.32/lightning/components/serve
+copying lightning/components/serve/gradio.py -> lightning-0.0.32/lightning/components/serve
+copying lightning/components/serve/serve.py -> lightning-0.0.32/lightning/components/serve
+copying lightning/components/serve/types/__init__.py -> lightning-0.0.32/lightning/components/serve/types
+copying lightning/components/serve/types/image.py -> lightning-0.0.32/lightning/components/serve/types
+copying lightning/components/serve/types/type.py -> lightning-0.0.32/lightning/components/serve/types
+copying lightning/core/__init__.py -> lightning-0.0.32/lightning/core
+copying lightning/core/constants.py -> lightning-0.0.32/lightning/core
+copying lightning/core/lightning_api.py -> lightning-0.0.32/lightning/core
+copying lightning/core/lightning_app.py -> lightning-0.0.32/lightning/core
+copying lightning/core/lightning_flow.py -> lightning-0.0.32/lightning/core
+copying lightning/core/lightning_work.py -> lightning-0.0.32/lightning/core
+copying lightning/core/queues.py -> lightning-0.0.32/lightning/core
+copying lightning/core/structures.py -> lightning-0.0.32/lightning/core
+copying lightning/frontend/__init__.py -> lightning-0.0.32/lightning/frontend
+copying lightning/frontend/frontend.py -> lightning-0.0.32/lightning/frontend
+copying lightning/frontend/stream_lit.py -> lightning-0.0.32/lightning/frontend
+copying lightning/frontend/streamlit_base.py -> lightning-0.0.32/lightning/frontend
+copying lightning/frontend/web.py -> lightning-0.0.32/lightning/frontend
+copying lightning/runners/__init__.py -> lightning-0.0.32/lightning/runners
+copying lightning/runners/cloud.py -> lightning-0.0.32/lightning/runners
+copying lightning/runners/multiprocess.py -> lightning-0.0.32/lightning/runners
+copying lightning/runners/runtime.py -> lightning-0.0.32/lightning/runners
+copying lightning/runners/runtime_type.py -> lightning-0.0.32/lightning/runners
+copying lightning/runners/singleprocess.py -> lightning-0.0.32/lightning/runners
+copying lightning/runners/backends/__init__.py -> lightning-0.0.32/lightning/runners/backends
+copying lightning/runners/backends/backend.py -> lightning-0.0.32/lightning/runners/backends
+copying lightning/runners/backends/cloud.py -> lightning-0.0.32/lightning/runners/backends
+copying lightning/runners/backends/docker.py -> lightning-0.0.32/lightning/runners/backends
+copying lightning/runners/backends/mp_process.py -> lightning-0.0.32/lightning/runners/backends
+copying lightning/storage/__init__.py -> lightning-0.0.32/lightning/storage
+copying lightning/storage/file_copier.py -> lightning-0.0.32/lightning/storage
+copying lightning/storage/orchestrator.py -> lightning-0.0.32/lightning/storage
+copying lightning/storage/path.py -> lightning-0.0.32/lightning/storage
+copying lightning/testing/__init__.py -> lightning-0.0.32/lightning/testing
+copying lightning/testing/config.py -> lightning-0.0.32/lightning/testing
+copying lightning/testing/helpers.py -> lightning-0.0.32/lightning/testing
+copying lightning/testing/testing.py -> lightning-0.0.32/lightning/testing
+copying lightning/ui/asset-manifest.json -> lightning-0.0.32/lightning/ui
+copying lightning/ui/index.html -> lightning-0.0.32/lightning/ui
+copying lightning/ui/static/favicon.svg -> lightning-0.0.32/lightning/ui/static
+copying lightning/ui/static/lightningState.js -> lightning-0.0.32/lightning/ui/static
+copying lightning/ui/static/manifest.json -> lightning-0.0.32/lightning/ui/static
+copying lightning/ui/static/robots.txt -> lightning-0.0.32/lightning/ui/static
+copying lightning/ui/static/css/main.7cd58241.css -> lightning-0.0.32/lightning/ui/static/css
+copying lightning/ui/static/css/main.7cd58241.css.map -> lightning-0.0.32/lightning/ui/static/css
+copying lightning/ui/static/js/787.418637a8.chunk.js -> lightning-0.0.32/lightning/ui/static/js
+copying lightning/ui/static/js/787.418637a8.chunk.js.map -> lightning-0.0.32/lightning/ui/static/js
+copying lightning/ui/static/js/main.f98fa659.js -> lightning-0.0.32/lightning/ui/static/js
+copying lightning/ui/static/js/main.f98fa659.js.LICENSE.txt -> lightning-0.0.32/lightning/ui/static/js
+copying lightning/ui/static/js/main.f98fa659.js.map -> lightning-0.0.32/lightning/ui/static/js
+copying lightning/ui/static/media/UCity-Light.8352e423a843d9a0c52a.otf -> lightning-0.0.32/lightning/ui/static/media
+copying lightning/ui/static/media/UCity-Regular.e28f5006c1976d08baaa.otf -> lightning-0.0.32/lightning/ui/static/media
+copying lightning/ui/static/media/UCity-Semibold.b37489cc447430fe4ba7.otf -> lightning-0.0.32/lightning/ui/static/media
+copying lightning/ui/static/media/lightning-logo-with-text.9c553257ab7566c17f2d9c2101dedb5c.svg -> lightning-0.0.32/lightning/ui/static/media
+copying lightning/utilities/__init__.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/app_helpers.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/apply_func.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/cloud.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/component.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/enum.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/exceptions.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/git.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/imports.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/introspection.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/layout.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/load_app.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/log.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/network.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/proxies.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/redis.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/state.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/tracer.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/tree.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/types.py -> lightning-0.0.32/lightning/utilities
+copying lightning/utilities/packaging/__init__.py -> lightning-0.0.32/lightning/utilities/packaging
+copying lightning/utilities/packaging/app_config.py -> lightning-0.0.32/lightning/utilities/packaging
+copying lightning/utilities/packaging/build_config.py -> lightning-0.0.32/lightning/utilities/packaging
+copying lightning/utilities/packaging/cloud_compute.py -> lightning-0.0.32/lightning/utilities/packaging
+copying lightning/utilities/packaging/docker.py -> lightning-0.0.32/lightning/utilities/packaging
+copying lightning/utilities/packaging/lightning_utils.py -> lightning-0.0.32/lightning/utilities/packaging
+copying requirements/cloud.txt -> lightning-0.0.32/requirements
+copying requirements/devel.txt -> lightning-0.0.32/requirements
+copying requirements/docs.txt -> lightning-0.0.32/requirements
+copying requirements/quick_start_app.txt -> lightning-0.0.32/requirements
+copying requirements/test.txt -> lightning-0.0.32/requirements
+copying requirements/ui.txt -> lightning-0.0.32/requirements
+copying scripts/delete_cloud_lightning_apps.py -> lightning-0.0.32/scripts
+copying scripts/download_frontend.py -> lightning-0.0.32/scripts
+Writing lightning-0.0.32/setup.cfg
+creating dist
+Creating tar archive

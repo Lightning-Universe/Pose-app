@@ -3,7 +3,7 @@ import base64
 import os
 import sys
 from io import BytesIO
-
+from time import time
 import torch
 import torchvision.transforms as T
 import uvicorn
@@ -11,14 +11,9 @@ from fastapi import FastAPI
 from fastapi.requests import Request
 from PIL import Image
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-from train.net import Net
-
 serve_script_path = __file__
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser("Server Parser")
     parser.add_argument(
         "--checkpoint_path", type=str, help="Where to find the `checkpoint_path`"
@@ -27,12 +22,9 @@ if __name__ == "__main__":
     hparams = parser.parse_args()
 
     fastapi_service = FastAPI()
-    model = Net()
-    checkpoint = torch.load(hparams.checkpoint_path)
-    state_dict = {
-        k.replace("model.", ""): v for k, v in checkpoint["state_dict"].items()
-    }
-    model.load_state_dict(state_dict)
+    model = torch.load(hparams.checkpoint_path)
+    for p in model.parameters():
+        p.requires_grad = False
     model.eval()
 
     def deserialize_image(data):
@@ -46,9 +38,12 @@ if __name__ == "__main__":
     @fastapi_service.post("/predict")
     async def predict(request: Request):
         body = await request.json()
+        t0 = time()
         data = body["payload"]["inputs"]["data"]
         img = deserialize_image(data)
-        return model(img).argmax().item()
+        res = model(img).argmax().item()
+        t1 = time()
+        return {"process_time": t1 - t0, "prediction": res}
 
     print(f"Running the Serve Serve on port {hparams.port}")
 

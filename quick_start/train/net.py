@@ -27,3 +27,8 @@ class Net(nn.Module):
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
         return output
+
+if __name__ == "__main__":
+    net = Net()
+    output = net(torch.zeros((1, 1, 28, 28)))
+    print(output)

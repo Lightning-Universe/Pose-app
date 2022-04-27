@@ -1,5 +1,8 @@
 lightning_logs
 data
+data/*
 .shared
 *.ckpt
 .shared
+data/*
+*egg-info/*
