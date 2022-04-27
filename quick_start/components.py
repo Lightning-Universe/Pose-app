@@ -123,7 +123,7 @@ def render_fn(state: AppState):
         MNIST('./data', download=True)
         state.data_downloaded = True
 
-    st.write(f"The *Demo Tab* is running StreamLit UI within an Iframe. Every 0.5 second, this machine makes a request with following image to the endpoint {state.serve_url} serving the trained model with FastAPI. The *API Tab* shows the Fast API Swagger UI.")
+    st.write(f"The *Demo Tab* is running StreamLit UI within an Iframe. Every 0.5 second, this machine makes a request with following image to the endpoint {state.serve_url} serving the trained model with FastAPI. The *API Tab* shows the Fast API Swagger UI (https://swagger.io/tools/swagger-ui/).")
 
     correct = state.correct
     total = state.total
