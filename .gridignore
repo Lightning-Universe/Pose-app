@@ -3,6 +3,10 @@ data
 data/*
 .shared
 *.ckpt
-.shared
-data/*
+*.shared*
+*data*
+*.git*
+*MNIST*
+*artifacts*
 *egg-info/*
+*model_weight.pt*
