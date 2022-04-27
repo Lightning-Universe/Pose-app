@@ -10,3 +10,4 @@ data/*
 *artifacts*
 *egg-info/*
 *model_weight.pt*
+*lightning-quick-start-quick_start_train*

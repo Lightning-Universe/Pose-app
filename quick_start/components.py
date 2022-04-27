@@ -16,11 +16,13 @@ from time import time, sleep
 from torchmetrics import Accuracy
 from torchvision.datasets import MNIST
 from lightning.storage import Path
-from lightning.storage.path import Path
 from lightning import LightningFlow
 from lightning.components.python import PopenPythonScript, TracerPythonScript
+from lightning.components.serve import ServeGradio
 from lightning.frontend import StreamlitFrontend
 from lightning.utilities.state import AppState
+import gradio as gr
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,36 @@ class PyTorchLightningScript(TracerPythonScript):
         lightning_module.load_state_dict(checkpoint["state_dict"])
         lightning_module.to_torchscript("model_weight.pt")
         self.best_model_path = Path("model_weight.pt")
+
+class ImageServeGradio(ServeGradio):
+
+    inputs = gr.inputs.Image(type="pil", shape=(28, 28))
+    outputs = gr.outputs.Label(num_top_classes=10)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.examples = [os.path.join("./images", f) for f in os.listdir("./images")]
+        self.best_model_path = None
+        self._transform = None
+        self._labels = {idx: str(idx) for idx in range(10)}
+
+    def run(self, best_model_path):
+        self.best_model_path = best_model_path
+        self._transform = T.Compose([T.Resize((28, 28)), T.ToTensor()])
+        super().run()
+
+    def predict(self, img):
+        img = self._transform(img)[0]
+        img = img.unsqueeze(0).unsqueeze(0)
+        prediction = torch.exp(self.model(img))
+        return {self._labels[i]: prediction[0][i].item() for i in range(10)}
+
+    def build_model(self):
+        model = torch.load(self.best_model_path)
+        for p in model.parameters():
+            p.requires_grad = False
+        model.eval()
+        return model
 
 
 class ServeScript(PopenPythonScript):
