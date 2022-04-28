@@ -1,7 +1,5 @@
 import os
-
 from lightning import CloudCompute, LightningApp, LightningFlow
-
 from quick_start.components import PyTorchLightningScript, ImageServeGradio
 from quick_start.train.train import train_script_path
 
@@ -35,7 +33,7 @@ class RootFlow(LightningFlow):
         # 2. Will be True when a checkpoint is created by the ``train_script_path``
         # and added to the train work state.
         if self.train.best_model_path:
-            # 3. Serve the model until killed.
+            # 3. Serve the model forever.
             self.serve_demo.run(self.train.best_model_path)
 
     def configure_layout(self):
@@ -44,5 +42,5 @@ class RootFlow(LightningFlow):
             {"name": "Gradio Demo", "content": self.serve_demo.exposed_url('server')},
         ]
 
-
-app = LightningApp(RootFlow(use_gpu=bool(int(os.getenv("USE_GPU", "0")))))
+use_gpu= bool(int(os.getenv("USE_GPU", "0")))
+app = LightningApp(RootFlow(use_gpu=use_gpu))
