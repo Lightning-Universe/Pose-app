@@ -1,26 +1,14 @@
 import logging
 import os
-import sys
 import warnings
-from typing import Dict
 from functools import partial
-import streamlit as st
-import requests
-from PIL import Image
-from io import BytesIO
 import torch
 import torchvision.transforms as T
-import numpy as np
-import base64
-from time import time, sleep
-from torchmetrics import Accuracy
 from torchvision.datasets import MNIST
 from lightning.storage import Path
-from lightning.storage.path import Path
-from lightning import LightningFlow
-from lightning.components.python import PopenPythonScript, TracerPythonScript
-from lightning.frontend import StreamlitFrontend
-from lightning.utilities.state import AppState
+from lightning.components.python import TracerPythonScript
+from lightning.components.serve import ServeGradio
+import gradio as gr
 
 logger = logging.getLogger(__name__)
 
@@ -67,99 +55,32 @@ class PyTorchLightningScript(TracerPythonScript):
         lightning_module.to_torchscript("model_weight.pt")
         self.best_model_path = Path("model_weight.pt")
 
+class ImageServeGradio(ServeGradio):
 
-class ServeScript(PopenPythonScript):
-    def __init__(self, *args, exposed_ports: Dict[str, int], **kwargs):
-        assert len(exposed_ports) == 1
-        super().__init__(
-            *args,
-            script_args=[f"--port={list(exposed_ports.values())[0]}"],
-            exposed_ports=exposed_ports,
-            blocking=False,
-            raise_exception=True,
-            **kwargs,
-        )
+    inputs = gr.inputs.Image(type="pil", shape=(28, 28))
+    outputs = gr.outputs.Label(num_top_classes=10)
 
-    def run(self, checkpoint_path: Path) -> None:
-        logger.info(f"Running serve_script: {self.script_path}")
-        self.script_args.append(f"--checkpoint_path={str(checkpoint_path)}")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.examples = [os.path.join("./images", f) for f in os.listdir("./images")]
+        self.best_model_path = None
+        self._transform = None
+        self._labels = {idx: str(idx) for idx in range(10)}
+
+    def run(self, best_model_path):
+        self.best_model_path = best_model_path
+        self._transform = T.Compose([T.Resize((28, 28)), T.ToTensor()])
         super().run()
 
+    def predict(self, img):
+        img = self._transform(img)[0]
+        img = img.unsqueeze(0).unsqueeze(0)
+        prediction = torch.exp(self.model(img))
+        return {self._labels[i]: prediction[0][i].item() for i in range(10)}
 
-class DemoUI(LightningFlow):
-
-    def __init__(self):
-        super().__init__()
-        self.data_downloaded = False
-        self.requests_count = 0
-        self.serve_url = None
-        self.correct = 0
-        self.total = 0
-
-    def run(self, serve_url: str):
-        self.serve_url = f"{serve_url}/predict"
-
-    def configure_layout(self):
-        return StreamlitFrontend(render_fn=render_fn)
-
-
-@st.experimental_memo
-def load_dataset():
-    dataset = MNIST("./data", train=True)
-    return dataset, len(dataset)
-
-def make_request(image, serve_url: str):
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("UTF-8")
-    body = {"session": "UUID", "payload": {"inputs": {"data": img_str}}}
-    t0 = time()
-    resp = requests.post(serve_url, json=body)
-    t1 = time()
-    return {"response": resp.json(), "request_time": t1 - t0}
-
-def render_fn(state: AppState):
-    if not state.data_downloaded:
-        MNIST('./data', download=True)
-        state.data_downloaded = True
-
-    with st.expander("Explication"):
-        st.write(f"The *Demo Tab* is running StreamLit UI within an Iframe.")
-        st.write("Every 0.5 second, this machine makes a request with following image to the endpoint created by the ServeScript Component.")
-        st.write(f"The endpoint URL is {state.serve_url} and it serves the previously trained model with FastAPI")
-        st.write("The *API Tab* shows the Fast API Swagger UI associated with the Endpoint (https://swagger.io/tools/swagger-ui/).")
-
-    correct = state.correct
-    total = state.total
-
-    if total != 0:
-         st.write(f"The current model accuracy is {100 * round(correct / float(total), 2)} % with {correct} / {total} requests made.")
-
-    dataset, L = load_dataset()
-    random_idx = np.random.choice(range(L))
-    image, label = dataset[random_idx]
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.image(image, width=250)
-
-    with col2:
-        if not state.serve_url:
-            st.write("The Server isn't available")
-            return
-        try:
-            response = make_request(image, state.serve_url)
-        except JSONDecodeError:
-            st.write("The Server isn't available")
-            return
-
-        pred = response["response"]["prediction"]
-        state.total = state.total + 1
-        if pred == label:
-            state.correct = state.correct + 1
-        state.requests_count = state.requests_count + 1
-        st.write("Received Prediction")
-        st.json(response)
-        sleep(0.5)
-        st.experimental_rerun()
+    def build_model(self):
+        model = torch.load(self.best_model_path)
+        for p in model.parameters():
+            p.requires_grad = False
+        model.eval()
+        return model
