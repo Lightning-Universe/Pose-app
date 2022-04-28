@@ -62,12 +62,13 @@ class ImageServeGradio(ServeGradio):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.examples = [os.path.join("./images", f) for f in os.listdir("./images")]
+        self.examples = None
         self.best_model_path = None
         self._transform = None
         self._labels = {idx: str(idx) for idx in range(10)}
 
     def run(self, best_model_path):
+        self.examples = [os.path.join("./images", f) for f in os.listdir("./images")]
         self.best_model_path = best_model_path
         self._transform = T.Compose([T.Resize((28, 28)), T.ToTensor()])
         super().run()
