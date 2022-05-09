@@ -9,7 +9,7 @@ import yaml
 def hydra_config(language="yaml"):
   basename = st.session_state.hydra_config[0]
   filename = st.session_state.hydra_config[1]
-  st.write(f"selectbox {st.session_state}")
+  logging.debug(f"selectbox {st.session_state}")
   if basename in st.session_state:
     content_raw = st.session_state[basename]
   else:
@@ -47,10 +47,6 @@ def run(dir='.', filter='*.yaml',options=[]):
   st.selectbox("override hydra config", options, key="hydra_config", format_func=show_basename)  
 
   options = hydra_config()
-
-  st.write(f"selectbox {st.session_state}")
-
-  return("exit")
 
 if __name__ == '__main__':
   fire.Fire(run)
