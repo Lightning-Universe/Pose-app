@@ -1,5 +1,9 @@
-torchvision
-pytorch_lightning>=1.6.0
-jsonargparse[signatures]>=4.3.0
-wandb
-gradio
+fire
+fiftyone
+tensorboard
+# streamlit
+streamlit
+streamlit_autorefresh
+watchdog
+# streamlit editor
+streamlit-ace

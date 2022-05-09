@@ -1,46 +1,127 @@
 import os
-from lightning import CloudCompute, LightningApp, LightningFlow
-from quick_start.components import PyTorchLightningScript, ImageServeGradio
-from quick_start.train.train import train_script_path
+
+from lightning.frontend import StreamlitFrontend
+from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
+from lightning.components.python import TracerPythonScript
+from lightning.storage.path import Path
+import logging
+
+from lightning.components.python import TracerPythonScript
+import streamlit as st
+from lightning.utilities.state import AppState
+
+script_fo = TracerPythonScript(
+  script_path = "run_fo.py",
+  script_args = ["--address","0.0.0.0"],
+  env = None,
+  cloud_compute = None,
+  blocking = False,
+  run_once = True,
+  exposed_ports = {"server": 5151},
+  raise_exception = True,
+  )
+
+script_tb = TracerPythonScript(
+  script_path = "run_tb.py",
+  script_args = ["--server","0.0.0.0"],
+  env = None,
+  cloud_compute = None,
+  blocking = False,
+  run_once = True,
+  exposed_ports = {"server": 6006},
+  raise_exception = True,
+  )
+
+script_train = TracerPythonScript(
+  script_path = "scripts/train_hydra.py",
+  script_args = None,
+  env = None,
+  cloud_compute = None,
+  blocking = True,
+  run_once = True,
+  exposed_ports = None,
+  raise_exception = True,
+  )
 
 
-class RootFlow(LightningFlow):
-    def __init__(self, use_gpu: bool = False):
+class ScriptUI(LightningFlow):
+    def __init__(self):
         super().__init__()
-        # Those are custom components for demo purposes
-        # and you can modify them or create your own.
-        self.train = PyTorchLightningScript(
-            script_path=train_script_path,
-            script_args=[
-                "--trainer.max_epochs=5",
-                "--trainer.limit_train_batches=4",
-                "--trainer.limit_val_batches=4",
-                "--trainer.callbacks=ModelCheckpoint",
-                "--trainer.callbacks.monitor=val_acc",
-            ],
-            cloud_compute=CloudCompute("gpu" if use_gpu else "cpu", 1),
-        )
+        self.script_arg = None  # must match state.script_arg in _render_streamlit_fn
+        self.script_env = None  # must exist state.script_env in _render_streamlit_fn
 
-        self.serve_demo = ImageServeGradio(
-            exposed_ports={"server": 1111},
-            cloud_compute=CloudCompute("cpu", 1),
-        )
-
-    def run(self):
-        # 1. Run the ``train_script_path`` that trains a PyTorch model.
-        self.train.run()
-
-        # 2. Will be True when a checkpoint is created by the ``train_script_path``
-        # and added to the train work state.
-        if self.train.best_model_path:
-            # 3. Serve the model forever.
-            self.serve_demo.run(self.train.best_model_path)
+    def run(self, destination_dir: str):
+        self.destination_dir = destination_dir
 
     def configure_layout(self):
-        return [
-            {"name": "WandB Run", "content": self.train.run_url},
-            {"name": "Gradio Demo", "content": self.serve_demo.exposed_url('server')},
-        ]
+        return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
-use_gpu= bool(int(os.getenv("USE_GPU", "0")))
-app = LightningApp(RootFlow(use_gpu=use_gpu))
+def file_selector(form, dir='.'):
+  filenames = os.listdir(dir)
+  selected_filename = form.selectbox('Select a file', filenames)
+  return os.path.join(dir, selected_filename)
+
+def _render_streamlit_fn(state: AppState, dir="./"):
+  """Display YAML file and return arguments and env variable fields
+
+  :dir (str): dir name to pull the yaml file from
+  :return (dict): {'script_arg':script_arg, 'script_env':script_env}
+  """
+  form = st
+
+  script_arg = form.text_input('Script Args',placeholder="training.max_epochs=11")
+  script_env = form.text_input('Script Env Vars')
+
+  filename = file_selector(form=form, dir=dir)
+  form.write('You selected `%s`' % filename)
+
+  submit_button = form.button('Train')
+  submit_button = form.button('Config')
+
+  try:
+    with open(filename) as input:
+      content_raw = input.read()
+      # view https://github.com/okld/streamlit-ace/blob/main/streamlit_ace/__init__.py 
+      content_new = st_ace(value=content_raw, language="yaml")
+  except FileNotFoundError:
+    form.error('File not found.')
+  except Exception:  
+    form.error("can't process select item.")
+
+  if submit_button:
+    state.script_arg = script_arg
+    state.script_env = script_env
+  
+class App(LightningFlow):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.script_fo = script_fo
+    self.script_tb = script_tb
+    self.script_ui = ScriptUI()
+    self.script_train = script_train
+
+  def run(self):
+    self.script_fo.run()
+    self.script_tb.run()
+    if self.script_ui.script_arg is not None:
+      print("self.script_train.run()")
+      self.script_train.script_args = self.script_ui.script_arg
+      self.script_train.script_env = self.script_ui.script_env
+      self.script_train.run()
+
+  def configure_layout(self):
+    tab1 = { "name": "Train Lightning Pose", "content": self.script_ui }
+
+    if self.script_fo.has_started:
+      tab2 = {"name": "Fiftyone", "content": self.script_fo.exposed_url('server')}
+    else:
+      tab2 = {"name": "Fiftyone", "content": ""}
+
+    if self.script_tb.has_started:
+      tab3 = {"name": "Tensorboard", "content": self.script_tb.exposed_url('server')}
+    else:
+      tab3 = {"name": "Tensorboard", "content": ""}
+
+    return[tab1, tab2, tab3]  
+
+app = LightningApp(App())
