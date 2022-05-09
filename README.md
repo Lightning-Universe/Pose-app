@@ -69,3 +69,15 @@ lightning run app app.py --cloud
 ```
 USE_GPU=1 lightning run app app.py --cloud
 ```
+
+# Unit Test
+
+Each of the individual components can be tested individually before `LightingFlow` is used to stitched into `Lightning App`
+
+- arguments: `python -m streamlit run script_args_editconfig.py -- --dir ~lightning-pose/scripts/configs`
+  ![hydra config select](./static/script_args_hydra.png)
+  ![hydra config edit](./static/script_args_hydra_edit.png)
+- tensorboard: `python run_fo.py`
+  ![tb](./static/tb.png)  
+- fiftyone: `python run_tb.py`
+- ![fo](./static/fo.png)
