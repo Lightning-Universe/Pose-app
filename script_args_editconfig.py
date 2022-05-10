@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import yaml
 from lightning.utilities.state import AppState
+from deepdiff import DeepDiff
 
 def hydra_config(language="yaml"):
   basename = st.session_state.hydra_config[0]
@@ -24,6 +25,10 @@ def hydra_config(language="yaml"):
   content_new = st_ace(value=content_raw, language=language)
   if content_raw != content_new:
     st.write("content changed")
+    old_yaml = yaml.safe_load(content_raw)
+    new_yaml = yaml.safe_load(content_new)
+    ddiff = DeepDiff(old_yaml, new_yaml, ignore_order=True)
+    st.write(ddiff)
     st.session_state[basename] = content_new
 
 def run(script_dir=None, script_name=None, config_dir=None, config_ext=None):

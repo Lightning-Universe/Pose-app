@@ -15,13 +15,13 @@ def generate_log(dataset_name):
       writer.add_scalar('y=-log(x) + c + 0.1sin(x)', y, x)
       writer.add_scalar('fake_metric', -y, x)
 
-def run(dataset_name:str = None, host:str ='0.0.0.0', port:str ='default'):
-  if dataset_name is None:
-     dataset_name = "lightning_logs/hello"
-     generate_log(dataset_name)
+def run(logdir:str = None, host:str ='0.0.0.0', port:str ='default'):
+  if logdir is None:
+     logdir = "lightning_logs/hello"
+     generate_log(logdir)
 
   tb = program.TensorBoard()
-  tb.configure(argv=[None, '--port', port, '--host', host, '--logdir', dataset_name])
+  tb.configure(argv=[None, '--port', port, '--host', host, '--logdir', logdir])
   url = tb.launch()
   print(f"Tensorflow listening on {url}")
   signal.pause()

@@ -1,5 +1,5 @@
 import os
-
+from typing import Any, Dict, Optional, Union
 from lightning.frontend import StreamlitFrontend
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning.components.python import TracerPythonScript
@@ -17,6 +17,7 @@ import fire
 import logging
 from pathlib import Path
 import yaml
+import shlex
 
 script_fo = TracerPythonScript(
   script_path = "run_fo.py",
@@ -31,7 +32,7 @@ script_fo = TracerPythonScript(
 
 script_tb = TracerPythonScript(
   script_path = "run_tb.py",
-  script_args = ["--server","0.0.0.0"],
+  script_args = ["--server=0.0.0.0","--logdir=./"],
   env = None,
   cloud_compute = None,
   blocking = False,
@@ -40,16 +41,15 @@ script_tb = TracerPythonScript(
   raise_exception = True,
   )
 
-script_train = TracerPythonScript(
-  script_path = "/Users/robertlee/github/mnist-hydra-grid/mnist-hydra-01.py",
-  script_args = None,
-  env = None,
-  cloud_compute = None,
-  blocking = True,
-  run_once = True,
-  exposed_ports = None,
-  raise_exception = True,
-  )
+class ScriptTrain(TracerPythonScript):
+  def __init__(self,*args, **kwargs):
+    super().__init__(*args, **kwargs)
+  def run(self,script_path: str, script_args: str = None, script_env: Optional[Dict] = None):
+    self.script_path = script_path
+    self.script_args = shlex.split(script_args, posix=False)
+    self.env = script_env
+    print(f"{self.script_path} {self.script_args} {self.env}")
+    super().run()
 
 class ScriptUI(LightningFlow):
   def __init__(self):
@@ -136,16 +136,18 @@ class App(LightningFlow):
     self.script_fo = script_fo
     self.script_tb = script_tb
     self.script_ui = ScriptUI()
-    self.script_train = script_train
+    self.script_train = ScriptTrain(
+      script_path="/Users/robertlee/github/mnist-hydra-grid/mnist-hydra-01.py",
+      blocking=True)
 
   def run(self):
     self.script_fo.run()
     self.script_tb.run()
     if self.script_ui.st_train:
-      self.script_train.script_path = os.path.join(self.script_ui.st_script_dir, self.script_ui.st_script_name)
-      self.script_train.script_args = self.script_ui.st_script_arg  
-      self.script_train.env = self.script_ui.st_script_env
-      self.script_train.run()
+      self.script_train.run(
+        script_path=os.path.join(self.script_ui.st_script_dir, self.script_ui.st_script_name),
+        script_args = self.script_ui.st_script_arg,
+        script_env = self.script_ui.st_script_env)
 
   def configure_layout(self):
     tab1 = { "name": "Lightning Pose Param", "content": self.script_ui }

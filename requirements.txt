@@ -14,3 +14,5 @@ torchvision
 git+https://github.com/pytorch/hydra-torch
 hydra-joblib-launcher
 omegaconf
+# misc
+deepdiff
