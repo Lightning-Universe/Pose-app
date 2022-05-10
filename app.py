@@ -10,6 +10,14 @@ from lightning.components.python import TracerPythonScript
 import streamlit as st
 from lightning.utilities.state import AppState
 
+import os
+import streamlit as st
+from streamlit_ace import st_ace
+import fire
+import logging
+from pathlib import Path
+import yaml
+
 script_fo = TracerPythonScript(
   script_path = "run_fo.py",
   script_args = ["--address","0.0.0.0"],
@@ -33,7 +41,7 @@ script_tb = TracerPythonScript(
   )
 
 script_train = TracerPythonScript(
-  script_path = "scripts/train_hydra.py",
+  script_path = "/Users/robertlee/github/mnist-hydra-grid/mnist-hydra-01.py",
   script_args = None,
   env = None,
   cloud_compute = None,
@@ -43,23 +51,46 @@ script_train = TracerPythonScript(
   raise_exception = True,
   )
 
-
 class ScriptUI(LightningFlow):
-    def __init__(self):
-        super().__init__()
-        self.script_arg = None  # must match state.script_arg in _render_streamlit_fn
-        self.script_env = None  # must exist state.script_env in _render_streamlit_fn
+  def __init__(self):
+    super().__init__()
+    # input to UI
+    self.script_dir = "/Users/robertlee/github/mnist-hydra-grid"
+    self.script_name = "mnist-hydra-01.py"
+    self.config_dir = "/Users/robertlee/github/mnist-hydra-grid"
+    self.config_ext = "*.yaml"
+    # output from the UI
+    self.st_train      = False
+    self.st_script_dir = None
+    self.st_script_name = None
+    self.st_script_arg = None    # must match state.script_arg in _render_streamlit_fn
+    self.st_script_env = None    # must exist state.script_env in _render_streamlit_fn
+    self.st_config     = None # must exist state.script_env in _render_streamlit_fn
 
-    def run(self, destination_dir: str):
-        self.destination_dir = destination_dir
+  def run(self, destination_dir: str):
+    self.destination_dir = destination_dir
 
-    def configure_layout(self):
-        return StreamlitFrontend(render_fn=_render_streamlit_fn)
+  def configure_layout(self):
+    return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
-def file_selector(form, dir='.'):
-  filenames = os.listdir(dir)
-  selected_filename = form.selectbox('Select a file', filenames)
-  return os.path.join(dir, selected_filename)
+def hydra_config(language="yaml"):
+  basename = st.session_state.hydra_config[0]
+  filename = st.session_state.hydra_config[1]
+  logging.debug(f"selectbox {st.session_state}")
+  if basename in st.session_state:
+    content_raw = st.session_state[basename]
+  else:
+    try:
+      with open(filename) as input:
+        content_raw = input.read()  
+    except FileNotFoundError:
+      st.error('File not found.')
+    except Exception as err:  
+      st.error(f"can't process select item. {err}")      
+  content_new = st_ace(value=content_raw, language=language)
+  if content_raw != content_new:
+    st.write("content changed")
+    st.session_state[basename] = content_new
 
 def _render_streamlit_fn(state: AppState, dir="./"):
   """Display YAML file and return arguments and env variable fields
@@ -67,31 +98,38 @@ def _render_streamlit_fn(state: AppState, dir="./"):
   :dir (str): dir name to pull the yaml file from
   :return (dict): {'script_arg':script_arg, 'script_env':script_env}
   """
-  form = st
+  st_script_dir = st.text_input('Script Dir', value=state.script_dir or ".")
+  st_script_name = st.text_input('Script Name', value=state.script_name or "run.py")
 
-  script_arg = form.text_input('Script Args',placeholder="training.max_epochs=11")
-  script_env = form.text_input('Script Env Vars')
+  st_config_dir = st.text_input('Dir of Hydra YAMLs', value=state.config_dir or ".")
+  st_config_ext = st.text_input('YAML Extensions', value=state.config_ext or "*.yaml")
 
-  filename = file_selector(form=form, dir=dir)
-  form.write('You selected `%s`' % filename)
+  options = []
+  if not options:
+    print("building options")
+    for file in Path(st_config_dir).rglob(st_config_ext):
+      basename = os.path.basename(file)
+      options.append([basename, str(file)])
 
-  submit_button = form.button('Train')
-  submit_button = form.button('Config')
+  st_script_arg = st.text_input('Script Args', placeholder="training.max_epochs=11")
 
-  try:
-    with open(filename) as input:
-      content_raw = input.read()
-      # view https://github.com/okld/streamlit-ace/blob/main/streamlit_ace/__init__.py 
-      content_new = st_ace(value=content_raw, language="yaml")
-  except FileNotFoundError:
-    form.error('File not found.')
-  except Exception:  
-    form.error("can't process select item.")
+  st_script_env = st.text_input('Script Env Vars')
 
-  if submit_button:
-    state.script_arg = script_arg
-    state.script_env = script_env
+  show_basename = lambda opt: opt[0]
+  st.selectbox("override hydra config", options, key="hydra_config", format_func=show_basename)  
+
+  st_submit_button = st.button('Train')
+
+  options = hydra_config()
   
+  if st_submit_button:
+    state.st_script_dir = st_script_dir
+    state.st_script_name = st_script_name
+
+    state.st_script_arg = st_script_arg
+    state.st_script_env = st_script_env
+    state.st_train       = True           # must the last to prevent race condition
+
 class App(LightningFlow):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
@@ -103,14 +141,14 @@ class App(LightningFlow):
   def run(self):
     self.script_fo.run()
     self.script_tb.run()
-    if self.script_ui.script_arg is not None:
-      print("self.script_train.run()")
-      self.script_train.script_args = self.script_ui.script_arg
-      self.script_train.script_env = self.script_ui.script_env
+    if self.script_ui.st_train:
+      self.script_train.script_path = os.path.join(self.script_ui.st_script_dir, self.script_ui.st_script_name)
+      self.script_train.script_args = self.script_ui.st_script_arg  
+      self.script_train.env = self.script_ui.st_script_env
       self.script_train.run()
 
   def configure_layout(self):
-    tab1 = { "name": "Train Lightning Pose", "content": self.script_ui }
+    tab1 = { "name": "Lightning Pose Param", "content": self.script_ui }
 
     if self.script_fo.has_started:
       tab2 = {"name": "Fiftyone", "content": self.script_fo.exposed_url('server')}

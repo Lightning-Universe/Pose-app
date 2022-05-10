@@ -7,3 +7,10 @@ streamlit_autorefresh
 watchdog
 # streamlit editor
 streamlit-ace
+# hydra
+hydra-core
+torch
+torchvision
+git+https://github.com/pytorch/hydra-torch
+hydra-joblib-launcher
+omegaconf
