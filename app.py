@@ -74,9 +74,9 @@ class ScriptUI(LightningFlow):
   def __init__(self,*args,**kwargs):
     super().__init__(*args,**kwargs)
     # input to UI
-    self.script_dir = "/Users/robertlee/github/mnist-hydra-grid"
-    self.script_name = "mnist-hydra-01.py"
-    self.config_dir = "/Users/robertlee/github/mnist-hydra-grid"
+    self.script_dir = "./"
+    self.script_name = "app.py"
+    self.config_dir = "./"
     self.config_ext = "*.yaml"
     # output from the UI
     self.st_train      = False
@@ -155,7 +155,7 @@ class App(LightningFlow):
     self.script_tb = script_tb
     self.script_ui = ScriptUI()
     self.script_train = ScriptTrain(
-      script_path="/Users/robertlee/github/mnist-hydra-grid/mnist-hydra-01.py",
+      script_path="./app.py",
       blocking=True)
 
   def run(self):
