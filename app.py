@@ -26,7 +26,7 @@ script_fo = TracerPythonScript(
   cloud_compute = None,
   blocking = False,
   run_once = True,
-  exposed_ports = {"server": 5151},
+  port = 5151,
   raise_exception = True,
   )
 
@@ -43,7 +43,7 @@ script_tb = TracerPythonScript(
   cloud_compute = None,
   blocking = False,
   run_once = True,
-  exposed_ports = {"server": 6006},
+  port = 6006,
   raise_exception = True,
   )
 
@@ -171,12 +171,12 @@ class App(LightningFlow):
     tab1 = { "name": "Lightning Pose Param", "content": self.script_ui }
 
     if self.script_fo.has_started:
-      tab2 = {"name": "Fiftyone", "content": self.script_fo.exposed_url('server')}
+      tab2 = {"name": "Fiftyone", "content": f"http://127.0.0.1:{self.script_fo.port}" }
     else:
       tab2 = {"name": "Fiftyone", "content": ""}
 
     if self.script_tb.has_started:
-      tab3 = {"name": "Tensorboard", "content": self.script_tb.exposed_url('server')}
+      tab3 = {"name": "Tensorboard", "content": f"http://127.0.0.1:{self.script_tb.port}" }
     else:
       tab3 = {"name": "Tensorboard", "content": ""}
 
