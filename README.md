@@ -37,15 +37,16 @@ Following the instructions here:
 ```bash
 git clone https://github.com/PyTorchLightning/lightning.beta.git
 ```
+Move into folder
+```bash
+cd lightning.beta
+```
 Install dependencies:
 ```bash
 pip install -r requirements.txt
 pip install -e .
 ```
-Move into folder
-```bash
-cd lightning
-```
+
 Download the `lightning` UI:
 ```bash
 python scripts/download_frontend.py
@@ -55,7 +56,9 @@ python scripts/download_frontend.py
 
 In order to run the application locally, run the following commands
 
-```
+```bash
+git clone https://github.com/PyTorchLightning/lightning-pose-app.git
+cd lightning-pose-app
 pip install -r requirements.txt
 lightning run app app.py
 ```
