@@ -49,19 +49,16 @@ python scripts/download_frontend.py
 
 In order to run the application locally, run the following commands
 
-```
+```bash
+cd lightning-pose-app
 pip install -r requirements.txt
 lightning run app app.py
 ```
 
-### Cloud
-
-In order to run the application cloud, run the following commands
-
 ### On CPU
 
 ```
-lightning run app app.py --cloud
+lightning run app app.py
 ```
 
 ### On GPU
