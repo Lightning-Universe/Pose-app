@@ -8,6 +8,7 @@ import yaml
 from lightning.utilities.state import AppState
 from deepdiff import DeepDiff
 
+
 def hydra_config(language="yaml"):
   basename = st.session_state.hydra_config[0]
   filename = st.session_state.hydra_config[1]

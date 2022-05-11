@@ -30,6 +30,12 @@ script_fo = TracerPythonScript(
   raise_exception = True,
   )
 
+class ScriptTB(TracerPythonScript):
+  def __init__(self,*args, **kwargs):
+    super().__init__(*args, **kwargs)  
+  def run(self,script_path: str="run_tb.py", script_args: str = "--logdir=./", script_env: str  = None):
+    pass
+
 script_tb = TracerPythonScript(
   script_path = "run_tb.py",
   script_args = ["--server=0.0.0.0","--logdir=./"],
@@ -42,18 +48,31 @@ script_tb = TracerPythonScript(
   )
 
 class ScriptTrain(TracerPythonScript):
+  """Run a training script given arguments
+    Args:
+      script_path: ex: run.py
+      script_args: ex: --name me --dir ./
+      script_env: ex: user=xxx password=123}
+  """
   def __init__(self,*args, **kwargs):
     super().__init__(*args, **kwargs)
-  def run(self,script_path: str, script_args: str = None, script_env: Optional[Dict] = None):
+  def run(self,script_path: str, script_args: str = None, script_env: str  = None):
     self.script_path = script_path
-    self.script_args = shlex.split(script_args, posix=False)
-    self.env = script_env
+    self.script_args = shlex.split(script_args)
+    self.env = {} 
+    for x in shlex.split(script_env):
+      k,v = x.split("=",2)
+      self.env[k]=v
     print(f"{self.script_path} {self.script_args} {self.env}")
     super().run()
 
 class ScriptUI(LightningFlow):
-  def __init__(self):
-    super().__init__()
+  """UI to enter training parameters
+    Input and output variables with streamlit must be pre decleared
+
+  """  
+  def __init__(self,*args,**kwargs):
+    super().__init__(*args,**kwargs)
     # input to UI
     self.script_dir = "/Users/robertlee/github/mnist-hydra-grid"
     self.script_name = "mnist-hydra-01.py"
@@ -101,8 +120,11 @@ def _render_streamlit_fn(state: AppState, dir="./"):
   st_script_dir = st.text_input('Script Dir', value=state.script_dir or ".")
   st_script_name = st.text_input('Script Name', value=state.script_name or "run.py")
 
-  st_config_dir = st.text_input('Dir of Hydra YAMLs', value=state.config_dir or ".")
-  st_config_ext = st.text_input('YAML Extensions', value=state.config_ext or "*.yaml")
+  st_config_dir = st.text_input('Config Dir', value=state.config_dir or ".")
+  st_config_ext = st.text_input('Config File Extensions', value=state.config_ext or "*.yaml")
+
+  st_script_arg = st.text_input('Script Args', placeholder="training.max_epochs=11")
+  st_script_env = st.text_input('Script Env Vars', placeholder="ABC=123 DEF=345")
 
   options = []
   if not options:
@@ -110,11 +132,6 @@ def _render_streamlit_fn(state: AppState, dir="./"):
     for file in Path(st_config_dir).rglob(st_config_ext):
       basename = os.path.basename(file)
       options.append([basename, str(file)])
-
-  st_script_arg = st.text_input('Script Args', placeholder="training.max_epochs=11")
-
-  st_script_env = st.text_input('Script Env Vars')
-
   show_basename = lambda opt: opt[0]
   st.selectbox("override hydra config", options, key="hydra_config", format_func=show_basename)  
 
@@ -122,13 +139,14 @@ def _render_streamlit_fn(state: AppState, dir="./"):
 
   options = hydra_config()
   
+  # Lightning way of returning the parameters
   if st_submit_button:
     state.st_script_dir = st_script_dir
     state.st_script_name = st_script_name
 
     state.st_script_arg = st_script_arg
     state.st_script_env = st_script_env
-    state.st_train       = True           # must the last to prevent race condition
+    state.st_train       = True    # must the last to prevent race condition
 
 class App(LightningFlow):
   def __init__(self, *args, **kwargs):
