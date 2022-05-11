@@ -172,51 +172,47 @@ def _render_streamlit_fn(state: AppState, dir="./"):
 class App(LightningFlow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # self.script_fo = script_fo
-        # self.script_tb = script_tb
+        self.script_fo = script_fo
+        self.script_tb = script_tb
         self.script_ui = ScriptUI()
-        # self.script_train = ScriptTrain(script_path="./app.py", blocking=True)
+        self.script_train = ScriptTrain(script_path="./app.py", blocking=True)
 
     def run(self):
         self.script_ui.run("")
-        # self.script_fo.run()
-        # self.script_tb.run()
-        # if self.script_ui.st_train:
-        #     self.script_train.run(
-        #         script_path=os.path.join(
-        #             self.script_ui.st_script_dir, self.script_ui.st_script_name
-        #         ),
-        #         script_args=self.script_ui.st_script_arg,
-        #         script_env=self.script_ui.st_script_env,
-        #     )
+        self.script_fo.run()
+        self.script_tb.run()
+        if self.script_ui.st_train:
+            self.script_train.run(
+                script_path=os.path.join(
+                    self.script_ui.st_script_dir, self.script_ui.st_script_name
+                ),
+                script_args=self.script_ui.st_script_arg,
+                script_env=self.script_ui.st_script_env,
+            )
 
     def configure_layout(self):
-        # streamlit_port = (
-        #     "10.0.98.75:8501"  # TODO: hard-coded for now, should be self.script_ui
-        # )
         tab1 = {
             "name": "Lightning Pose Param",
             "content": self.script_ui,
         }
-        return [tab1]
 
-        # if self.script_fo.has_started:
-        #     tab2 = {
-        #         "name": "Fiftyone",
-        #         "content": f"http://127.0.0.1:{self.script_fo.port}",
-        #     }
-        # else:
-        #     tab2 = {"name": "Fiftyone", "content": ""}
+        if self.script_fo.has_started:
+            tab2 = {
+                "name": "Fiftyone",
+                "content": self.script_fo,
+            }
+        else:
+            tab2 = {"name": "Fiftyone", "content": ""}
 
-        # if self.script_tb.has_started:
-        #     tab3 = {
-        #         "name": "Tensorboard",
-        #         "content": f"http://127.0.0.1:{self.script_tb.port}",
-        #     }
-        # else:
-        #     tab3 = {"name": "Tensorboard", "content": ""}
+        if self.script_tb.has_started:
+            tab3 = {
+                "name": "Tensorboard",
+                "content": self.script_tb,
+            }
+        else:
+            tab3 = {"name": "Tensorboard", "content": ""}
 
-        # return [tab1, tab2, tab3]
+        return [tab1, tab2, tab3]
 
 
 app = LightningApp(App())

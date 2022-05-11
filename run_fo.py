@@ -1,6 +1,6 @@
 import fiftyone as fo
 import fiftyone.zoo as foz
-import fire 
+import fire
 
 def run(dataset_name:str = "quickstart",address=None, port=None):
   dataset = foz.load_zoo_dataset(dataset_name)
