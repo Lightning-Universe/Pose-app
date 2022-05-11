@@ -21,9 +21,15 @@ We clone lightning and install it with its dependencies in editable mode
 ```bash
 git clone https://github.com/danbider/lightning-pose
 cd lightning-pose
+```
+NOTE: we have two options for installing dependencies. On a remote instance with linux and CUDA 11, do the usual 
+```bash
+pip install -r requirements.txt
+```
+Which will install DALI. For local testing:
+```bash
 pip install -e .
 ```
-NOTE: we're skipping the usual `pip install -r requirements.txt` avoiding `DALI` install. 
 
 ### Install `lightning` (beta)
 Following the instructions here:
