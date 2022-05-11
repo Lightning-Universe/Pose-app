@@ -10,10 +10,10 @@ App for:
 ## Installation
 For now, the installation assumes a local editable installation of `lightning` and `lightning-pose` (the latter skips the `DALI` installation).
 ### Conda environment
-Create a `conda` environment and `cd` into it:
+Create a `conda` environment and activate it
 ```bash
 conda create --name lit-app python=3.8
-cd lit-app
+conda activate lit-app
 ```
 
 ### Install `lightning-pose`
