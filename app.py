@@ -46,7 +46,7 @@ class ScriptTB(TracerPythonScript):
 
 script_tb = TracerPythonScript(
     script_path="run_tb.py",
-    script_args=["--server=127.0.0.1", "--logdir=./"],
+    script_args=["--server=127.0.0.1", "--logdir=/home/jovyan/lightning-pose/outputs"],
     env=None,
     cloud_compute=None,
     blocking=False,
@@ -54,7 +54,6 @@ script_tb = TracerPythonScript(
     port=6006,
     raise_exception=True,
 )
-
 
 class ScriptTrain(TracerPythonScript):
     """Run a training script given arguments
@@ -68,6 +67,12 @@ class ScriptTrain(TracerPythonScript):
         super().__init__(*args, **kwargs)
 
     def run(self, script_path: str, script_args: str = None, script_env: str = None):
+        import os
+        def getcwd():
+          return os.path.dirname(os.path.dirname(script_path))
+        print(script_path, os.getcwd())
+        os.getcwd = getcwd
+        print(os.getcwd())
         self.script_path = script_path
         self.script_args = shlex.split(script_args)
         self.env = {}
@@ -87,9 +92,9 @@ class ScriptUI(LightningFlow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # input to UI
-        self.script_dir = "./"
-        self.script_name = "app.py"
-        self.config_dir = "./"
+        self.script_dir = "/home/jovyan/lightning-pose"
+        self.script_name = "scripts/train_hydra.py"
+        self.config_dir = "/home/jovyan/lightning-pose/scripts/configs"
         self.config_ext = "*.yaml"
         # output from the UI
         self.st_train = False
@@ -127,7 +132,7 @@ def hydra_config(language="yaml"):
         st.session_state[basename] = content_new
 
 
-def _render_streamlit_fn(state: AppState, dir="./"):
+def _render_streamlit_fn(state: AppState):
     """Display YAML file and return arguments and env variable fields
 
     :dir (str): dir name to pull the yaml file from
@@ -141,7 +146,7 @@ def _render_streamlit_fn(state: AppState, dir="./"):
         "Config File Extensions", value=state.config_ext or "*.yaml"
     )
 
-    st_script_arg = st.text_input("Script Args", placeholder="training.max_epochs=11")
+    st_script_arg = st.text_input("Script Args", value="training.max_epochs=11 model.losses_to_use=[] data.data_dir=/home/jovyan/lightning-pose/toy_datasets/toymouseRunningData" , placeholder="training.max_epochs=11")
     st_script_env = st.text_input("Script Env Vars", placeholder="ABC=123 DEF=345")
 
     options = []
