@@ -10,7 +10,7 @@ from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 class CreateTensorboard(TracerPythonScript):
   def __init__(self, *args, **kwargs):
     super().__init__(script_path="run_tb.py",
-    script_args=["--server=127.0.0.1", "--logdir=/home/jovyan/lightning-pose/outputs"],
+    script_args=["--server=127.0.0.1", "--logdir=./outputs"],
     env=None,
     cloud_compute=None,
     blocking=False,
