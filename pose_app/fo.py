@@ -27,11 +27,15 @@ class CreateFiftyoneUI(LightningFlow):
         self.fiftyone_port = "5151"
 #eval.fiftyone.dataset_name=$DATASET_NAME \
 #eval.fiftyone.port=5151"
-        self.script_args = """eval.fiftyone.dataset_to_create="images" \
+        self.script_args = f"""
+eval.fiftyone.dataset_name="{self.dataset_name}" \
+eval.fiftyone.model_display_names=["{self.dataset_name}"] \
+eval.fiftyone.dataset_to_create="images" \
 eval.fiftyone.build_speed="fast" \
 eval.hydra_paths=['/home/jovyan/lightning-pose'] \
-eval.fiftyone.model_display_names=[f"{self.dataset_name}"] \
-eval.fiftyone.launch_app_from_script=True"""
+eval.fiftyone.launch_app_from_script=True \
+data.data_dir=/home/jovyan/lightning-pose/toy_datasets/toymouseRunningData \
+"""
         # output from the UI
         self.st_submit = False
         self.st_script_dir = None
@@ -50,6 +54,7 @@ def hydra_config(language="yaml"):
       filename = st.session_state.hydra_config[1]
     except:
       st.error("no files found")
+      return
     logging.debug(f"selectbox {st.session_state}")
     if basename in st.session_state:
         content_raw = st.session_state[basename]
@@ -69,13 +74,13 @@ def hydra_config(language="yaml"):
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
-    st_script_dir = st.text_area("Script Dir", value=state.script_dir or ".")
+    st_script_dir = st.text_input("Script Dir", value=state.script_dir or ".")
     st_script_name = st.text_input("Script Name", value=state.script_name or "run.py")
 
     st_config_dir = st.text_input("Dataset Name ", value=state.dataset_name or "DATASET_NAME")
     st_config_ext = st.text_input("Fifityone Port", value=state.fiftyone_port or "5151")
 
-    st_script_arg = st.text_input("Script Args", value=state.script_args)
+    st_script_arg = st.text_area("Script Args", value=state.script_args)
     st_script_env = st.text_input("Script Env Vars", placeholder="ABC=123 DEF=345")
 
     options = []

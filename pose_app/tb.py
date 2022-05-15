@@ -37,3 +37,14 @@ class RunTensorboard(LightningWork):
 
 
 
+class CreateTensorboard(TracerPythonScript):
+  def __init__(self, *args, **kwargs):
+    super().__init__(script_path="run_tb.py",
+    script_args=["--server=127.0.0.1", "--logdir=./outputs"],
+    env=None,
+    cloud_compute=None,
+    blocking=False,
+    run_once=True,
+    port=6006,
+    raise_exception=True,
+)
