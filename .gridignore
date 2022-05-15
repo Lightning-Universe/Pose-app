@@ -1,4 +1,4 @@
-lightning_logs
+lightning_logs/*
 data
 data/*
 .shared
