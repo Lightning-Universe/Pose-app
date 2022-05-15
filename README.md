@@ -10,6 +10,11 @@ App for:
 ## Installation
 For now, the installation assumes a local editable installation of `lightning` and `lightning-pose` (the latter skips the `DALI` installation).
 ### Conda environment
+git clone https://github.com/PyTorchLightning/lightning-pose-app
+cd lightning-pose-app
+git checkout rslee-prototype
+
+
 Create a `conda` environment and `cd` into it:
 ```bash
 conda create --name lit-app python=3.8
@@ -22,6 +27,8 @@ We clone lightning and install it with its dependencies in editable mode
 ```bash
 git clone https://github.com/danbider/lightning-pose
 cd lightning-pose
+python -m pip install torch
+python -m pip install numpy
 pip install -e .
 ```
 NOTE: we're skipping the usual `pip install -r requirements.txt` avoiding `DALI` install. 
