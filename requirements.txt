@@ -1,4 +1,3 @@
-fire
 fiftyone
 tensorboard
 torch
