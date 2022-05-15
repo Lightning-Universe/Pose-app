@@ -6,12 +6,13 @@ from pose_app.train import *
 from pose_app.tb import *
 from pose_app.fo import *
 
+
 class App(LightningFlow):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.ui_train = TrainUI()
     self.work_train = TrainScript(script_path="./app1.py")
-    self.work_tb = CreateTensorboard(script_path="./app1.py")
+    self.work_tb = RunTensorboard(logdir="/home/jovyan/lightning-pose/outputs")
     self.ui_fo = CreateFiftyoneUI()
     self.work_fo = CreateFiftyoneDataset(script_path="./app1.py")
 

@@ -13,6 +13,7 @@ For now, the installation assumes a local editable installation of `lightning` a
 Create a `conda` environment and `cd` into it:
 ```bash
 conda create --name lit-app python=3.8
+conda activate lit-app
 cd lit-app
 ```
 
@@ -66,6 +67,11 @@ lightning run app app.py
 ```
 USE_GPU=1 lightning run app app.py --cloud
 ```
+
+#
+
+git clone 
+
 
 # Unit Test
 

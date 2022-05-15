@@ -6,15 +6,17 @@ import signal
 from datetime import datetime
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning.storage.path import Path
+import logging
 
 
 class RunTensorboard(LightningWork):
-  def __init__(self, logdir:str = None):
-    super().__init__()
+  def __init__(self, *args, logdir:str = None, **kwargs):
+    super().__init__(*args, **kwargs)
     self.logdir = logdir
 
   def generate_log(self, dataset_name):
     # fake tensorboard logs (fake loss)
+    logging.info(f"Generating fake Tensorboard output on {dataset_name}")
     writer = SummaryWriter(log_dir=dataset_name)
     offset = np.random.uniform(0, 5, 1)[0]
     for x in range(1, 10000):
@@ -31,7 +33,7 @@ class RunTensorboard(LightningWork):
 
     tb.configure(argv=[None, '--port', f"{self.port}", '--host', self.host, '--logdir', self.logdir])
     url = tb.launch()
-    print(f"Tensorflow listening on {url}")
+    logging.info(f"Tensorboard listening on {url}")
     signal.pause()
 
 
