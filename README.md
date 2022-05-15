@@ -8,49 +8,42 @@ App for:
 * More to come! (Deploying for new videos, active learning, etc.)
 
 ## Installation
-For now, the installation assumes a local editable installation of `lightning` and `lightning-pose` (the latter skips the `DALI` installation).
-### Conda environment
-git clone https://github.com/PyTorchLightning/lightning-pose-app
-cd lightning-pose-app
-git checkout rslee-prototype
+For now, the installation assumes a local editable installation of `lightning` and `lightning-pose` 
 
+### Conda environment
 
 Create a `conda` environment and `cd` into it:
 ```bash
 conda create --name lit-app python=3.8
 conda activate lit-app
-cd lit-app
 ```
-
-### Install `lightning-pose`
-We clone lightning and install it with its dependencies in editable mode
-```bash
-git clone https://github.com/danbider/lightning-pose
-cd lightning-pose
-python -m pip install torch
-python -m pip install numpy
-pip install -e .
-```
-NOTE: we're skipping the usual `pip install -r requirements.txt` avoiding `DALI` install. 
 
 ### Install `lightning` (beta)
 Following the instructions here:
 
 ```bash
 git clone https://github.com/PyTorchLightning/lightning.beta.git
-```
-Install dependencies:
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-Move into folder
-```bash
-cd lightning
-```
-Download the `lightning` UI:
-```bash
+cd lightning.beta
+python -m pip install -r requirements.txt
+python -m pip install -e .
 python scripts/download_frontend.py
+```
+
+### Download lightning-pose-app
+NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
+```bash
+git clone https://github.com/PyTorchLightning/lightning-pose-app
+cd lightning-pose-app
+git checkout rslee-prototype
+python -m pip install -r requirements.txt
+```
+
+### Install `lightning-pose`
+NOTE:  The requirements are copied into lightning-pose-app.  no need to redo the pip install
+
+```bash
+git clone https://github.com/danbider/lightning-pose
+cd lightning-pose
 ```
 
 ### Locally
@@ -59,40 +52,11 @@ In order to run the application locally, run the following commands
 
 ```bash
 cd lightning-pose-app
-pip install -r requirements.txt
-lightning run app app.py
-```
-
-### On CPU
-
-```
 lightning run app app.py
 ```
 
 ### On GPU
 
 ```
-USE_GPU=1 lightning run app app.py --cloud
+USE_GPU=1 lightning run app app.py --cloud --name lightning-pose
 ```
-
-#
-
-git clone 
-
-
-# Unit Test
-
-Each of the individual components can be tested individually before `LightingFlow` is used to stitched into `Lightning App`
-
-- arguments: `python -m streamlit run script_args_editconfig.py -- --dir ~lightning-pose/scripts/configs` 
-  - The Hydra config are in pull down. 
-  - Each can be edited in the text panel.
-  
-![hydra config select](./static/script_args_hydra.png)
-![hydra config edit](./static/script_args_hydra_edit.png)
-- tensorboard: `python run_fo.py`
-  
-![tb](./static/tb.png)  
-- fiftyone: `python run_tb.py`
-  
-![fo](./static/fo.png)
