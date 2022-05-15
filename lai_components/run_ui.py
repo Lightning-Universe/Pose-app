@@ -17,11 +17,12 @@ class ScriptRunUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, **kwargs):
+  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, **kwargs):
     super().__init__(*args, **kwargs)
     # input to UI
     self.script_dir = script_dir
     self.script_name = script_name
+    self.script_env = script_env
 
     self.config_dir = config_dir
     self.config_ext = config_ext        
@@ -64,7 +65,7 @@ def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
-    st_script_env = st.text_input("Script Env Vars", placeholder="ABC=123 DEF=345")
+    st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
     st_submit_button = st.button("Submit")
 

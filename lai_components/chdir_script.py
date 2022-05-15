@@ -43,6 +43,7 @@ class ChdirPythonScript(TracerPythonScript):
       script_args = string.Template(script_args).substitute(host_port)
       self.script_args = shlex.split(script_args)   # shlex locks on None
       logging.debug("script_args={self.script_args}")
+        
 
     # env expects {k=v,k=v}
     self.env = {}
@@ -54,6 +55,7 @@ class ChdirPythonScript(TracerPythonScript):
       logging.debug(f"env={self.env}")
 
     # run
+    print(f"{self.script_path} {self.script_args} {self.env}")
     super().run()
 
     # restore the cwd
