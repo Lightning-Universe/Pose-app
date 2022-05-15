@@ -1,6 +1,8 @@
 fire
 fiftyone
 tensorboard
+torch
+numpy
 # streamlit
 streamlit
 streamlit_autorefresh
