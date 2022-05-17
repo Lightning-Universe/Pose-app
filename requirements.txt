@@ -9,8 +9,8 @@ numpy
 streamlit
 streamlit_autorefresh
 watchdog
-# streamlit editor
 streamlit-ace
+sh
 # hydra
 hydra-core
 torch

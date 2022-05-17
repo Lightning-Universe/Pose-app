@@ -2,6 +2,7 @@
 import os
 import lightning as L
 import streamlit as st
+from lai_components.run_fo_ui import FoRunUI
 from lai_components.run_ui import ScriptRunUI
 from lai_components.chdir_script import ChdirPythonScript
 from lai_components.run_tb import RunTensorboard
@@ -32,7 +33,15 @@ model.losses_to_use=[]
           """
         )
 
-        self.fo_image_ui = ScriptRunUI(
+# the following are added for FO
+#eval.hydra_paths=['2022-05-15/16-06-45']
+#eval.fiftyone.address=${host} 
+#eval.fiftyone.port=${port} 
+# these are changed to absolute path
+#eval.test_videos_directory="</ABSOLUTE/PATH/TO/VIDEOS/DIR>" \
+#eval.pred_csv_files_to_plot=["</ABSOLUTE/PATH/TO/PREDS_1.csv>","</ABSOLUTE/PATH/TO/PREDS_2.csv>"]
+
+        self.fo_ui = FoRunUI(
           script_dir = "./lightning-pose",
           script_name = "scripts/create_fiftyone_dataset.py",
           script_env = "HYDRA_FULL_ERROR=1",
@@ -40,73 +49,28 @@ model.losses_to_use=[]
           config_ext = "*.yaml",        
           script_args = """eval.fiftyone.dataset_name=test1 
 eval.fiftyone.model_display_names=["test1"]
-eval.hydra_paths=['2022-05-15/16-06-45']
-eval.fiftyone.address=${host} 
-eval.fiftyone.port=${port} 
 eval.fiftyone.dataset_to_create="images"
 eval.fiftyone.build_speed="fast" 
 eval.fiftyone.launch_app_from_script=True 
+eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/unlabeled_videos/test_vid.mp4"]
+eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/test_vid_heatmap.csv"
             """  
         )   
 
-#eval.test_videos_directory="</ABSOLUTE/PATH/TO/VIDEOS/DIR>" \
-#eval.video_file_to_plot="</ABSOLUTE/PATH/TO/VIDEO.mp4>" \
-#eval.pred_csv_files_to_plot=["</ABSOLUTE/PATH/TO/PREDS_1.csv>","</ABSOLUTE/PATH/TO/PREDS_2.csv>"]
 
-
-        self.fo_video_ui = ScriptRunUI(
-          script_dir = "./lightning-pose",
-          script_name = "scripts/create_fiftyone_dataset.py",
-          script_env = "HYDRA_FULL_ERROR=1",
-          config_dir = "./lightning-pose/scripts/configs",
-          config_ext = "*.yaml",        
-          script_args = """eval.fiftyone.dataset_name=test1 
-eval.fiftyone.model_display_names=["test1"]
-eval.hydra_paths=['2022-05-15/16-06-45']
-eval.fiftyone.address=${host} 
-eval.fiftyone.port=${port} 
-eval.fiftyone.dataset_to_create="videos"
-eval.fiftyone.build_speed="fast" 
-eval.fiftyone.launch_app_from_script=True 
-            """  
-        )   
-
+        # tensorboard
         self.run_tb = RunTensorboard(logdir = "./lightning-pose/outputs", blocking=False, run_once=True)
 
         # script_path is required at init, but will be override in the run
-        self.train_runner = ChdirPythonScript("app.py",blocking=True,run_once=False)
-        self.fo_image_runner = ChdirPythonScript("app.py",blocking=True,run_once=False)   
-        self.fo_video_runner = ChdirPythonScript("app.py",blocking=True,run_once=False)
+        self.train_runner = ChdirPythonScript("./lightning-pose/scripts/train_hydra.py",blocking=True,run_once=False)
+        # 
+        self.predict_runner = ChdirPythonScript("./lightning-pose/scripts/predict_new_vids.py",blocking=True,run_once=False)
+        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=False)   
+        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=False)
 
-        # self.fo_runner = RunFiftyone(blocking=True,run_once=True)
 
     def run(self):
       self.run_tb.run()
-
-      #if self.dataset_ui.st_submit:      
-      #  self.dataset_ui.st_submit = False
-      #  print(f"st_selectbox={self.dataset_ui.st_selectbox}")
-      #  #time.sleep(10) # runs too fast will come in here twice
-      #  if not(self.dataset_ui.st_selectbox is None):
-      #    self.fo_runner.run(dataset_name = self.dataset_ui.st_selectbox)
-
-      # create new image dataset
-      if self.fo_image_ui.st_submit:      
-        self.fo_image_ui.st_submit = False
-        self.fo_image_runner.run(root_dir = self.fo_image_ui.st_script_dir, 
-          script_name = self.fo_image_ui.st_script_name, 
-          script_args=self.fo_image_ui.st_script_args,
-          script_env=self.fo_image_ui.st_script_env,
-          )
-
-      # create new video dataset
-      if self.fo_video_ui.st_submit:      
-        self.fo_video_ui.st_submit = False
-        self.fo_video_runner.run(root_dir = self.fo_video_ui.st_script_dir, 
-          script_name = self.fo_video_ui.st_script_name, 
-          script_args=self.fo_video_ui.st_script_args,
-          script_env=self.fo_video_ui.st_script_env,
-          )
 
       if self.train_ui.st_submit:      
         self.train_ui.st_submit = False
@@ -116,15 +80,39 @@ eval.fiftyone.launch_app_from_script=True
           script_env=self.train_ui.st_script_env,
           )
 
+      # create fo dataset
+      if self.fo_ui.st_submit:      
+        self.fo_ui.st_submit = False
+        fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_st_dataset_name} eval.fiftyone.model_display_names=['{self.fo_ui.st_st_dataset_name}']"
+        if self.fo_ui.submit_count == 1:
+          fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.launch_app_from_script=True"
+        else:  
+          fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.launch_app_from_script=False"
+
+        self.fo_predict_runner.run(root_dir = self.fo_ui.st_script_dir, 
+          script_name = self.fo_ui.st_script_name, 
+          script_args=self.fo_ui.st_script_args,
+          script_env=self.fo_ui.st_script_env,
+          )
+        self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
+          script_name = self.fo_ui.st_script_name, 
+          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {fo_names} {fo_launch}",
+          script_env=self.fo_ui.st_script_env,
+          )
+        self.fo_video_runner.run(root_dir = self.fo_ui.st_script_dir, 
+          script_name = self.fo_ui.st_script_name, 
+          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {fo_names} {fo_launch}",
+          script_env=self.fo_ui.st_script_env,
+          )
+
     def configure_layout(self):
         tab1 = {"name": "Train", "content": self.train_ui}
-        tab2 = {"name": "Create Image Dataset", "content": self.fo_image_ui}
-        tab3 = {"name": "Create Video Dataset", "content": self.fo_video_ui}
-        tab4 = {"name": "Tensorboard", "content": self.run_tb}
-        tab5 = {"name": "Fiftyone Images", "content": self.fo_image_runner}
-        tab6 = {"name": "Fiftyone Videos", "content": self.fo_video_runner}
+        tab2 = {"name": "Tensorboard", "content": self.run_tb}
+        tab3 = {"name": "Create Image Dataset", "content": self.fo_ui}
+        tab4 = {"name": "Fiftyone Images", "content": self.fo_image_runner}
+        tab5 = {"name": "Fiftyone Videos", "content": self.fo_video_runner}
 
-        return [tab1, tab2, tab3, tab4, tab5, tab6]
+        return [tab1, tab2, tab3, tab4, tab5]
 
 logging.basicConfig(level=logging.DEBUG)
 app = L.LightningApp(LitPoseApp())

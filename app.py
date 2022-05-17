@@ -9,17 +9,11 @@ from lai_components.select_fo_dataset import RunFiftyone, SelectDatasetUI
 import logging
 import time
 
-# data.data_dir=./lightning-pose/toy_datasets/toymouseRunningData 
-# Saved predictions to: pred_csv_files_to_plot=/home/jovyan/lightning-pose-app/lightning-pose/outputs/2022-05-15/16-06-45/predictions.csv
-#             pred_csv_files_to_plot=["./lightning-pose/outputs/2022-05-15/16-06-45/predictions.csv"]  
-#            test_videos_directory="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos" \##
-#            saved_vid_preds_dir="./lightning-pose/toy_datasets/toymouseRunningData" \
-#            video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4" \
-
 class LitPoseApp(L.LightningFlow):
     def __init__(self):
         super().__init__()
         self.dataset_ui = SelectDatasetUI()
+
         self.train_ui = ScriptRunUI(
           script_dir = "./lightning-pose",
           script_name = "scripts/train_hydra.py",
@@ -30,7 +24,7 @@ class LitPoseApp(L.LightningFlow):
 model.losses_to_use=[] 
           """
         )
-        self.fo_ui = ScriptRunUI(
+        self.image_fo_ui = ScriptRunUI(
           script_dir = "./lightning-pose",
           script_name = "scripts/create_fiftyone_dataset.py",
           script_env = "HYDRA_FULL_ERROR=1",
@@ -45,7 +39,9 @@ eval.fiftyone.dataset_to_create="images"
 eval.fiftyone.build_speed="fast" 
 eval.fiftyone.launch_app_from_script=False 
             """  
-        )        
+        )    
+
+
         self.run_tb = RunTensorboard(logdir = "./lightning-pose/outputs", blocking=False, run_once=True)
 
         # script_path is required at init, but will be override in the run
@@ -60,16 +56,16 @@ eval.fiftyone.launch_app_from_script=False
         self.dataset_ui.st_submit = False
         print(f"st_selectbox={self.dataset_ui.st_selectbox}")
         #time.sleep(10) # runs too fast will come in here twice
-        if not(self.dataset_ui.st_selectbox is None):
-          self.fo_runner.run(dataset_name = self.dataset_ui.st_selectbox)
+        if not(self.image_dataset_ui.st_selectbox is None):
+          self.fo_runner.run(dataset_name = self.image_dataset_ui.st_selectbox)
 
       # create new dataset
-      if self.fo_ui.st_submit:      
-        self.fo_ui.st_submit = False
-        self.dataset_runner.run(root_dir = self.fo_ui.st_script_dir, 
-          script_name = self.fo_ui.st_script_name, 
-          script_args=self.fo_ui.st_script_args,
-          script_env=self.train_ui.st_script_env,
+      if self.image_fo_ui.st_submit:      
+        self.image_fo_ui.st_submit = False
+        self.dataset_runner.run(root_dir = self.image_fo_ui.st_script_dir, 
+          script_name = self.image_fo_ui.st_script_name, 
+          script_args=self.image_fo_ui.st_script_args,
+          script_env=self.image_fo_ui.st_script_env,
           )
         self.dataset_ui.set_dateset_names()
 
@@ -85,7 +81,7 @@ eval.fiftyone.launch_app_from_script=False
         tab1 = {"name": "Train", "content": self.train_ui}
         tab2 = {"name": "Dataset", "content": self.fo_ui}
         tab3 = {"name": "Tensorboard", "content": self.run_tb}
-        tab4 = {"name": "Pick Dataset", "content": self.dataset_ui}
+        tab4 = {"name": "Pick Dataset", "content": self.image_dataset_ui}
         tab5 = {"name": "Fiftyone", "content": self.fo_runner}
         return [tab1, tab2, tab3, tab4, tab5]
 

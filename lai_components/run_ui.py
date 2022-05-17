@@ -61,9 +61,16 @@ def hydra_config(language="yaml"):
         st.write("content changed")
         st.session_state[basename] = content_new
 
+def get_existing_outpts():
+  options = ["/".join(x.strip().split("/")[-2:]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-mindepth","2","-maxdepth","2","-type","d")]
+  options.sort(reverse=True)
+  return(options)
+
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
+    st_output_dir = st.selectbox("existing output", get_existing_outpts())
+
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
