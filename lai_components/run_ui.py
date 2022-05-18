@@ -1,6 +1,7 @@
 import os
 import logging
 import string
+import sh
 
 import streamlit as st
 from streamlit_ace import st_ace
@@ -17,7 +18,7 @@ class ScriptRunUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, **kwargs):
+  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, outputs_dir = "outputs", **kwargs):
     super().__init__(*args, **kwargs)
     # input to UI
     self.script_dir = script_dir
@@ -28,6 +29,7 @@ class ScriptRunUI(LightningFlow):
     self.config_ext = config_ext        
 
     self.script_args = script_args
+    self.outputs_dir = outputs_dir
     # output from the UI
     self.st_submit = False
     self.st_script_dir = None
@@ -61,7 +63,7 @@ def hydra_config(language="yaml"):
         st.write("content changed")
         st.session_state[basename] = content_new
 
-def get_existing_outpts():
+def get_existing_outpts(state):
   options = ["/".join(x.strip().split("/")[-2:]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-mindepth","2","-maxdepth","2","-type","d")]
   options.sort(reverse=True)
   return(options)
@@ -69,7 +71,7 @@ def get_existing_outpts():
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
-    st_output_dir = st.selectbox("existing output", get_existing_outpts())
+    st_output_dir = st.selectbox("existing output", get_existing_outpts(state))
 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")

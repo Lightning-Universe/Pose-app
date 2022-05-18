@@ -21,6 +21,8 @@ class LitPoseApp(L.LightningFlow):
     def __init__(self):
         super().__init__()
         # self.dataset_ui = SelectDatasetUI()
+        self.fo_names = None
+        self.fo_launch = None
 
         self.train_ui = ScriptRunUI(
           script_dir = "./lightning-pose",
@@ -52,8 +54,8 @@ eval.fiftyone.model_display_names=["test1"]
 eval.fiftyone.dataset_to_create="images"
 eval.fiftyone.build_speed="fast" 
 eval.fiftyone.launch_app_from_script=True 
-eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/unlabeled_videos/test_vid.mp4"]
-eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/test_vid_heatmap.csv"
+eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4"
+eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/test_vid_heatmap.csv"]
             """  
         )   
 
@@ -64,13 +66,13 @@ eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/test_
         # script_path is required at init, but will be override in the run
         self.train_runner = ChdirPythonScript("./lightning-pose/scripts/train_hydra.py",blocking=True,run_once=False)
         # 
-        self.predict_runner = ChdirPythonScript("./lightning-pose/scripts/predict_new_vids.py",blocking=True,run_once=False)
-        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=False)   
-        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=False)
+        self.fo_predict_runner = ChdirPythonScript("./lightning-pose/scripts/predict_new_vids.py",blocking=True,run_once=True)
+        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=False,run_once=True)   
+        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=True)
 
 
     def run(self):
-      self.run_tb.run()
+      # self.run_tb.run()
 
       if self.train_ui.st_submit:      
         self.train_ui.st_submit = False
@@ -83,25 +85,28 @@ eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/test_
       # create fo dataset
       if self.fo_ui.st_submit:      
         self.fo_ui.st_submit = False
-        fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_st_dataset_name} eval.fiftyone.model_display_names=['{self.fo_ui.st_st_dataset_name}']"
+        self.fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name} eval.fiftyone.model_display_names=['{self.fo_ui.st_dataset_name}']"
         if self.fo_ui.submit_count == 1:
-          fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.launch_app_from_script=True"
+          self.fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.fiftyone.launch_app_from_script=True"
         else:  
-          fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.launch_app_from_script=False"
+          self.fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.fiftyone.launch_app_from_script=False"
 
         self.fo_predict_runner.run(root_dir = self.fo_ui.st_script_dir, 
-          script_name = self.fo_ui.st_script_name, 
-          script_args=self.fo_ui.st_script_args,
+          script_name = "scripts/predict_new_vids.py", 
+          script_args=f"{self.fo_ui.st_script_args} {self.fo_names}",
           script_env=self.fo_ui.st_script_env,
           )
-        self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
-          script_name = self.fo_ui.st_script_name, 
-          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {fo_names} {fo_launch}",
-          script_env=self.fo_ui.st_script_env,
-          )
+
+      #if self.fo_predict_runner.has_succeeded:
+      #  self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
+      #    script_name = "scripts/create_fiftyone_dataset.py", 
+      #    script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.fo_names} {self.fo_launch}",
+      #    script_env=self.fo_ui.st_script_env,
+      #    )
+      if self.fo_predict_runner.has_succeeded:
         self.fo_video_runner.run(root_dir = self.fo_ui.st_script_dir, 
-          script_name = self.fo_ui.st_script_name, 
-          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {fo_names} {fo_launch}",
+          script_name = "scripts/create_fiftyone_dataset.py", 
+          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.fo_names} {self.fo_launch}",
           script_env=self.fo_ui.st_script_env,
           )
 
@@ -114,5 +119,5 @@ eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/test_
 
         return [tab1, tab2, tab3, tab4, tab5]
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 app = L.LightningApp(LitPoseApp())

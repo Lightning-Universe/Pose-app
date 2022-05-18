@@ -78,7 +78,7 @@ def set_script_args(st_output_dir:str, script_args:str):
     script_args_dict[k] = v
   # enrich the args  
   if st_output_dir:  
-    script_args_dict["eval.hydra_paths"]=st_output_dir
+    script_args_dict["eval.hydra_paths"]=f"['{st_output_dir}']"
 
   if script_args_dict['eval.video_file_to_plot']: 
     script_args_dict['eval.video_file_to_plot'] = os.path.abspath(script_args_dict['eval.video_file_to_plot'])
@@ -93,7 +93,7 @@ def set_script_args(st_output_dir:str, script_args:str):
   # these will be controlled by the runners.  remove if set manually
   script_args_dict.pop('eval.fiftyone.address', None)
   script_args_dict.pop('eval.fiftyone.port', None)
-  script_args_dict.pop('eval.launch_app_from_script', None)
+  script_args_dict.pop('eval.fiftyone.launch_app_from_script', None)
   script_args_dict.pop('eval.fiftyone.dataset_to_create', None) 
   script_args_dict.pop('eval.fiftyone.dataset_name', None)
   script_args_dict.pop('eval.fiftyone.model_display_names', None)
@@ -104,7 +104,7 @@ def set_script_args(st_output_dir:str, script_args:str):
   return(" \n".join(script_args_array)) 
   
 def get_existing_outpts(state):
-  options = ["/".join(x.strip().split("/")[-2:]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-mindepth","2","-maxdepth","2","-type","d")]
+  options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
   options.sort(reverse=True)
   return(options)
 
@@ -131,7 +131,6 @@ def _render_streamlit_fn(state: AppState):
     # parse
     state.script_args = set_script_args(st_output_dir, state.script_args) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
-    state.script_args = st_script_args
 
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
@@ -158,7 +157,11 @@ def _render_streamlit_fn(state: AppState):
     )
 
     options = hydra_config()
-    
+
+    if state.script_args != st_script_args:
+      print(f"value changed {st_script_args}")
+      # state.script_args = st_script_args   TODO: this causes infinite loop to kick in.
+
     # Lightning way of returning the parameters
     if st_submit_button and st_dataset_name:
         state.submit_count    += 1
@@ -197,6 +200,7 @@ eval.fiftyone.dataset_name=testvid \
 eval.fiftyone.model_display_names=["testvid"] \
 eval.fiftyone.build_speed="fast" \
 eval.hydra_paths=['2022-05-15/16-06-45'] \
+eval.fiftyone.launch_app_from_script=True \
 eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4" \
 eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/test_vid_heatmap.csv"] 
 """,
