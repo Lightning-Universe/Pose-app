@@ -70,7 +70,7 @@ def hydra_config(language="yaml"):
         st.write("content changed")
         st.session_state[basename] = content_new
 
-def set_script_args(st_output_dir:str, script_args:str):
+def set_script_args(st_output_dir:[str], script_args:str):
   script_args_dict = {}
   script_args_array = []
   for x in shlex.split(script_args, posix=False):
@@ -78,7 +78,8 @@ def set_script_args(st_output_dir:str, script_args:str):
     script_args_dict[k] = v
   # enrich the args  
   if st_output_dir:  
-    script_args_dict["eval.hydra_paths"]=f"['{st_output_dir}']"
+    path_list = ','.join([f"'{x}'" for x in st_output_dir])
+    script_args_dict["eval.hydra_paths"]=f"[{path_list}]"
 
   if script_args_dict['eval.video_file_to_plot']: 
     script_args_dict['eval.video_file_to_plot'] = os.path.abspath(script_args_dict['eval.video_file_to_plot'])
@@ -103,7 +104,7 @@ def set_script_args(st_output_dir:str, script_args:str):
     script_args_array.append(f"{k}={v}")
   return(" \n".join(script_args_array)) 
   
-def get_existing_outpts(state):
+def get_existing_outputs(state):
   options=[]
   try:
     options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
@@ -125,7 +126,9 @@ def _render_streamlit_fn(state: AppState):
     """
 
     # outputs to choose from
-    st_output_dir = st.selectbox("select output", get_existing_outpts(state))
+    st_output_dir = st.multiselect("select output", get_existing_outputs(state))
+    print("**********************")
+    print(st_output_dir)
 
     # dataset names
     existing_datasets = get_existing_datasets()
@@ -141,7 +144,7 @@ def _render_streamlit_fn(state: AppState):
 
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
-    st_submit_button = st.button("Submit", disabled=True if st_dataset_name is None else False)
+    st_submit_button = st.button("Submit", disabled=True if (len(st_output_dir)==0 or st_dataset_name is None or st_dataset_name == "") else False)
 
     # these are not used as often
     expander = st.expander("Change Defaults")

@@ -59,20 +59,21 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
             """  
         )   
 
-
         # tensorboard
         self.run_tb = RunTensorboard(logdir = "./lightning-pose/outputs", blocking=False, run_once=True)
+        self.run_fo = RunFiftyone(blocking=False, run_once=True)
 
         # script_path is required at init, but will be override in the run
         self.train_runner = ChdirPythonScript("./lightning-pose/scripts/train_hydra.py",blocking=True,run_once=False)
         # 
         self.fo_predict_runner = ChdirPythonScript("./lightning-pose/scripts/predict_new_vids.py",blocking=True,run_once=True)
-        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=False,run_once=True)   
-        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=False,run_once=True)
+        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=True)   
+        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=True)
 
 
     def run(self):
       self.run_tb.run()
+      self.run_fo.run()
 
       if self.train_ui.st_submit == True:      
         self.train_ui.st_submit = False
@@ -86,10 +87,8 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
       if self.fo_ui.st_submit == True:      
         self.fo_ui.st_submit = False
         self.fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name} eval.fiftyone.model_display_names=['{self.fo_ui.st_dataset_name}']"
-        if self.fo_ui.submit_count == 1:
-          self.fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.fiftyone.launch_app_from_script=True eval.fiftyone.remote=False"
-        else:  
-          self.fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.fiftyone.launch_app_from_script=False eval.fiftyone.remote=False"
+        self.fo_launch=f"eval.fiftyone.launch_app_from_script=False"
+
         self.fo_predict_runner.run(root_dir = self.fo_ui.st_script_dir, 
           script_name = "scripts/predict_new_vids.py", 
           script_args=f"{self.fo_ui.st_script_args} {self.fo_names}",
@@ -102,7 +101,7 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
           script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.fo_names} {self.fo_launch}",
           script_env=self.fo_ui.st_script_env,
           )
-      if self.fo_predict_runner.has_succeeded:
+      if self.fo_image_runner.has_succeeded:
         self.fo_video_runner.run(root_dir = self.fo_ui.st_script_dir, 
           script_name = "scripts/create_fiftyone_dataset.py", 
           script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.fo_names} {self.fo_launch}",
@@ -113,10 +112,9 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
         tab1 = {"name": "Train", "content": self.train_ui}
         tab2 = {"name": "Tensorboard", "content": self.run_tb}
         tab3 = {"name": "Create Image Dataset", "content": self.fo_ui}
-        tab4 = {"name": "Fiftyone Images", "content": self.fo_image_runner}
-        tab5 = {"name": "Fiftyone Videos", "content": self.fo_video_runner}
+        tab4 = {"name": "Fiftyone", "content": self.run_fo}
 
-        return [tab1, tab2, tab3, tab4, tab5]
+        return [tab1, tab2, tab3, tab4]
 
 logging.basicConfig(level=logging.INFO)
 app = L.LightningApp(LitPoseApp())

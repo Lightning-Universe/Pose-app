@@ -14,7 +14,7 @@ For now, the installation assumes a local editable installation of `lightning` a
 
 Create a `conda` environment and `cd` into it:
 ```bash
-conda create --name lit-app python=3.8
+conda create --yes --name lit-app python=3.8
 conda activate lit-app
 ```
 
@@ -22,11 +22,17 @@ conda activate lit-app
 Following the instructions here:
 
 ```bash
-git clone https://github.com/PyTorchLightning/lightning.beta.git
+git clone https://github.com/PyTorchLightning/lightning
 cd lightning.beta
 python -m pip install -r requirements.txt
 python -m pip install -e .
 python scripts/download_frontend.py
+```
+
+- check forli lightning version of 0.0.43
+
+```
+lightning --version
 ```
 
 ### Download lightning-pose-app
@@ -35,8 +41,12 @@ NOTE: requirements.txt has lightning-pose requirements.  this allows the app to 
 git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
 git checkout rslee-prototype
+# TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
+python -m pip install torch numpy
 python -m pip install -r requirements.txt
 ```
+
+
 
 ### Install `lightning-pose`
 NOTE:  The requirements are copied into lightning-pose-app.  no need to redo the pip install

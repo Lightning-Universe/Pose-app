@@ -55,9 +55,10 @@ class ChdirPythonScript(TracerPythonScript):
       logging.debug(f"env={self.env}")
 
     # run
+    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     print(f"{self.script_path} {self.script_args} {self.env}")
     super().run()
 
     # restore the cwd
     os.chdir(orig_cwd)
-
+    print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")

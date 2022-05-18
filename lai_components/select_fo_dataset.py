@@ -10,10 +10,12 @@ class RunFiftyone(L.LightningWork):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
 
-  def run(self, dataset_name, remote = False, address=None, port=None):
-    if dataset_name is None or dataset_name == "":
-      dataset_name = "quickstart"
-    dataset = fo.load_dataset(dataset_name)
+  def run(self, dataset_name = None, use_quickstart = False, remote = False, address=None, port=None):
+    try:
+      dataset = fo.load_dataset(dataset_name)
+    except:
+      dataset = None  
+    # remote = False is a must for Lightning.  otherwise, the UI will not show up
     session = fo.launch_app(dataset, remote = remote, address=address or self.host, port=port or self.port)
     session.wait()
 
