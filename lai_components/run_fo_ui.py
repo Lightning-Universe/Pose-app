@@ -104,13 +104,20 @@ def set_script_args(st_output_dir:str, script_args:str):
   return(" \n".join(script_args_array)) 
   
 def get_existing_outpts(state):
-  options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
-  options.sort(reverse=True)
+  options=[]
+  try:
+    options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
+    options.sort(reverse=True)
+  except:
+    pass  
   return(options)
 
 def get_existing_datasets():
   options = fo.list_datasets()
-  options.remove('')
+  try:
+    options.remove('')
+  except:
+    pass  
   return(options)
 
 def _render_streamlit_fn(state: AppState):

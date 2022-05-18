@@ -64,8 +64,12 @@ def hydra_config(language="yaml"):
         st.session_state[basename] = content_new
 
 def get_existing_outpts(state):
-  options = ["/".join(x.strip().split("/")[-2:]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-mindepth","2","-maxdepth","2","-type","d")]
-  options.sort(reverse=True)
+  options=[]
+  try:
+    options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
+    options.sort(reverse=True)
+  except:
+    pass  
   return(options)
 
 def _render_streamlit_fn(state: AppState):
