@@ -60,19 +60,19 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
         )   
 
         # tensorboard
-        self.run_tb = RunTensorboard(logdir = "./lightning-pose/outputs", blocking=False, run_once=True)
-        self.run_fo = RunFiftyone(blocking=False, run_once=True)
+        self.run_tb = RunTensorboard(logdir = "./lightning-pose/outputs")
+        self.run_fo = RunFiftyone(parallel=True)
 
         # script_path is required at init, but will be override in the run
-        self.train_runner = ChdirPythonScript("./lightning-pose/scripts/train_hydra.py",blocking=True,run_once=False)
+        self.train_runner = ChdirPythonScript("./lightning-pose/scripts/train_hydra.py")
         # 
-        self.fo_predict_runner = ChdirPythonScript("./lightning-pose/scripts/predict_new_vids.py",blocking=True,run_once=True)
-        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=True)   
-        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py",blocking=True,run_once=True)
+        self.fo_predict_runner = ChdirPythonScript("./lightning-pose/scripts/predict_new_vids.py")
+        self.fo_image_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py")  
+        self.fo_video_runner = ChdirPythonScript("./lightning-pose/scripts/create_fiftyone_dataset.py")
 
 
     def run(self):
-      self.run_tb.run()
+      #self.run_tb.run()
       self.run_fo.run()
 
       if self.train_ui.st_submit == True:      

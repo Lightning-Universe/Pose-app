@@ -1,6 +1,7 @@
 import os
 import logging
 import string
+from datetime import datetime
 
 import streamlit as st
 from streamlit_ace import st_ace
@@ -22,6 +23,11 @@ class FoRunUI(LightningFlow):
 
   def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, outputs_dir = "outputs", **kwargs):
     super().__init__(*args, **kwargs)
+    # control runners
+    # True = Run Jobs.  False = Do not Run jobs
+    # UI sets to True to kickoff jobs
+    # Job Runner sets to False when done
+    self.run_script = False   
     # input to UI
     self.script_dir  = script_dir
     self.script_name = script_name
@@ -98,7 +104,7 @@ def set_script_args(st_output_dir:[str], script_args:str):
   script_args_dict.pop('eval.fiftyone.dataset_to_create', None) 
   script_args_dict.pop('eval.fiftyone.dataset_name', None)
   script_args_dict.pop('eval.fiftyone.model_display_names', None)
-
+  script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
 
   for k,v in script_args_dict.items():
     script_args_array.append(f"{k}={v}")
@@ -127,13 +133,11 @@ def _render_streamlit_fn(state: AppState):
 
     # outputs to choose from
     st_output_dir = st.multiselect("select output", get_existing_outputs(state))
-    print("**********************")
-    print(st_output_dir)
 
     # dataset names
     existing_datasets = get_existing_datasets()
     st.write(f"Existing Fifityone datasets {', '.join(existing_datasets)}")
-    st_dataset_name = st.text_input("Fiftyone dataset name", placeholder=f"other than above existing names")
+    st_dataset_name = st.text_input("name other than the above existing names")
     if st_dataset_name in existing_datasets:
       st.error(f"{st_dataset_name} exists.  Please choose a new name.")
       st_dataset_name = None
@@ -144,7 +148,7 @@ def _render_streamlit_fn(state: AppState):
 
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
-    st_submit_button = st.button("Submit", disabled=True if (len(st_output_dir)==0 or st_dataset_name is None or st_dataset_name == "") else False)
+    st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
 
     # these are not used as often
     expander = st.expander("Change Defaults")
@@ -173,7 +177,7 @@ def _render_streamlit_fn(state: AppState):
       # state.script_args = st_script_args   TODO: this causes infinite loop to kick in.
 
     # Lightning way of returning the parameters
-    if st_submit_button and st_dataset_name:
+    if st_submit_button:
         state.submit_count    += 1
         state.st_output_dir   = st_output_dir
         state.st_script_dir   = st_script_dir
@@ -184,13 +188,13 @@ def _render_streamlit_fn(state: AppState):
 
         state.st_dataset_name = st_dataset_name
         
-        state.st_submit       = True  # must the last to prevent race condition
+        state.run_script      = True  # must the last to prevent race condition
 
         print(f"x{state.st_script_dir}")
         print(f"x{state.st_script_name}")
         print(f"x{state.st_script_args}")
         print(f"x{state.st_script_env}")
-        print(f"x{state.st_submit}")
+        print(f"x{state.run_script}")
 
 if __name__ == "__main__":
   # unit test to run SelectDatasetUI by itself 
