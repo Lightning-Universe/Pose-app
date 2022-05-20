@@ -146,12 +146,12 @@ def _render_streamlit_fn(state: AppState):
     state.script_args = set_script_args(st_output_dir, state.script_args) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
 
-    st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
-
     st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
 
     # these are not used as often
     expander = st.expander("Change Defaults")
+
+    st_script_env = expander.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
     st_script_dir = expander.text_input("Script Dir", value=state.script_dir, placeholder=".")
     st_script_name = expander.text_input("Script Name", value=state.script_name, placeholder="run.py")

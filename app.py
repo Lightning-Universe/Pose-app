@@ -72,7 +72,7 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
 
 
     def run(self):
-      #self.run_tb.run()
+      self.run_tb.run()
 
       if self.train_ui.run_script == True:      
         self.train_runner.run(root_dir = self.train_ui.st_script_dir, 
@@ -104,8 +104,7 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
             script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.fo_names} {self.fo_launch}",
             script_env=self.fo_ui.st_script_env,
             )
-        if self.fo_video_runner.has_succeeded:   
-          self.fo_launch=f"eval.fiftyone.address=$host eval.fiftyone.port=$port eval.fiftyone.launch_app_from_script=True eval.fiftyone.remote=False"
+        if self.fo_video_runner.has_succeeded or self.fo_image_runner.has_succeeded:   
           self.run_fo.run()
           self.fo_ui.run_script = False
 
