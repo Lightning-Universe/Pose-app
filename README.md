@@ -8,34 +8,46 @@ App for:
 * More to come! (Deploying for new videos, active learning, etc.)
 
 ## Installation
-For now, the installation assumes a local editable installation of `lightning` and `lightning-pose` 
+For now, the installation assumes a local editable installation of `lightning`, `lightning-pose-app`, and `lightning-pose` 
 
-### Conda environment
+# Local Setup
 
-Create a `conda` environment and `cd` into it:
+Note the following:
+
+- An app could install python modules that conflict with Lightning.  Create `lai-master-base` `conda` environment first, then clone that environment, then install the python modules specific to the app.  This will ensure speed up troubleshooting process.
+- Use of `python -m pip ` instead of `pip` is best practice when using virtual env like `conda`.  otherwise, some modules may not install correctly.
+
+## create `lai-master-base` (one time)
+
+- create `lai-master-base`
 ```bash
-conda create --yes --name lit-app python=3.8
-conda activate lit-app
-```
-
-### Install `lightning` (beta)
-Following the instructions here:
-
-```bash
-git clone https://github.com/PyTorchLightning/lightning
+git clone https://github.com/PyTorchLightning/lightning.git
 cd lightning
-python -m pip install -r requirements.txt
+conda create --yes --name lai-master-base python=3.8
+conda activate lai-master-base
+# mandatory step to pull the dependencies from extra-index-url
+python -m pip install -r requirements.txt 
 python -m pip install -e .
 python scripts/download_frontend.py
 ```
 
-- check for lightning version of 0.0.45
-
+- record versions and git hash
 ```
+git rev-parse HEAD
 lightning --version
+python --version
+```
+
+## clone `lai-master-base` into `lai` (for each app)
+
+- clone to create working lai
+```bash
+conda create --yes --name lai --clone lai-master-base
+conda activate lai
 ```
 
 ### Download lightning-pose-app
+
 NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
 ```bash
 git clone https://github.com/PyTorchLightning/lightning-pose-app
@@ -80,7 +92,6 @@ The following can be resolved with `rm -rf ~/.fiftyone`
 {"t":{"$date":"2022-05-23T14:42:45.150Z"},"s":"I",  "c":"CONTROL",  "id":20697,   "ctx":"main","msg":"Renamed existing log file","attr":{"oldLogPath":"/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log","newLogPath":"/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log.2022-05-23T14-42-45"}}
 Subprocess ['/opt/miniconda3/envs/lai/lib/python3.8/site-packages/fiftyone/db/bin/mongod', '--dbpath', '/Users/robertlee/.fiftyone/var/lib/mongo', '--logpath', '/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log', '--port', '0', '--nounixsocket'] exited with error 100:
 ```
-
 
 ### On GPU
 ```
