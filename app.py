@@ -69,7 +69,7 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
         )   
 
         # tensorboard
-        self.run_tb = RunTensorboard(parallel=True, logdir = "./lightning-pose/outputs")
+        self.run_tb = RunTensorboard(parallel=True, log_dir = "./lightning-pose/outputs")
         self.run_fo = RunFiftyone(parallel=True)
 
         # script_path is required at init, but will be override in the run
@@ -82,7 +82,7 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
 
     def run(self):
       self.config_ui.run()
-      #self.run_tb.run()
+      self.run_tb.run()
 
       if self.train_ui.run_script == True:      
         self.train_runner.run(root_dir = self.train_ui.st_script_dir, 

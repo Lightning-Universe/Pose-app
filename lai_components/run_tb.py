@@ -1,10 +1,10 @@
 import os
 import numpy as np
 import subprocess
+import signal
 
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
-import signal
 from datetime import datetime
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning.storage.path import Path
@@ -12,9 +12,9 @@ import logging
 
 
 class RunTensorboard(LightningWork):
-  def __init__(self, *args, logdir:str = None, **kwargs):
+  def __init__(self, *args, log_dir:str = None, **kwargs):
     super().__init__(*args, **kwargs)
-    self.logdir = logdir
+    self.log_dir = log_dir
 
   def generate_log(self, dataset_name):
     # fake tensorboard logs (fake loss)
@@ -27,9 +27,9 @@ class RunTensorboard(LightningWork):
         writer.add_scalar('fake_metric', -y, x)
 
   def run(self):
-    if self.logdir is None:
-      self.logdir = f"lightning_logs/hello"
-      self.generate_log(Path(f"{self.logdir}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"))
+    if self.log_dir is None:
+      self.log_dir = f"lightning_logs/hello"
+      self.generate_log(Path(f"{self.log_dir}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"))
 
     # below method produces a lot of log outout
     #tb = program.TensorBoard()
@@ -47,7 +47,6 @@ class RunTensorboard(LightningWork):
         str(self.port),
       ]
     )
-    logging.info(f"Tensorboard listening on {url}")
     signal.pause()
 
 
