@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import subprocess
+
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 import signal
@@ -29,10 +31,22 @@ class RunTensorboard(LightningWork):
       self.logdir = f"lightning_logs/hello"
       self.generate_log(Path(f"{self.logdir}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"))
 
-    tb = program.TensorBoard()
+    # below method produces a lot of log outout
+    #tb = program.TensorBoard()
+    #tb.configure(argv=[None, '--port', f"{self.port}", '--host', self.host, '--logdir', self.logdir])
+    #url = tb.launch()
 
-    tb.configure(argv=[None, '--port', f"{self.port}", '--host', self.host, '--logdir', self.logdir])
-    url = tb.launch()
+    subprocess.Popen(
+      [
+        "tensorboard",
+        "--logdir",
+        str(self.log_dir),
+        "--host",
+        self.host,
+        "--port",
+        str(self.port),
+      ]
+    )
     logging.info(f"Tensorboard listening on {url}")
     signal.pause()
 
