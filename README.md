@@ -29,7 +29,7 @@ python -m pip install -e .
 python scripts/download_frontend.py
 ```
 
-- check forli lightning version of 0.0.43
+- check for lightning version of 0.0.45
 
 ```
 lightning --version
@@ -46,6 +46,14 @@ python -m pip install torch numpy
 python -m pip install -r requirements.txt
 ```
 
+NOTE: 
+
+Ignore the following error for now.
+
+```
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+aiobotocore 2.1.2 requires botocore<1.23.25,>=1.23.24, but you have botocore 1.26.5 which is incompatible.
+```
 
 
 ### Install `lightning-pose`
@@ -54,6 +62,7 @@ NOTE:  The requirements are copied into lightning-pose-app.  no need to redo the
 ```bash
 git clone https://github.com/danbider/lightning-pose
 cd lightning-pose
+python -m pip install -e .
 ```
 
 ### Locally
@@ -65,8 +74,15 @@ cd lightning-pose-app
 lightning run app app.py
 ```
 
-### On GPU
+The following can be resolved with `rm -rf ~/.fiftyone`
 
+```
+{"t":{"$date":"2022-05-23T14:42:45.150Z"},"s":"I",  "c":"CONTROL",  "id":20697,   "ctx":"main","msg":"Renamed existing log file","attr":{"oldLogPath":"/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log","newLogPath":"/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log.2022-05-23T14-42-45"}}
+Subprocess ['/opt/miniconda3/envs/lai/lib/python3.8/site-packages/fiftyone/db/bin/mongod', '--dbpath', '/Users/robertlee/.fiftyone/var/lib/mongo', '--logpath', '/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log', '--port', '0', '--nounixsocket'] exited with error 100:
+```
+
+
+### On GPU
 ```
 USE_GPU=1 lightning run app app.py --cloud --name lightning-pose
 ```

@@ -7,6 +7,8 @@ from lai_components.run_ui import ScriptRunUI
 from lai_components.chdir_script import ChdirPythonScript
 from lai_components.run_tb import RunTensorboard
 from lai_components.select_fo_dataset import RunFiftyone, SelectDatasetUI
+from lai_components.run_config_ui import ConfigUI
+
 import logging
 import time
 
@@ -23,6 +25,13 @@ class LitPoseApp(L.LightningFlow):
         # self.dataset_ui = SelectDatasetUI()
         self.fo_names = None
         self.fo_launch = None
+
+        self.config_ui = ConfigUI(
+          script_dir = "./lightning-pose",
+          script_env = "HYDRA_FULL_ERROR=1",
+          config_dir = "./lightning-pose/scripts/configs",
+          config_ext = "*.yaml",        
+        )
 
         self.train_ui = ScriptRunUI(
           script_dir = "./lightning-pose",
@@ -72,6 +81,7 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
 
 
     def run(self):
+      self.config_ui.run()
       self.run_tb.run()
 
       if self.train_ui.run_script == True:      
@@ -113,8 +123,8 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
         tab2 = {"name": "Tensorboard", "content": self.run_tb}
         tab3 = {"name": "Create Image Dataset", "content": self.fo_ui}
         tab4 = {"name": "Fiftyone", "content": self.run_fo}
-
-        return [tab1, tab2, tab3, tab4]
+        tab5 = {"name": "Config", "content": self.config_ui}
+        return [tab1, tab2, tab3, tab4, tab5]
 
 logging.basicConfig(level=logging.INFO)
 app = L.LightningApp(LitPoseApp())
