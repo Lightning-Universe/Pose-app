@@ -81,9 +81,10 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
 
 
     def run(self):
-      self.config_ui.run()
+      # these run in parallel
       self.run_tb.run()
-
+      self.run_fo.run()
+      # the rest are sequential
       if self.train_ui.run_script == True:      
         self.train_runner.run(root_dir = self.train_ui.st_script_dir, 
           script_name = self.train_ui.st_script_name, 
