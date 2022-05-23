@@ -21,6 +21,7 @@ Note the following:
 
 - create `lai-master-base`
 ```bash
+cd ~
 git clone https://github.com/PyTorchLightning/lightning.git
 cd lightning
 conda create --yes --name lai-master-base python=3.8
@@ -50,6 +51,7 @@ conda activate lai
 
 NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
 ```bash
+cd ~
 git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
 git checkout rslee-prototype
@@ -72,6 +74,7 @@ aiobotocore 2.1.2 requires botocore<1.23.25,>=1.23.24, but you have botocore 1.2
 NOTE:  The requirements are copied into lightning-pose-app.  no need to redo the pip install
 
 ```bash
+cd ~/lightning-pose-app
 git clone https://github.com/danbider/lightning-pose
 cd lightning-pose
 python -m pip install -e .
