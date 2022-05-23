@@ -125,7 +125,8 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
         tab3 = {"name": "Create Image Dataset", "content": self.fo_ui}
         tab4 = {"name": "Fiftyone", "content": self.run_fo}
         tab5 = {"name": "Config", "content": self.config_ui}
-        return [tab1, tab2, tab3, tab4, tab5]
+        tab6 = {"name": "CVAT", "content": "https://cvat.org/"}
+        return [tab1, tab2, tab3, tab4, tab5, tab6]
 
 logging.basicConfig(level=logging.INFO)
 app = L.LightningApp(LitPoseApp())
