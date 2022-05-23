@@ -23,7 +23,7 @@ Following the instructions here:
 
 ```bash
 git clone https://github.com/PyTorchLightning/lightning
-cd lightning.beta
+cd lightning
 python -m pip install -r requirements.txt
 python -m pip install -e .
 python scripts/download_frontend.py
