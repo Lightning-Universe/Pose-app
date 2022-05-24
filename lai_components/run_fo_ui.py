@@ -147,6 +147,12 @@ def _render_streamlit_fn(state: AppState):
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
 
     st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
+    if len(st_output_dir) == 0:
+      st.warning(f"select at least one output to continue")
+    if (st_dataset_name is None) or (st_dataset_name == ""):
+      st.warning(f"enter a unique dataset name to continue")
+    if state.run_script == True:
+      st.warning(f"waiting for existing dataset creation to finish")     
 
     # these are not used as often
     expander = st.expander("Change Defaults")
