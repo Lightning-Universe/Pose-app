@@ -50,6 +50,7 @@ conda activate lai
 ### Download lightning-pose-app and lightning-pose
 
 NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
+
 ```bash
 cd ~
 git clone https://github.com/PyTorchLightning/lightning-pose-app
