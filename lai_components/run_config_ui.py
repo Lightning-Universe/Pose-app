@@ -72,7 +72,7 @@ def _render_streamlit_fn(state: AppState):
 Convolutional Networks for pose tracking implemented in **Pytorch Lightning**, 
 supporting massively accelerated training on *unlabeled* videos using **NVIDIA DALI**.
 
-### A Single application with pre-integrated components:
+### A Single application with pre-integrated components
 * Lightning Pose Configuration
 * Train
 * Train Diagnostics
