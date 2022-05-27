@@ -8,48 +8,68 @@ App for:
 * More to come! (Deploying for new videos, active learning, etc.)
 
 ## Installation
-For now, the installation assumes a local editable installation of `lightning` and `lightning-pose` (the latter skips the `DALI` installation).
-### Conda environment
-Create a `conda` environment and activate it
-```bash
-conda create --name lit-app python=3.8
-conda activate lit-app
-```
+For now, the installation assumes a local editable installation of `lightning`, `lightning-pose-app`, and `lightning-pose` 
 
-### Install `lightning-pose`
-We clone lightning and install it with its dependencies in editable mode
-```bash
-git clone https://github.com/danbider/lightning-pose
-cd lightning-pose
-```
-NOTE: we have two options for installing dependencies. On a remote instance with linux and CUDA 11, do the usual 
-```bash
-pip install -r requirements.txt
-```
-Which will install DALI. For local testing:
-```bash
-pip install -e .
-```
+# Local Setup
 
-### Install `lightning` (beta)
-Following the instructions here:
+Note the following:
 
-```bash
-git clone https://github.com/PyTorchLightning/lightning.beta.git
-```
-Move into folder
-```bash
-cd lightning.beta
-```
-Install dependencies:
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
+- An app could install python modules that conflict with Lightning.  Create `lai-master-base` `conda` environment first, then clone that environment, then install the python modules specific to the app.  This will ensure speed up troubleshooting process.
+- Use of `python -m pip ` instead of `pip` is best practice when using virtual env like `conda`.  otherwise, some modules may not install correctly.
 
-Download the `lightning` UI:
+## create `lai-master-base` (one time)
+
+- create `lai-master-base`
 ```bash
+cd ~
+git clone https://github.com/PyTorchLightning/lightning.git
+cd lightning
+conda create --yes --name lai-master-base python=3.8
+conda activate lai-master-base
+# mandatory step to pull the dependencies from extra-index-url
+python -m pip install -r requirements.txt 
+python -m pip install -e .
 python scripts/download_frontend.py
+```
+
+- record versions and git hash
+```
+git rev-parse HEAD
+lightning --version
+python --version
+```
+
+## clone `lai-master-base` into `lai` (for each app)
+
+- clone to create working lai
+```bash
+conda create --yes --name lai --clone lai-master-base
+conda activate lai
+```
+
+### Download lightning-pose-app and lightning-pose
+
+NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
+
+```bash
+cd ~
+git clone https://github.com/PyTorchLightning/lightning-pose-app
+cd lightning-pose-app
+git checkout rslee-prototype
+
+git clone https://github.com/danbider/lightning-pose
+# TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
+python -m pip install torch numpy
+python -m pip install -r requirements.txt
+```
+
+NOTE: 
+
+Ignore the following error for now.
+
+```
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+aiobotocore 2.1.2 requires botocore<1.23.25,>=1.23.24, but you have botocore 1.26.5 which is incompatible.
 ```
 
 ### Locally
@@ -57,24 +77,18 @@ python scripts/download_frontend.py
 In order to run the application locally, run the following commands
 
 ```bash
-git clone https://github.com/PyTorchLightning/lightning-pose-app.git
 cd lightning-pose-app
-pip install -r requirements.txt
 lightning run app app.py
 ```
 
-### Cloud
-
-In order to run the application cloud, run the following commands
-
-### On CPU
+The following can be resolved with `rm -rf ~/.fiftyone`
 
 ```
-lightning run app app.py --cloud
+{"t":{"$date":"2022-05-23T14:42:45.150Z"},"s":"I",  "c":"CONTROL",  "id":20697,   "ctx":"main","msg":"Renamed existing log file","attr":{"oldLogPath":"/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log","newLogPath":"/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log.2022-05-23T14-42-45"}}
+Subprocess ['/opt/miniconda3/envs/lai/lib/python3.8/site-packages/fiftyone/db/bin/mongod', '--dbpath', '/Users/robertlee/.fiftyone/var/lib/mongo', '--logpath', '/Users/robertlee/.fiftyone/var/lib/mongo/log/mongo.log', '--port', '0', '--nounixsocket'] exited with error 100:
 ```
 
 ### On GPU
-
 ```
-USE_GPU=1 lightning run app app.py --cloud
+USE_GPU=1 lightning run app app.py --cloud --name lightning-pose
 ```
