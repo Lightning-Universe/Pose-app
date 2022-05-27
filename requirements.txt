@@ -38,7 +38,7 @@ torchtyping
 torchvision
 typeguard
 # gpus
-nvidia-pyindex
---extra-index-url https://developer.download.nvidia.com/compute/redist
-nvidia-dali-cuda110
+#nvidia-pyindex
+#--extra-index-url https://developer.download.nvidia.com/compute/redist
+#nvidia-dali-cuda110
 -e ./lightning-pose

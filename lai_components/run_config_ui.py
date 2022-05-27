@@ -67,6 +67,32 @@ def _render_streamlit_fn(state: AppState):
     """Config
     """
 
+    st.markdown("""<img src="https://github.com/danbider/lightning-pose/raw/main/assets/images/LightningPose_horizontal_light.png" alt="Wide Lightning Pose Logo" width="200"/>
+
+Convolutional Networks for pose tracking implemented in **Pytorch Lightning**, 
+supporting massively accelerated training on *unlabeled* videos using **NVIDIA DALI**.
+
+### A Single application with pre-integrated components:
+* Lightning Pose Configuration
+* Train
+* Train Diagnostics
+* Image/Video Diagnostics Preparation
+* Image/Video Diagnostics
+* Image/Video Annotation
+
+### Built with the coolest Deep Learning packages
+* `pytorch-lightning` for multiple-GPU training and to minimize boilerplate code
+* `nvidia-DALI` for accelerated GPU dataloading
+* `Hydra` to orchestrate the config files and log experiments
+* `kornia` for differntiable computer vision ops
+* `torchtyping` for type and shape assertions of `torch` tensors
+* `FiftyOne` for visualizing model predictions
+* `Tensorboard` to visually diagnoze training performance
+
+### Configuration
+
+""", unsafe_allow_html=True)
+
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
     st_script_dir = st.text_input("Script Dir", value=state.script_dir, placeholder=".")
 

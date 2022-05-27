@@ -120,13 +120,13 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
           self.fo_ui.run_script = False
 
     def configure_layout(self):
-        tab1 = {"name": "Train", "content": self.train_ui}
-        tab2 = {"name": "Tensorboard", "content": self.run_tb}
-        tab3 = {"name": "Create Image Dataset", "content": self.fo_ui}
-        tab4 = {"name": "Fiftyone", "content": self.run_fo}
-        tab5 = {"name": "Config", "content": self.config_ui}
-        tab6 = {"name": "CVAT", "content": "https://cvat.org/"}
-        return [tab1, tab2, tab3, tab4, tab5, tab6]
+        config_tab = {"name": "Lightning Pose", "content": self.config_ui}
+        train_tab = {"name": "Train", "content": self.train_ui}
+        train_diag_tab = {"name": "Train Diag", "content": self.run_tb}
+        image_diag_prep_tab = {"name": "Image/Video Diag Prep", "content": self.fo_ui}
+        image_diag_tab = {"name": "Image/Video Diag", "content": self.run_fo}
+        data_anntate_tab = {"name": "Image/Video Annotation", "content": "https://cvat.org/"}
+        return [config_tab, train_tab, train_diag_tab, image_diag_prep_tab, image_diag_tab, data_anntate_tab]
 
 logging.basicConfig(level=logging.INFO)
 app = L.LightningApp(LitPoseApp())
