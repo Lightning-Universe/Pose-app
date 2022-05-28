@@ -80,7 +80,7 @@ def set_script_args(script_args:str):
 
   # only set if not alreay present
   if not('+hydra.run.out' in script_args_dict):
-    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
+    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%H-%M-%S')
  
   # change back to array
   for k,v in script_args_dict.items():

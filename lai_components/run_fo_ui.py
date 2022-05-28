@@ -107,8 +107,8 @@ def set_script_args(st_output_dir:[str], script_args:str):
   script_args_dict.pop('eval.fiftyone.model_display_names', None)
   # only set if not alreay present
   if not('+hydra.run.out' in script_args_dict):
-    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
-    
+    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%H-%M-%S')
+
   for k,v in script_args_dict.items():
     script_args_array.append(f"{k}={v}")
   return(" \n".join(script_args_array)) 
