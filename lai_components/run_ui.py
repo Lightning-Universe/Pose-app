@@ -78,8 +78,9 @@ def set_script_args(script_args:str):
     k,v = x.split("=",1)
     script_args_dict[k] = v
 
-  # these will be controlled by the runners.  remove if set manually
-  script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
+  # only set if not alreay present
+  if not('+hydra.run.out' in script_args_dict):
+    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
  
   # change back to array
   for k,v in script_args_dict.items():

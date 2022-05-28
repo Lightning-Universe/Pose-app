@@ -105,8 +105,10 @@ def set_script_args(st_output_dir:[str], script_args:str):
   script_args_dict.pop('eval.fiftyone.dataset_to_create', None) 
   script_args_dict.pop('eval.fiftyone.dataset_name', None)
   script_args_dict.pop('eval.fiftyone.model_display_names', None)
-  script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
-
+  # only set if not alreay present
+  if not('+hydra.run.out' in script_args_dict):
+    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
+    
   for k,v in script_args_dict.items():
     script_args_array.append(f"{k}={v}")
   return(" \n".join(script_args_array)) 
@@ -153,6 +155,8 @@ def _render_streamlit_fn(state: AppState):
     # parse
     state.script_args = set_script_args(st_output_dir, state.script_args) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
+    if st_script_args != state.script_args:
+      state.script_args = st_script_args 
 
     st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
     if state.run_script == True:
