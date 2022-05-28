@@ -56,6 +56,7 @@ class ChdirPythonScript(TracerPythonScript):
 
     # run
     print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print(f"{os.getcwd()}; {script_env} python {root_dir}/{script_name} {script_args} ")
     print(f"{os.getcwd()} {root_dir} {self.script_path} {self.script_args} {self.env}")
     super().run()
 

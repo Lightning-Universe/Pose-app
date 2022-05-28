@@ -88,15 +88,11 @@ def set_script_args(st_output_dir:[str], script_args:str):
     path_list = ','.join([f"'{x}'" for x in st_output_dir])
     script_args_dict["eval.hydra_paths"]=f"[{path_list}]"
 
+    path_list = ','.join([f"'{os.path.abspath(x)}/predictions.csv'" for x in st_output_dir])
+    script_args_dict['eval.pred_csv_files_to_plot'] = f"[{path_list}]"
+
   if script_args_dict['eval.video_file_to_plot']: 
     script_args_dict['eval.video_file_to_plot'] = os.path.abspath(script_args_dict['eval.video_file_to_plot'])
-
-  if script_args_dict['eval.pred_csv_files_to_plot']:
-    print(script_args_dict['eval.pred_csv_files_to_plot'])
-    x = eval(script_args_dict['eval.pred_csv_files_to_plot'])
-    z = ",".join([f"'{os.path.abspath(y)}'" for y in x])
-    script_args_dict['eval.pred_csv_files_to_plot'] = f"[{z}]"
-
 
   # these will be controlled by the runners.  remove if set manually
   script_args_dict.pop('eval.fiftyone.address', None)
