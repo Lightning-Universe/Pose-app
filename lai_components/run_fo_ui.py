@@ -15,6 +15,13 @@ from lightning.frontend import StreamlitFrontend
 from lightning.utilities.state import AppState
 from lightning.storage.path import Path
 
+def args_to_dict(script_args:str) -> dict:
+  """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
+  script_args_dict = {}
+  for x in shlex.split(script_args, posix=False):
+    k,v = x.split("=",1)
+    script_args_dict[k] = v
+  return(script_args_dict) 
 
 class FoRunUI(LightningFlow):
   """UI to enter training parameters
@@ -60,6 +67,7 @@ class FoRunUI(LightningFlow):
     self.st_script_env = None  
     self.st_dataset_name = None
 
+
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
@@ -86,22 +94,36 @@ def hydra_config(language="yaml"):
         st.write("content changed")
         st.session_state[basename] = content_new
 
-def set_script_args(st_output_dir:[str], script_args:str):
-  script_args_dict = {}
-  script_args_array = []
-  for x in shlex.split(script_args, posix=False):
-    k,v = x.split("=",1)
-    script_args_dict[k] = v
+def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str):
+  script_args_dict = args_to_dict(script_args)
+
   # enrich the args  
+  # eval.video_file_to_plot="</ABSOLUTE/PATH/TO/VIDEO.mp4>" \
+
+  # eval.hydra_paths=["</ABSOLUTE/PATH/TO/HYDRA/DIR/1>","</ABSOLUTE/PATH/TO/HYDRA/DIR/1>"] \
+  # eval.fiftyone.model_display_names=["<NAME_FOR_MODEL_1>","<NAME_FOR_MODEL_2>"]
+  # eval.pred_csv_files_to_plot=["</ABSOLUTE/PATH/TO/PREDS_1.csv>","</ABSOLUTE/PATH/TO/PREDS_2.csv>"]
+
   if st_output_dir:  
     path_list = ','.join([f"'{x}'" for x in st_output_dir])
     script_args_dict["eval.hydra_paths"]=f"[{path_list}]"
 
-    path_list = ','.join([f"'{os.path.abspath(x)}/predictions.csv'" for x in st_output_dir])
-    script_args_dict['eval.pred_csv_files_to_plot'] = f"[{path_list}]"
+    # set eval.pred_csv_files_to_plot
 
-  if script_args_dict['eval.video_file_to_plot']: 
-    script_args_dict['eval.video_file_to_plot'] = os.path.abspath(script_args_dict['eval.video_file_to_plot'])
+    # fiename is video_name*.csv
+    video_file_name = script_args_dict["eval.video_file_to_plot"].split("/")[-1]
+    video_file_name_basename = ".".join(video_file_name.split(".")[:-1])
+    print(f"video_file_name_basename={video_file_name_basename}")
+    
+    pred_csv_files_to_plot=[]
+    pred_csv_files_root_dir = os.path.abspath(f"{script_dir}/{outputs_dir}/")
+    for hydra_name in st_output_dir:
+      print(f"looking for {pred_csv_files_root_dir}/{hydra_name} {video_file_name_basename}_*.csv")
+      for file in Path(f"{pred_csv_files_root_dir}/{hydra_name}").rglob(f"{video_file_name_basename}_*.csv"):
+        print(f"found {file}")
+        pred_csv_files_to_plot.append(f"'{str(file)}'")
+    script_args_dict["eval.pred_csv_files_to_plot"] = "[%s]" % ",".join(pred_csv_files_to_plot) 
+    print(f"pred_csv_files_to_plot={script_args_dict['eval.pred_csv_files_to_plot']}")
 
   # these will be controlled by the runners.  remove if set manually
   script_args_dict.pop('eval.fiftyone.address', None)
@@ -114,6 +136,7 @@ def set_script_args(st_output_dir:[str], script_args:str):
   if not('+hydra.run.out' in script_args_dict):
     script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%H-%M-%S')
 
+  script_args_array=[]
   for k,v in script_args_dict.items():
     script_args_array.append(f"{k}={v}")
   return(" \n".join(script_args_array)) 
@@ -158,7 +181,7 @@ def _render_streamlit_fn(state: AppState):
       st_dataset_name = None
 
     # parse
-    state.script_args = set_script_args(st_output_dir, state.script_args) 
+    state.script_args = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     if st_script_args != state.script_args:
       state.script_args = st_script_args 
