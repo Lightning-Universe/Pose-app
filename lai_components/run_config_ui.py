@@ -20,10 +20,10 @@ class ConfigUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, config_dir, config_ext, script_env, test_videos_directory, **kwargs):
+  def __init__(self, *args, script_dir, config_dir, config_ext, script_env, eval_test_videos_directory, **kwargs):
     super().__init__(*args, **kwargs)   
     # input to UI
-    self.test_videos_directory = test_videos_directory
+    self.eval_test_videos_directory = eval_test_videos_directory
 
     self.script_dir = script_dir
     self.script_env = script_env
@@ -32,11 +32,7 @@ class ConfigUI(LightningFlow):
     self.config_ext = config_ext        
 
     # output from the UI
-    self.st_test_videos_directory = None
-    self.st_config_dir = None
-    self.st_config_ext = None
-    self.st_script_dir = None
-    self.st_script_env = None  
+    self.form_values = {}
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -96,7 +92,7 @@ supporting massively accelerated training on *unlabeled* videos using **NVIDIA D
 
 """, unsafe_allow_html=True)
 
-    st_test_videos_directory = st.text_input("Test Videos Directory", value=state.test_videos_directory)
+    st_eval_test_videos_directory = st.text_input("Eval Test Videos Directory", value=state.eval_test_videos_directory)
 
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
     st_script_dir = st.text_input("Script Dir", value=state.script_dir, placeholder=".")
@@ -117,10 +113,12 @@ supporting massively accelerated training on *unlabeled* videos using **NVIDIA D
 
     options = hydra_config()
 
-    state.st_test_videos_directory = st_test_videos_directory
-    state.st_script_dir = st_script_dir
-    state.st_script_env = st_script_env
-    state.st_config_dir = st_config_dir
-    state.st_config_ext = st_config_ext
+    state.form_values["eval_test_videos_directory"] = st_eval_test_videos_directory
+    state.form_values["script_dir"] = st_script_dir
+    state.form_values["script_env"] = st_script_env
+    state.form_values["config_dir"] = st_config_dir
+    state.form_values["config_ext"] = st_config_ext
+
+    print(f"run_config_ui: {state.form_values}")
 
 

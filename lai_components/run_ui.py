@@ -20,7 +20,17 @@ class ScriptRunUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, outputs_dir = "outputs", **kwargs):
+  def __init__(self, 
+      *args, 
+      script_dir, 
+      script_name, 
+      config_dir, 
+      config_ext, 
+      script_args, 
+      script_env, 
+      eval_test_videos_directory,
+      outputs_dir = "outputs",
+      **kwargs):
     super().__init__(*args, **kwargs)
     # control runners
     # True = Run Jobs.  False = Do not Run jobs
@@ -28,6 +38,8 @@ class ScriptRunUI(LightningFlow):
     # Job Runner sets to False when done
     self.run_script = False       
     # input to UI
+    self.eval_test_videos_directory = eval_test_videos_directory
+
     self.script_dir = script_dir
     self.script_name = script_name
     self.script_env = script_env
@@ -38,11 +50,8 @@ class ScriptRunUI(LightningFlow):
     self.script_args = script_args
     self.outputs_dir = outputs_dir
     # output from the UI
-    self.st_submit = False
-    self.st_script_dir = None
-    self.st_script_name = None
-    self.st_script_args = None  
-    self.st_script_env = None  
+    self.form_values = {}
+    self.run_script = False
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -71,22 +80,32 @@ def hydra_config(language="yaml"):
         st.write("content changed")
         st.session_state[basename] = content_new
 
-def set_script_args(script_args:str):
+def args_to_dict(script_args:str) -> dict:
+  """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
   script_args_dict = {}
-  script_args_array = []
   for x in shlex.split(script_args, posix=False):
     k,v = x.split("=",1)
     script_args_dict[k] = v
+  return(script_args_dict) 
 
-  # only set if not alreay present
-  if not('+hydra.run.out' in script_args_dict):
-    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%H-%M-%S')
- 
-  # change back to array
+def dict_to_args(script_args_dict:dict) -> str:
+  """convert dict {'A':1, 'B':2} to str A=1 B=2 to """
+  script_args_array = []
   for k,v in script_args_dict.items():
     script_args_array.append(f"{k}={v}")
   # return as a text
   return(" \n".join(script_args_array)) 
+
+def set_script_args(script_args:str):
+  script_args_dict = args_to_dict(script_args)
+
+  # only set if not alreay present
+  if not('+hydra.run.out' in script_args_dict):
+    run_date_time=datetime.today().strftime('%Y-%m-%d/%H-%M-%S')
+    script_args_dict['hydra.run.dir'] = f"outputs/{run_date_time}"
+ 
+  # change back to array
+  return(dict_to_args(script_args_dict))
   
 def get_existing_outpts(state):
   options=[]
@@ -102,8 +121,7 @@ def _render_streamlit_fn(state: AppState):
     """
     st_output_dir = st.selectbox("existing output", get_existing_outpts(state))
 
-    # edit the scritp_args
-    state.script_args = set_script_args(state.script_args) 
+    # edit the script_args
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
 
     st_submit_button = st.button("Submit",disabled=True if (state.run_script == True) else False )
@@ -112,6 +130,8 @@ def _render_streamlit_fn(state: AppState):
 
     # these are not used as often
     expander = st.expander("Change Defaults")
+
+    st_eval_test_videos_directory = expander.text_input("Eval Test Videos Directory", value=state.eval_test_videos_directory)
 
     st_script_env = expander.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
 
@@ -136,17 +156,19 @@ def _render_streamlit_fn(state: AppState):
     
     # Lightning way of returning the parameters
     if st_submit_button:
-        state.st_script_dir  = st_script_dir
-        state.st_script_name = st_script_name
+      # add default options
+      st_script_args = set_script_args(st_script_args) 
+      # save them
+      state.form_values["eval_test_videos_directory"] = st_eval_test_videos_directory
 
-        state.st_script_args = st_script_args
-        state.st_script_env  = st_script_env
-        state.run_script     = True  # must the last to prevent race condition
+      state.form_values["script_dir"]  = st_script_dir
+      state.form_values["script_name"] = st_script_name
 
-        print(f"x{state.st_script_dir}")
-        print(f"x{state.st_script_name}")
-        print(f"x{state.st_script_args}")
-        print(f"x{state.st_script_env}")
-        print(f"x{state.run_script}")
+      state.form_values["script_args"] = st_script_args
+      state.form_values["script_env"]  = st_script_env
+      state.run_script     = True  # must the last to prevent race condition
+
+      print(f"run_ui: {state.form_values}")
+      print(f"run_ui: {state.run_script}")
 
 
