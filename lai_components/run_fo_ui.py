@@ -43,6 +43,7 @@ class FoRunUI(LightningFlow):
 
     # output from the UI
     self.st_output_dir = None
+    self.st_model_display_names = None
     self.st_submit = False
     self.st_script_dir = None
     self.st_script_name = None
@@ -134,6 +135,13 @@ def _render_streamlit_fn(state: AppState):
     # outputs to choose from
     st_output_dir = st.multiselect("select output", get_existing_outputs(state))
 
+    # for each output, choose a name 
+    model_display_names_str = st.text_input("display name for each output separated by space")
+    st_model_display_names = shlex.split(model_display_names_str)
+    if len(st_model_display_names) != len(st_output_dir):
+      st.error("unique names must be given to each output")
+    print(f"{st_output_dir} {st_output_dir}")
+
     # dataset names
     existing_datasets = get_existing_datasets()
     st.write(f"Existing Fifityone datasets {', '.join(existing_datasets)}")
@@ -193,7 +201,8 @@ def _render_streamlit_fn(state: AppState):
         state.st_script_env   = st_script_env
 
         state.st_dataset_name = st_dataset_name
-        
+        state.st_model_display_names = st_model_display_names 
+
         state.run_script      = True  # must the last to prevent race condition
 
         print(f"x{state.st_script_dir}")

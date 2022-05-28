@@ -1,5 +1,6 @@
 # app.py
 import os
+from string import Template
 import lightning as L
 import streamlit as st
 from lai_components.run_fo_ui import FoRunUI
@@ -96,13 +97,14 @@ eval.pred_csv_files_to_plot=["./lightning-pose/toy_datasets/toymouseRunningData/
 
       # create fo dataset
       if self.fo_ui.run_script == True:      
-        self.fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name} eval.fiftyone.model_display_names=['{self.fo_ui.st_dataset_name}']"
+        self.fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
         self.fo_launch=f"eval.fiftyone.launch_app_from_script=False"
         self.fo_predict_runner.run(root_dir = self.fo_ui.st_script_dir, 
           script_name = "scripts/predict_new_vids.py", 
           script_args=f"{self.fo_ui.st_script_args} {self.fo_names}",
           script_env=self.fo_ui.st_script_env,
           )
+        self.fo_names += " eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
         if self.fo_predict_runner.has_succeeded:
           self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
             script_name = "scripts/create_fiftyone_dataset.py", 
