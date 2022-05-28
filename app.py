@@ -128,24 +128,21 @@ eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/unlab
       # create fo dataset
       if self.fo_ui.run_script == True:      
         self.fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
+        self.fo_names += " eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
         self.fo_launch=f"eval.fiftyone.launch_app_from_script=False"
 
-        self.fo_names += " eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
-
-        if self.fo_predict_runner.has_succeeded:
-          self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
-            script_name = "scripts/create_fiftyone_dataset.py", 
-            script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.fo_names} {self.fo_launch}",
-            script_env=self.fo_ui.st_script_env,
-            )
+        self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
+          script_name = "scripts/create_fiftyone_dataset.py", 
+          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.fo_names} {self.fo_launch}",
+          script_env=self.fo_ui.st_script_env,
+          )
         if self.fo_image_runner.has_succeeded:
           self.fo_video_runner.run(root_dir = self.fo_ui.st_script_dir, 
             script_name = "scripts/create_fiftyone_dataset.py", 
             script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.fo_names} {self.fo_launch}",
             script_env=self.fo_ui.st_script_env,
             )
-        if self.fo_video_runner.has_succeeded or self.fo_image_runner.has_succeeded:   
-          self.run_fo.run()
+        if self.fo_video_runner.has_succeeded and self.fo_image_runner.has_succeeded:   
           self.fo_ui.run_script = False
 
     def configure_layout(self):

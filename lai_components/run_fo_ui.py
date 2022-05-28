@@ -21,7 +21,16 @@ class FoRunUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, outputs_dir = "outputs", **kwargs):
+  def __init__(self, 
+      *args, 
+      script_dir, 
+      script_name, 
+      config_dir, 
+      config_ext, 
+      script_args, 
+      script_env, 
+      outputs_dir = "outputs", 
+      **kwargs):
     super().__init__(*args, **kwargs)
     # control runners
     # True = Run Jobs.  False = Do not Run jobs
