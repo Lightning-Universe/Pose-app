@@ -132,6 +132,10 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
   script_args_dict.pop('eval.fiftyone.dataset_to_create', None) 
   script_args_dict.pop('eval.fiftyone.dataset_name', None)
   script_args_dict.pop('eval.fiftyone.model_display_names', None)
+
+  # convert to absolute
+  script_args_dict["eval.video_file_to_plot"] = os.path.abspath(script_args_dict["eval.video_file_to_plot"]) 
+  
   # only set if not alreay present
   if not('+hydra.run.out' in script_args_dict):
     script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%H-%M-%S')

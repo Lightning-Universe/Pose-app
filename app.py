@@ -78,7 +78,7 @@ eval.fiftyone.model_display_names=["test1"]
 eval.fiftyone.dataset_to_create="images"
 eval.fiftyone.build_speed="fast" 
 eval.fiftyone.launch_app_from_script=True 
-eval.video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4"
+eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4
 """  
         )   
 
