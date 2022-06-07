@@ -9,19 +9,15 @@ import sh
 import shlex
 import fiftyone as fo
 
+from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
+from lai_components.args_utils import args_to_dict, dict_to_args 
+
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning.components.python import TracerPythonScript
 from lightning.frontend import StreamlitFrontend
 from lightning.utilities.state import AppState
 from lightning.storage.path import Path
 
-def args_to_dict(script_args:str) -> dict:
-  """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
-  script_args_dict = {}
-  for x in shlex.split(script_args, posix=False):
-    k,v = x.split("=",1)
-    script_args_dict[k] = v
-  return(script_args_dict) 
 
 class FoRunUI(LightningFlow):
   """UI to enter training parameters
@@ -32,8 +28,8 @@ class FoRunUI(LightningFlow):
       *args, 
       script_dir, 
       script_name, 
-      config_dir, 
-      config_ext, 
+      config_dir = "./", 
+      config_name = "config.yaml", 
       script_args, 
       script_env, 
       outputs_dir = "outputs", 
@@ -50,7 +46,7 @@ class FoRunUI(LightningFlow):
     self.script_env = script_env
 
     self.config_dir = config_dir
-    self.config_ext = config_ext        
+    self.config_name = config_name        
 
     self.script_args = script_args
     self.outputs_dir = outputs_dir
@@ -71,28 +67,7 @@ class FoRunUI(LightningFlow):
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
-def hydra_config(language="yaml"):
-    try:
-      basename = st.session_state.hydra_config[0]
-      filename = st.session_state.hydra_config[1]
-    except:
-      st.error("no files found")
-      return
-    logging.debug(f"selectbox {st.session_state}")
-    if basename in st.session_state:
-        content_raw = st.session_state[basename]
-    else:
-        try:
-            with open(filename) as input:
-                content_raw = input.read()
-        except FileNotFoundError:
-            st.error("File not found.")
-        except Exception as err:
-            st.error(f"can't process select item. {err}")
-    content_new = st_ace(value=content_raw, language=language)
-    if content_raw != content_new:
-        st.write("content changed")
-        st.session_state[basename] = content_new
+
 
 def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str):
   script_args_dict = args_to_dict(script_args)
@@ -136,14 +111,7 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
   # convert to absolute
   script_args_dict["eval.video_file_to_plot"] = os.path.abspath(script_args_dict["eval.video_file_to_plot"]) 
   
-  # only set if not alreay present
-  if not('+hydra.run.out' in script_args_dict):
-    script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%H-%M-%S')
-
-  script_args_array=[]
-  for k,v in script_args_dict.items():
-    script_args_array.append(f"{k}={v}")
-  return(" \n".join(script_args_array)) 
+  return(dict_to_args(script_args_dict)) 
   
 def get_existing_outputs(state):
   options=[]
@@ -185,6 +153,7 @@ def _render_streamlit_fn(state: AppState):
       st_dataset_name = None
 
     # parse
+
     state.script_args = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     if st_script_args != state.script_args:
@@ -206,21 +175,8 @@ def _render_streamlit_fn(state: AppState):
     st_script_dir = expander.text_input("Script Dir", value=state.script_dir, placeholder=".")
     st_script_name = expander.text_input("Script Name", value=state.script_name, placeholder="run.py")
 
-    st_config_dir = expander.text_input("Config Dir", value=state.config_dir, placeholder=".")
-    st_config_ext = expander.text_input("Config File Extensions", value=state.config_ext, placeholder="*.yaml")
-
-    options = []
-    if not options:
-        print("building options")
-        for file in Path(st_config_dir).rglob(st_config_ext):
-            basename = os.path.basename(file)
-            options.append([basename, str(file)])
-    show_basename = lambda opt: opt[0]
-    st.selectbox(
-        "override hydra config", options, key="hydra_config", format_func=show_basename
-    )
-
-    options = hydra_config()
+    st_hydra_config = hydra_config(context=expander, config_dir=state.config_dir, config_name=state.config_name)
+    st.info(st_hydra_config)
 
     if state.script_args != st_script_args:
       print(f"value changed {st_script_args}")
@@ -233,7 +189,7 @@ def _render_streamlit_fn(state: AppState):
         state.st_script_dir   = st_script_dir
         state.st_script_name  = st_script_name
 
-        state.st_script_args  = st_script_args
+        state.st_script_args  = st_script_args + " " + get_hydra_config_name() + " " + get_hydra_dir_name()
         state.st_script_env   = st_script_env
 
         state.st_dataset_name = st_dataset_name

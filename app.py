@@ -1,5 +1,6 @@
 # app.py
 import os
+import sys
 import shlex
 from string import Template
 import lightning as L
@@ -51,7 +52,7 @@ class LitPoseApp(L.LightningFlow):
           script_dir = "./lightning-pose",
           script_env = "HYDRA_FULL_ERROR=1",
           config_dir = "./lightning-pose/scripts/configs",
-          config_ext = "*.yaml",   
+          config_ext = "*.yaml",        
           eval_test_videos_directory = "./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos",     
         )
 
@@ -71,8 +72,7 @@ model.losses_to_use=[]
           script_dir = "./lightning-pose",
           script_name = "scripts/create_fiftyone_dataset.py",
           script_env = "HYDRA_FULL_ERROR=1",
-          config_dir = "./lightning-pose/scripts/configs",
-          config_ext = "*.yaml",        
+          config_dir = "./lightning-pose/scripts",
           script_args = """eval.fiftyone.dataset_name=test1 
 eval.fiftyone.model_display_names=["test1"]
 eval.fiftyone.dataset_to_create="images"

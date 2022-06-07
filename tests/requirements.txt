@@ -1,0 +1,6 @@
+torch
+pykeops
+numpy
+geomloss
+sklearn
+matplotlib
