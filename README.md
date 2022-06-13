@@ -57,7 +57,7 @@ git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
 git checkout rslee-prototype
 
-git clone https://github.com/danbider/lightning-pose
+git clone https://github.com/danbider/lightning-pose lightning_pose
 # TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
 python -m pip install torch numpy
 python -m pip install -r requirements.txt
