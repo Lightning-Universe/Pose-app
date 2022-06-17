@@ -8,11 +8,11 @@ from datetime import datetime
 import streamlit as st
 from streamlit_ace import st_ace
 
-from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.components.python import TracerPythonScript
-from lightning.frontend import StreamlitFrontend
-from lightning.utilities.state import AppState
-from lightning.storage.path import Path
+from lightning_app import CloudCompute, LightningApp, LightningFlow, LightningWork
+from lightning_app.components.python import TracerPythonScript
+from lightning_app.frontend import StreamlitFrontend
+from lightning_app.utilities.state import AppState
+from lightning_app.storage.path import Path
 
 
 class ScriptRunUI(LightningFlow):
