@@ -13,10 +13,10 @@ from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hyd
 from lai_components.args_utils import args_to_dict, dict_to_args 
 
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.components.python import TracerPythonScript
-from lightning.frontend import StreamlitFrontend
-from lightning.utilities.state import AppState
-from lightning.storage.path import Path
+from lightning_app.components.python import TracerPythonScript
+from lightning_app.frontend import StreamlitFrontend
+from lightning_app.utilities.state import AppState
+from lightning_app.storage.path import Path
 
 
 class FoRunUI(LightningFlow):

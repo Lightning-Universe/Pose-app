@@ -100,27 +100,27 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
       self.run_fo.run()
       # train and predict video
       if self.train_ui.run_script == True:      
-        self.train_runner.run(root_dir = self.train_ui.form_values["script_dir"], 
-          script_name = self.train_ui.form_values["script_name"], 
-          script_args=self.train_ui.form_values["script_args"],
-          script_env=self.train_ui.form_values["script_env"],
+        self.train_runner.run(root_dir = self.train_ui.st_script_dir, 
+          script_name = self.train_ui.st_script_name, 
+          script_args=self.train_ui.st_script_args,
+          script_env=self.train_ui.st_script_env,
           )  
         if self.train_runner.has_succeeded:
-          train_args = args_to_dict(self.train_ui.form_values["script_args"])
+          train_args = args_to_dict(self.train_ui.st_script_args)
           
           hydra_run_dir = train_args['hydra.run.dir']
           eval_hydra_paths = "/".join(hydra_run_dir.split("/")[-2:])
           
-          eval_test_videos_directory = os.path.abspath(self.train_ui.form_values["eval_test_videos_directory"])
+          eval_test_videos_directory = os.path.abspath(self.train_ui.st_eval_test_videos_directory)
           
-          root_dir = os.path.abspath(self.train_ui.form_values["script_dir"])
+          root_dir = os.path.abspath(self.train_ui.st_script_dir)
           
           script_args = f"eval.hydra_paths=[{eval_hydra_paths}] eval.test_videos_directory={eval_test_videos_directory} eval.saved_vid_preds_dir={hydra_run_dir}"
           
-          self.fo_predict_runner.run(root_dir = self.train_ui.form_values["script_dir"], 
+          self.fo_predict_runner.run(root_dir = self.train_ui.st_script_dir, 
             script_name = "scripts/predict_new_vids.py", 
             script_args=script_args,
-            script_env=self.train_ui.form_values["script_env"],
+            script_env=self.train_ui.st_script_env,
           )
         if self.fo_predict_runner.has_succeeded:  
           self.train_ui.run_script = False    

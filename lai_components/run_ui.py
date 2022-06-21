@@ -9,10 +9,10 @@ import streamlit as st
 from streamlit_ace import st_ace
 
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.components.python import TracerPythonScript
-from lightning.frontend import StreamlitFrontend
-from lightning.utilities.state import AppState
-from lightning.storage.path import Path
+from lightning_app.components.python import TracerPythonScript
+from lightning_app.frontend import StreamlitFrontend
+from lightning_app.utilities.state import AppState
+from lightning_app.storage.path import Path
 
 
 class ScriptRunUI(LightningFlow):
@@ -50,7 +50,15 @@ class ScriptRunUI(LightningFlow):
     self.script_args = script_args
     self.outputs_dir = outputs_dir
     # output from the UI
-    self.form_values = {}
+
+    self.st_eval_test_videos_directory = None
+
+    self.st_script_dir  = None
+    self.st_script_name = None
+
+    self.st_script_args = None
+    self.st_script_env  = None
+    self.st_run_script  = True  
     self.run_script = False
 
   def configure_layout(self):
@@ -159,16 +167,11 @@ def _render_streamlit_fn(state: AppState):
       # add default options
       st_script_args = set_script_args(st_script_args) 
       # save them
-      state.form_values["eval_test_videos_directory"] = st_eval_test_videos_directory
+      state.st_eval_test_videos_directory = st_eval_test_videos_directory
 
-      state.form_values["script_dir"]  = st_script_dir
-      state.form_values["script_name"] = st_script_name
+      state.st_script_dir  = st_script_dir
+      state.st_script_name = st_script_name
 
-      state.form_values["script_args"] = st_script_args
-      state.form_values["script_env"]  = st_script_env
-      state.run_script     = True  # must the last to prevent race condition
-
-      print(f"run_ui: {state.form_values}")
-      print(f"run_ui: {state.run_script}")
-
-
+      state.st_script_args = st_script_args
+      state.st_script_env  = st_script_env
+      state.run_script  = True  # must the last to prevent race condition

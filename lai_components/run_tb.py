@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 from datetime import datetime
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.storage.path import Path
+from lightning_app.storage.path import Path
 import logging
 
 
