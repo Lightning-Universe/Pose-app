@@ -1,12 +1,21 @@
 import streamlit as st
+from hydra import compose, initialize
+from omegaconf import OmegaConf
 
 import ui_about
 import ui_hydra
 import ui_data
 import ui_train
+import ui_evaluate
+import args_utils
 
 name = "myapp"
 menu = ["About", "Configure", "Data", "Train", "Evaluate", "Annotate"]
+
+def read_hydra_config():
+  initialize(config_path="configs", job_name="test_app")
+  cfg = compose(config_name="config")
+  print(OmegaConf.to_yaml(cfg))
 
 def on_menu_click(*args, **kwargs):
   # do something useful
@@ -32,9 +41,9 @@ def run():
   elif st.session_state[name+"Menu"] == name+"Configure":
     ui_hydra.run("../lightning_pose")
   elif st.session_state[name+"Menu"] == name+"Data":
-    ui_data.run("../lightning_pose")    
+   ui_data.run("../lightning_pose")    
   elif st.session_state[name+"Menu"] == name+"Evaluate":
-    st.write("Evaluate stuff")
+    ui_evaluate.run("../lightning_pose")    
   elif st.session_state[name+"Menu"] == name+"Annotate":
     st.write("Annotate stuff")
   else:

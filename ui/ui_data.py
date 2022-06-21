@@ -8,28 +8,13 @@ import args_utils
 #from lightning.storage.path import Path
 from pathlib import Path
 
-# select data
-
-def get_existing_outpts(root_dir=".", sub_dir=".", dir_name="unlabeled_videos"):
-  options=[]
-  dir=os.path.join(os.path.expanduser(root_dir),sub_dir)
-
-  try:
-    # only show dirs that has tb_logs dir
-    options = ["/".join(x.strip().split("/")[-3:-2]) for x in sh.find(dir,"-type","d", "-name", dir_name,)]
-    options.sort(reverse=True)
-  except:
-    pass  
-  return(options)
 
 def run(root_dir=".",sub_dir=".",dir_name="unlabeled_videos"):
   dirs = args_utils.get_dir_of_dir(root_dir=root_dir, sub_dir=sub_dir,include=dir_name)
   data_dir = st.selectbox("data dir", options=dirs)
 
   if data_dir:
-    print(data_dir)
     dir=os.path.join(os.path.expanduser(root_dir),sub_dir,data_dir)
-    print(dir)
     options = []
     options_show_basename = lambda opt: opt["rel_path"]
     for file in Path(dir).rglob("*.mp4"):
