@@ -8,11 +8,14 @@ from datetime import datetime
 import streamlit as st
 from streamlit_ace import st_ace
 
+from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
+from lai_components.args_utils import args_to_dict, dict_to_args 
+
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.components.python import TracerPythonScript
-from lightning.frontend import StreamlitFrontend
-from lightning.utilities.state import AppState
-from lightning.storage.path import Path
+from lightning_app.components.python import TracerPythonScript
+from lightning_app.frontend import StreamlitFrontend
+from lightning_app.utilities.state import AppState
+from lightning_app.storage.path import Path
 
 
 class ConfigUI(LightningFlow):
@@ -20,47 +23,33 @@ class ConfigUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, config_dir, config_ext, script_env, **kwargs):
+  def __init__(self, 
+      *args,
+      script_dir, 
+      script_env, 
+      config_dir = "./", 
+      config_name = "config.yaml", 
+      eval_test_videos_directory,
+      **kwargs):
     super().__init__(*args, **kwargs)   
     # input to UI
+    self.eval_test_videos_directory = eval_test_videos_directory
+
     self.script_dir = script_dir
     self.script_env = script_env
 
     self.config_dir = config_dir
-    self.config_ext = config_ext        
+    self.config_name = config_name        
 
     # output from the UI
-    self.st_config_dir = None
-    self.st_config_ext = None
     self.st_script_dir = None
     self.st_script_env = None  
+    self.st_hydra_config_name = None
+    self.st_hydra_config_dir = None   
+    self.st_eval_test_videos_directory = None
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-def hydra_config(language="yaml"):
-    try:
-      basename = st.session_state.hydra_config[0]
-      filename = st.session_state.hydra_config[1]
-    except:
-      st.error("no files found")
-      return
-    logging.debug(f"selectbox {st.session_state}")
-    if basename in st.session_state:
-        content_raw = st.session_state[basename]
-    else:
-        try:
-            with open(filename) as input:
-                content_raw = input.read()
-        except FileNotFoundError:
-            st.error("File not found.")
-        except Exception as err:
-            st.error(f"can't process select item. {err}")
-#    content_new = st.text_area("hydra", value=content_raw)
-    content_new = st_ace(value=content_raw, language=language)
-    if content_raw != content_new:
-        st.write("content changed")
-        st.session_state[basename] = content_new
 
 
 def _render_streamlit_fn(state: AppState):
@@ -93,27 +82,19 @@ supporting massively accelerated training on *unlabeled* videos using **NVIDIA D
 
 """, unsafe_allow_html=True)
 
+    st_eval_test_videos_directory = st.text_input("Eval Test Videos Directory", value=state.eval_test_videos_directory)
+
     st_script_env = st.text_input("Script Env Vars", value=state.script_env, placeholder="ABC=123 DEF=345")
     st_script_dir = st.text_input("Script Dir", value=state.script_dir, placeholder=".")
 
-    st_config_dir = st.text_input("Config Dir", value=state.config_dir, placeholder=".")
-    st_config_ext = st.text_input("Config File Extensions", value=state.config_ext, placeholder="*.yaml")
+    st_hydra_config = hydra_config(context=st, config_dir=state.config_dir, config_name=state.config_name, root_dir=st_script_dir)
 
-    # TODO: is refresh needed everytime?
-    options = []
-    print("building options")
-    for file in Path(st_config_dir).rglob(st_config_ext):
-        basename = os.path.basename(file)
-        options.append([basename, str(file)])
-    show_basename = lambda opt: opt[0]
-    st.selectbox(
-        "override hydra config", options, key="hydra_config", format_func=show_basename
-    )
+    # save the outputs 
+    state.st_eval_test_videos_directory = st_eval_test_videos_directory
 
-    options = hydra_config()
-    
     state.st_script_dir  = st_script_dir
-    state.st_script_env  = st_script_env
+    state.st_script_env = st_script_env
 
-
+    state.st_hydra_config_name = get_hydra_config_name()
+    state.st_hydra_config_dir = get_hydra_dir_name()
 

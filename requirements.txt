@@ -1,29 +1,13 @@
-# the rest
-fiftyone
+# app UI 
 tensorboard
-torch
-numpy
-# streamlit
 streamlit
 streamlit_autorefresh
 watchdog
 streamlit-ace
 sh
-# hydra
-hydra-core
-torch
-torchvision
-git+https://github.com/pytorch/hydra-torch
-hydra-joblib-launcher
-omegaconf
-# misc
-deepdiff
 # lightining pose
-numpy
-torch
 black
 fiftyone
-geomloss
 h5py
 hydra-core
 imgaug
@@ -38,7 +22,7 @@ torchtyping
 torchvision
 typeguard
 # gpus
-#nvidia-pyindex
+# nvidia-pyindex
 #--extra-index-url https://developer.download.nvidia.com/compute/redist
-#nvidia-dali-cuda110
+# nvidia-dali-cuda110
 -e ./lightning-pose

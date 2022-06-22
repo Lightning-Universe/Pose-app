@@ -9,11 +9,14 @@ import sh
 import shlex
 import fiftyone as fo
 
+from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
+from lai_components.args_utils import args_to_dict, dict_to_args 
+
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.components.python import TracerPythonScript
-from lightning.frontend import StreamlitFrontend
-from lightning.utilities.state import AppState
-from lightning.storage.path import Path
+from lightning_app.components.python import TracerPythonScript
+from lightning_app.frontend import StreamlitFrontend
+from lightning_app.utilities.state import AppState
+from lightning_app.storage.path import Path
 
 
 class FoRunUI(LightningFlow):
@@ -21,7 +24,16 @@ class FoRunUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, *args, script_dir, script_name, config_dir, config_ext, script_args, script_env, outputs_dir = "outputs", **kwargs):
+  def __init__(self, 
+      *args, 
+      script_dir, 
+      script_name, 
+      config_dir = "./", 
+      config_name = "config.yaml", 
+      script_args, 
+      script_env, 
+      outputs_dir = "outputs", 
+      **kwargs):
     super().__init__(*args, **kwargs)
     # control runners
     # True = Run Jobs.  False = Do not Run jobs
@@ -34,7 +46,7 @@ class FoRunUI(LightningFlow):
     self.script_env = script_env
 
     self.config_dir = config_dir
-    self.config_ext = config_ext        
+    self.config_name = config_name        
 
     self.script_args = script_args
     self.outputs_dir = outputs_dir
@@ -43,59 +55,51 @@ class FoRunUI(LightningFlow):
 
     # output from the UI
     self.st_output_dir = None
+    self.st_model_display_names = None
     self.st_submit = False
     self.st_script_dir = None
     self.st_script_name = None
     self.st_script_args = None  
     self.st_script_env = None  
     self.st_dataset_name = None
+    self.st_hydra_config_name = None
+    self.st_hydra_config_dir = None   
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
-def hydra_config(language="yaml"):
-    try:
-      basename = st.session_state.hydra_config[0]
-      filename = st.session_state.hydra_config[1]
-    except:
-      st.error("no files found")
-      return
-    logging.debug(f"selectbox {st.session_state}")
-    if basename in st.session_state:
-        content_raw = st.session_state[basename]
-    else:
-        try:
-            with open(filename) as input:
-                content_raw = input.read()
-        except FileNotFoundError:
-            st.error("File not found.")
-        except Exception as err:
-            st.error(f"can't process select item. {err}")
-    content_new = st_ace(value=content_raw, language=language)
-    if content_raw != content_new:
-        st.write("content changed")
-        st.session_state[basename] = content_new
 
-def set_script_args(st_output_dir:[str], script_args:str):
-  script_args_dict = {}
-  script_args_array = []
-  for x in shlex.split(script_args, posix=False):
-    k,v = x.split("=",1)
-    script_args_dict[k] = v
+
+def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str):
+  script_args_dict = args_to_dict(script_args)
+
   # enrich the args  
+  # eval.video_file_to_plot="</ABSOLUTE/PATH/TO/VIDEO.mp4>" \
+
+  # eval.hydra_paths=["</ABSOLUTE/PATH/TO/HYDRA/DIR/1>","</ABSOLUTE/PATH/TO/HYDRA/DIR/1>"] \
+  # eval.fiftyone.model_display_names=["<NAME_FOR_MODEL_1>","<NAME_FOR_MODEL_2>"]
+  # eval.pred_csv_files_to_plot=["</ABSOLUTE/PATH/TO/PREDS_1.csv>","</ABSOLUTE/PATH/TO/PREDS_2.csv>"]
+
   if st_output_dir:  
     path_list = ','.join([f"'{x}'" for x in st_output_dir])
     script_args_dict["eval.hydra_paths"]=f"[{path_list}]"
 
-  if script_args_dict['eval.video_file_to_plot']: 
-    script_args_dict['eval.video_file_to_plot'] = os.path.abspath(script_args_dict['eval.video_file_to_plot'])
+    # set eval.pred_csv_files_to_plot
 
-  if script_args_dict['eval.pred_csv_files_to_plot']:
-    print(script_args_dict['eval.pred_csv_files_to_plot'])
-    x = eval(script_args_dict['eval.pred_csv_files_to_plot'])
-    z = ",".join([f"'{os.path.abspath(y)}'" for y in x])
-    script_args_dict['eval.pred_csv_files_to_plot'] = f"[{z}]"
-
+    # fiename is video_name*.csv
+    video_file_name = script_args_dict["eval.video_file_to_plot"].split("/")[-1]
+    video_file_name_basename = ".".join(video_file_name.split(".")[:-1])
+    print(f"video_file_name_basename={video_file_name_basename}")
+    
+    pred_csv_files_to_plot=[]
+    pred_csv_files_root_dir = os.path.abspath(f"{script_dir}/{outputs_dir}/")
+    for hydra_name in st_output_dir:
+      print(f"looking for {pred_csv_files_root_dir}/{hydra_name} {video_file_name_basename}_*.csv")
+      for file in Path(f"{pred_csv_files_root_dir}/{hydra_name}").rglob(f"{video_file_name_basename}_*.csv"):
+        print(f"found {file}")
+        pred_csv_files_to_plot.append(f"'{str(file)}'")
+    script_args_dict["eval.pred_csv_files_to_plot"] = "[%s]" % ",".join(pred_csv_files_to_plot) 
+    print(f"pred_csv_files_to_plot={script_args_dict['eval.pred_csv_files_to_plot']}")
 
   # these will be controlled by the runners.  remove if set manually
   script_args_dict.pop('eval.fiftyone.address', None)
@@ -104,11 +108,11 @@ def set_script_args(st_output_dir:[str], script_args:str):
   script_args_dict.pop('eval.fiftyone.dataset_to_create', None) 
   script_args_dict.pop('eval.fiftyone.dataset_name', None)
   script_args_dict.pop('eval.fiftyone.model_display_names', None)
-  script_args_dict['+hydra.run.out'] = datetime.today().strftime('outputs/%Y-%m-%d/%M-%H-%S')
 
-  for k,v in script_args_dict.items():
-    script_args_array.append(f"{k}={v}")
-  return(" \n".join(script_args_array)) 
+  # convert to absolute
+  script_args_dict["eval.video_file_to_plot"] = os.path.abspath(script_args_dict["eval.video_file_to_plot"]) 
+  
+  return(dict_to_args(script_args_dict)) 
   
 def get_existing_outputs(state):
   options=[]
@@ -134,6 +138,13 @@ def _render_streamlit_fn(state: AppState):
     # outputs to choose from
     st_output_dir = st.multiselect("select output", get_existing_outputs(state))
 
+    # for each output, choose a name 
+    model_display_names_str = st.text_input("display name for each output separated by space")
+    st_model_display_names = shlex.split(model_display_names_str)
+    if len(st_model_display_names) != len(st_output_dir):
+      st.error("unique names must be given to each output")
+    print(f"{st_output_dir} {st_output_dir}")
+
     # dataset names
     existing_datasets = get_existing_datasets()
     st.write(f"Existing Fifityone datasets {', '.join(existing_datasets)}")
@@ -143,8 +154,11 @@ def _render_streamlit_fn(state: AppState):
       st_dataset_name = None
 
     # parse
-    state.script_args = set_script_args(st_output_dir, state.script_args) 
+
+    state.script_args = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
+    if st_script_args != state.script_args:
+      state.script_args = st_script_args 
 
     st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
     if state.run_script == True:
@@ -162,21 +176,7 @@ def _render_streamlit_fn(state: AppState):
     st_script_dir = expander.text_input("Script Dir", value=state.script_dir, placeholder=".")
     st_script_name = expander.text_input("Script Name", value=state.script_name, placeholder="run.py")
 
-    st_config_dir = expander.text_input("Config Dir", value=state.config_dir, placeholder=".")
-    st_config_ext = expander.text_input("Config File Extensions", value=state.config_ext, placeholder="*.yaml")
-
-    options = []
-    if not options:
-        print("building options")
-        for file in Path(st_config_dir).rglob(st_config_ext):
-            basename = os.path.basename(file)
-            options.append([basename, str(file)])
-    show_basename = lambda opt: opt[0]
-    st.selectbox(
-        "override hydra config", options, key="hydra_config", format_func=show_basename
-    )
-
-    options = hydra_config()
+    st_hydra_config = hydra_config(context=expander, config_dir=state.config_dir, config_name=state.config_name, root_dir=st_script_dir)
 
     if state.script_args != st_script_args:
       print(f"value changed {st_script_args}")
@@ -193,7 +193,11 @@ def _render_streamlit_fn(state: AppState):
         state.st_script_env   = st_script_env
 
         state.st_dataset_name = st_dataset_name
-        
+        state.st_model_display_names = st_model_display_names 
+
+        state.st_hydra_config_name = get_hydra_config_name()
+        state.st_hydra_config_dir = get_hydra_dir_name()
+
         state.run_script      = True  # must the last to prevent race condition
 
         print(f"x{state.st_script_dir}")
@@ -212,7 +216,7 @@ if __name__ == "__main__":
       self.ui = FoRunUI(
         script_dir="../lightning-pose", 
         script_name="run_fo_ui.py", 
-        config_dir="../lightning-pose/scripts/configs", 
+        config_dir="../scripts/configs", 
         config_ext="*.yaml", 
         script_args="""
 eval.fiftyone.dataset_to_create="videos" \

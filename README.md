@@ -7,29 +7,50 @@ App for:
 * Looking at diagnostics via Tensorboard and FiftyOne
 * More to come! (Deploying for new videos, active learning, etc.)
 
-## Installation
-For now, the installation assumes a local editable installation of `lightning`, `lightning-pose-app`, and `lightning-pose` 
+## Prerequsites
 
-# Local Setup
+For now, the installation assumes 
+- Grid Session GPU instance 
+- Microsoft Visual Studio Code on laptop
+- local editable installation of `lightning-pose`
+- Use `python -m pip`, which is the best practice when using virtual env like `conda`.
+- DO NOT USE `pip`.  Some modules may not install correctly.
 
-Note the following:
+# From laptop
 
-- An app could install python modules that conflict with Lightning.  Create `lai-master-base` `conda` environment first, then clone that environment, then install the python modules specific to the app.  This will ensure speed up troubleshooting process.
-- Use of `python -m pip ` instead of `pip` is best practice when using virtual env like `conda`.  otherwise, some modules may not install correctly.
+open a terminal
 
-## create `lai-master-base` (one time)
+## create grid session 
 
-- create `lai-master-base`
+```
+grid session create --instance_type g4dn.xlarge 
+```
+
+make sure session ssh is setup for VSC
+```
+grid session ssh GRID_SESSION_NAME "exit"
+```
+
+open VSC
+
+- From the VSC, connect to GRID_SESSION_NAME
+
+# Inside GRID_SESSION_NAME from VSC
+
+## create conda env inside
+
+- create lai
 ```bash
 cd ~
-git clone https://github.com/PyTorchLightning/lightning.git
-cd lightning
-conda create --yes --name lai-master-base python=3.8
-conda activate lai-master-base
+conda create --yes --name lai python=3.8
+conda activate lai
 # mandatory step to pull the dependencies from extra-index-url
-python -m pip install -r requirements.txt 
-python -m pip install -e .
-python scripts/download_frontend.py
+python -m pip install lightning
+```
+
+- hack stramlit work in Grid Session with VSC 
+```
+sed -ibak 's/\(.*\)\(self\._process = subprocess\.Popen\)/\1print(f"streamlit starting http:\/\/{host}:{port}")\n\1\2/' ~/conda/envs/lai/lib/python3.8/site-packages/lightning_app/frontend/stream_lit.py 
 ```
 
 - record versions and git hash
@@ -39,15 +60,7 @@ lightning --version
 python --version
 ```
 
-## clone `lai-master-base` into `lai` (for each app)
-
-- clone to create working lai
-```bash
-conda create --yes --name lai --clone lai-master-base
-conda activate lai
-```
-
-### Download lightning-pose-app and lightning-pose
+### Download lightning-pose-app and put lightning-pose inside it
 
 NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
 
@@ -59,8 +72,7 @@ git checkout rslee-prototype
 
 git clone https://github.com/danbider/lightning-pose
 # TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
-python -m pip install torch numpy
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt -e lightning-pose/.
 ```
 
 NOTE: 

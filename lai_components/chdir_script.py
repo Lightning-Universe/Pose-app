@@ -4,9 +4,9 @@ import shlex
 import string
 
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.components.python import TracerPythonScript
-from lightning.utilities.state import AppState
-from lightning.storage.path import Path
+from lightning_app.components.python import TracerPythonScript
+from lightning_app.utilities.state import AppState
+from lightning_app.storage.path import Path
 
 class ChdirPythonScript(TracerPythonScript):
   """chdir, delimited args and envs with python template substitution, then run a script
@@ -56,6 +56,7 @@ class ChdirPythonScript(TracerPythonScript):
 
     # run
     print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print(f"{os.getcwd()}; {script_env} python {root_dir}/{script_name} {script_args} ")
     print(f"{os.getcwd()} {root_dir} {self.script_path} {self.script_args} {self.env}")
     super().run()
 
