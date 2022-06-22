@@ -32,22 +32,22 @@ def get_hydra_config():
   """return --config_name --config_dir "+hydra.run.out as dict"""
   ret = {}
   if key_hydra_config_name in st.session_state and not(st.session_state[key_hydra_config_name] is None) and st.session_state[key_hydra_config_name] != "":
-    ret["--config_name"]="'%s'" % st.session_state[key_hydra_config_name]
+    ret["--config-name"]="'%s'" % st.session_state[key_hydra_config_name]
   if not (hydra_config_dir_selected() is None):
-    ret["--config_dir"]="'%s'" % hydra_config_dir_selected()
+    ret["--config-dir"]="'%s'" % hydra_config_dir_selected()
   if key_hydra_run_out in st.session_state and not(st.session_state[key_hydra_config_name] is None) and st.session_state[key_hydra_config_name] != "":
     ret["+hydra.run.out"]="'%s'" % st.session_state[key_hydra_run_out]
   return(ret)  
 
 def get_hydra_config_name():
   if key_hydra_config_name in st.session_state and not(st.session_state[key_hydra_config_name] is None):
-    return(f"--config_name={st.session_state[key_hydra_config_name]}")
+    return(f"--config-name={st.session_state[key_hydra_config_name]}")
   else:
     return("")  
 
 def get_hydra_dir_name():
   if not (hydra_config_dir_selected() is None):
-    return(f"--config_dir={hydra_config_dir_selected()}")
+    return(f"--config-dir={hydra_config_dir_selected()}")
   else:
     return("")
 
@@ -78,10 +78,13 @@ def set_hydra_config_dir(config_dir=".", context=st, root_dir="."):
 
   # options should have just .yaml
   options=[]  
+  abs_root_dir = os.path.expanduser(root_dir)
+  abs_root_config_dir = os.path.join(abs_root_dir, config_dir)
   try:
     if not options:
-      for file in Path(os.path.join(os.path.expanduser(root_dir),config_dir)).rglob(config_name):
+      for file in Path(abs_root_config_dir).rglob(config_name):
         dirname = os.path.dirname(file)
+        dirname = os.path.relpath(dirname,abs_root_dir)
         options.append([dirname, str(file)])
   except:
     pass      
@@ -90,15 +93,17 @@ def set_hydra_config_dir(config_dir=".", context=st, root_dir="."):
   context.selectbox("hydra config dir", options, key=key_hydra_config_dir, format_func=options_show_basename)
 
 
-def set_hydra_config_file(config_dir=None, config_ext="*.yaml", context=st):
+def set_hydra_config_file(config_dir=None, root_dir=None, config_ext="*.yaml", context=st):
   """select a file from a list of *.yaml files"""
   config_dir = hydra_config_dir_selected(context=context)
 
   # options should have just .yaml 
   options=[] 
+  abs_root_dir = os.path.expanduser(root_dir)
+  abs_root_config_dir = os.path.join(abs_root_dir, config_dir)  
   try:
     if not options:
-      for file in Path(config_dir).rglob(config_ext):
+      for file in Path(abs_root_config_dir).rglob(config_ext):
         options.append(str(file))
   except:
     pass
@@ -141,7 +146,7 @@ def hydra_config(root_dir=".", hydra_run_out=None, config_name="config.yaml", co
   set_hydra_run_out(hydra_run_out=hydra_run_out, context=context)
   set_hydra_config_name(config_name=config_name, context=context)
   set_hydra_config_dir(root_dir=root_dir, config_dir=config_dir, context=context)
-  set_hydra_config_file(context=context)
+  set_hydra_config_file(root_dir=root_dir, config_dir=config_dir, context=context)
   edit_hydra_config_file(context=context)
   return(get_hydra_config())
   

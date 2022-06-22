@@ -45,13 +45,12 @@ class LitPoseApp(L.LightningFlow):
     def __init__(self):
         super().__init__()
         # self.dataset_ui = SelectDatasetUI()
-        self.fo_names = None
-        self.fo_launch = None
+        self.args_append = None
 
         self.config_ui = ConfigUI(
           script_dir = "./lightning-pose",
           script_env = "HYDRA_FULL_ERROR=1",
-          config_dir = "./lightning-pose/scripts/configs",
+          config_dir = "./scripts",
           config_ext = "*.yaml",        
           eval_test_videos_directory = "./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos",     
         )
@@ -60,7 +59,7 @@ class LitPoseApp(L.LightningFlow):
           script_dir = "./lightning-pose",
           script_name = "scripts/train_hydra.py",
           script_env = "HYDRA_FULL_ERROR=1",
-          config_dir = "./lightning-pose/scripts/configs",
+          config_dir = "./scripts",
           config_ext = "*.yaml",        
           script_args = """training.max_epochs=11
 model.losses_to_use=[]
@@ -72,7 +71,7 @@ model.losses_to_use=[]
           script_dir = "./lightning-pose",
           script_name = "scripts/create_fiftyone_dataset.py",
           script_env = "HYDRA_FULL_ERROR=1",
-          config_dir = "./lightning-pose/scripts",
+          config_dir = "./scripts",
           script_args = """eval.fiftyone.dataset_name=test1 
 eval.fiftyone.model_display_names=["test1"]
 eval.fiftyone.dataset_to_create="images"
@@ -127,19 +126,21 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
 
       # create fo dataset
       if self.fo_ui.run_script == True:      
-        self.fo_names = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
-        self.fo_names += " eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
-        self.fo_launch=f"eval.fiftyone.launch_app_from_script=False"
+        self.args_append = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
+        self.args_append += " " + "eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
+        self.args_append += " " + f"eval.fiftyone.launch_app_from_script=False"
+        self.args_append += " " + self.fo_ui.st_hydra_config_name
+        self.args_append += " " + self.fo_ui.st_hydra_config_dir
 
         self.fo_image_runner.run(root_dir = self.fo_ui.st_script_dir, 
           script_name = "scripts/create_fiftyone_dataset.py", 
-          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.fo_names} {self.fo_launch}",
+          script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.args_append}",
           script_env=self.fo_ui.st_script_env,
           )
         if self.fo_image_runner.has_succeeded:
           self.fo_video_runner.run(root_dir = self.fo_ui.st_script_dir, 
             script_name = "scripts/create_fiftyone_dataset.py", 
-            script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.fo_names} {self.fo_launch}",
+            script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.args_append}",
             script_env=self.fo_ui.st_script_env,
             )
         if self.fo_video_runner.has_succeeded and self.fo_image_runner.has_succeeded:   
