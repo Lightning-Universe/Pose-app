@@ -51,7 +51,6 @@ class LitPoseApp(L.LightningFlow):
           script_dir = "./lightning-pose",
           script_env = "HYDRA_FULL_ERROR=1",
           config_dir = "./scripts",
-          config_ext = "*.yaml",        
           eval_test_videos_directory = "./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos",     
         )
 
@@ -60,7 +59,6 @@ class LitPoseApp(L.LightningFlow):
           script_name = "scripts/train_hydra.py",
           script_env = "HYDRA_FULL_ERROR=1",
           config_dir = "./scripts",
-          config_ext = "*.yaml",        
           script_args = """training.max_epochs=11
 model.losses_to_use=[]
 """,
@@ -136,8 +134,9 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           script_name = "scripts/create_fiftyone_dataset.py", 
           script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.args_append}",
           script_env=self.fo_ui.st_script_env,
-          )
+          ) 
         if self.fo_image_runner.has_succeeded:
+          print("")
           self.fo_video_runner.run(root_dir = self.fo_ui.st_script_dir, 
             script_name = "scripts/create_fiftyone_dataset.py", 
             script_args=f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.args_append}",

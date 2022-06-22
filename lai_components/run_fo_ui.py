@@ -177,7 +177,6 @@ def _render_streamlit_fn(state: AppState):
     st_script_name = expander.text_input("Script Name", value=state.script_name, placeholder="run.py")
 
     st_hydra_config = hydra_config(context=expander, config_dir=state.config_dir, config_name=state.config_name, root_dir=st_script_dir)
-    st.info(st_hydra_config)
 
     if state.script_args != st_script_args:
       print(f"value changed {st_script_args}")
