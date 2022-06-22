@@ -7,17 +7,37 @@ App for:
 * Looking at diagnostics via Tensorboard and FiftyOne
 * More to come! (Deploying for new videos, active learning, etc.)
 
-## Installation
-For now, the installation assumes a local editable installation of `lightning-pose`
+## Prerequsites
 
-# Local Setup
+For now, the installation assumes 
+- Grid Session GPU instance 
+- Microsoft Visual Studio Code on laptop
+- local editable installation of `lightning-pose`
+- Use `python -m pip`, which is the best practice when using virtual env like `conda`.
+- DO NOT USE `pip`.  Some modules may not install correctly.
 
-Note the following:
+# From laptop
 
-- An app could install python modules that conflict with Lightning.  Create `lai-master-base` `conda` environment first, then clone that environment, then install the python modules specific to the app.  This will ensure speed up troubleshooting process.
-- Use of `python -m pip ` instead of `pip` is best practice when using virtual env like `conda`.  otherwise, some modules may not install correctly.
+open a terminal
 
-## create conda env
+## create grid session 
+
+```
+grid session create --instance_type g4dn.xlarge 
+```
+
+make sure session ssh is setup for VSC
+```
+grid session ssh GRID_SESSION_NAME "exit"
+```
+
+open VSC
+
+- From the VSC, connect to GRID_SESSION_NAME
+
+# Inside GRID_SESSION_NAME from VSC
+
+## create conda env inside
 
 - create lai
 ```bash
@@ -39,7 +59,6 @@ git rev-parse HEAD
 lightning --version
 python --version
 ```
-
 
 ### Download lightning-pose-app and put lightning-pose inside it
 
