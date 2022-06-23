@@ -11,10 +11,10 @@ import fiftyone as fo
 
 from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
 from lai_components.args_utils import args_to_dict, dict_to_args 
+from lai_components.vsc_streamlit import StreamlitFrontend
 
-from lightning_app import CloudCompute, LightningApp, LightningFlow, LightningWork
+from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning_app.components.python import TracerPythonScript
-from lightning_app.frontend import StreamlitFrontend
 from lightning_app.utilities.state import AppState
 from lightning_app.storage.path import Path
 
@@ -62,7 +62,8 @@ class FoRunUI(LightningFlow):
     self.st_script_args = None  
     self.st_script_env = None  
     self.st_dataset_name = None
-
+    self.st_hydra_config_name = None
+    self.st_hydra_config_dir = None   
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -175,8 +176,7 @@ def _render_streamlit_fn(state: AppState):
     st_script_dir = expander.text_input("Script Dir", value=state.script_dir, placeholder=".")
     st_script_name = expander.text_input("Script Name", value=state.script_name, placeholder="run.py")
 
-    st_hydra_config = hydra_config(context=expander, config_dir=state.config_dir, config_name=state.config_name)
-    st.info(st_hydra_config)
+    st_hydra_config = hydra_config(context=expander, config_dir=state.config_dir, config_name=state.config_name, root_dir=st_script_dir)
 
     if state.script_args != st_script_args:
       print(f"value changed {st_script_args}")
@@ -189,11 +189,14 @@ def _render_streamlit_fn(state: AppState):
         state.st_script_dir   = st_script_dir
         state.st_script_name  = st_script_name
 
-        state.st_script_args  = st_script_args + " " + get_hydra_config_name() + " " + get_hydra_dir_name()
+        state.st_script_args  = st_script_args
         state.st_script_env   = st_script_env
 
         state.st_dataset_name = st_dataset_name
         state.st_model_display_names = st_model_display_names 
+
+        state.st_hydra_config_name = get_hydra_config_name()
+        state.st_hydra_config_dir = get_hydra_dir_name()
 
         state.run_script      = True  # must the last to prevent race condition
 
@@ -213,7 +216,7 @@ if __name__ == "__main__":
       self.ui = FoRunUI(
         script_dir="../lightning-pose", 
         script_name="run_fo_ui.py", 
-        config_dir="../lightning-pose/scripts/configs", 
+        config_dir="../scripts/configs", 
         config_ext="*.yaml", 
         script_args="""
 eval.fiftyone.dataset_to_create="videos" \

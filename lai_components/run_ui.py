@@ -8,9 +8,12 @@ from datetime import datetime
 import streamlit as st
 from streamlit_ace import st_ace
 
-from lightning_app import CloudCompute, LightningApp, LightningFlow, LightningWork
+from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
+from lai_components.args_utils import args_to_dict, dict_to_args 
+from lai_components.vsc_streamlit import StreamlitFrontend
+
+from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning_app.components.python import TracerPythonScript
-from lightning_app.frontend import StreamlitFrontend
 from lightning_app.utilities.state import AppState
 from lightning_app.storage.path import Path
 
@@ -24,8 +27,8 @@ class ScriptRunUI(LightningFlow):
       *args, 
       script_dir, 
       script_name, 
-      config_dir, 
-      config_ext, 
+      config_dir = "./", 
+      config_name = "config.yaml", 
       script_args, 
       script_env, 
       eval_test_videos_directory,
@@ -45,62 +48,32 @@ class ScriptRunUI(LightningFlow):
     self.script_env = script_env
 
     self.config_dir = config_dir
-    self.config_ext = config_ext        
+    self.config_name = config_name   
 
     self.script_args = script_args
     self.outputs_dir = outputs_dir
     # output from the UI
-    self.form_values = {}
+
+    self.st_eval_test_videos_directory = None
+
+    self.st_script_dir  = None
+    self.st_script_name = None
+
+    self.st_script_args = None
+    self.st_script_env  = None
+    self.st_run_script  = True  
     self.run_script = False
+    self.st_hydra_config_name = None
+    self.st_hydra_config_dir = None       
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-def hydra_config(language="yaml"):
-    try:
-      basename = st.session_state.hydra_config[0]
-      filename = st.session_state.hydra_config[1]
-    except:
-      st.error("no files found")
-      return
-    logging.debug(f"selectbox {st.session_state}")
-    if basename in st.session_state:
-        content_raw = st.session_state[basename]
-    else:
-        try:
-            with open(filename) as input:
-                content_raw = input.read()
-        except FileNotFoundError:
-            st.error("File not found.")
-        except Exception as err:
-            st.error(f"can't process select item. {err}")
-#    content_new = st.text_area("hydra", value=content_raw)
-    content_new = st_ace(value=content_raw, language=language)
-    if content_raw != content_new:
-        st.write("content changed")
-        st.session_state[basename] = content_new
-
-def args_to_dict(script_args:str) -> dict:
-  """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
-  script_args_dict = {}
-  for x in shlex.split(script_args, posix=False):
-    k,v = x.split("=",1)
-    script_args_dict[k] = v
-  return(script_args_dict) 
-
-def dict_to_args(script_args_dict:dict) -> str:
-  """convert dict {'A':1, 'B':2} to str A=1 B=2 to """
-  script_args_array = []
-  for k,v in script_args_dict.items():
-    script_args_array.append(f"{k}={v}")
-  # return as a text
-  return(" \n".join(script_args_array)) 
 
 def set_script_args(script_args:str):
   script_args_dict = args_to_dict(script_args)
 
   # only set if not alreay present
-  if not('+hydra.run.out' in script_args_dict):
+  if not('hydra.run.dir' in script_args_dict):
     run_date_time=datetime.today().strftime('%Y-%m-%d/%H-%M-%S')
     script_args_dict['hydra.run.dir'] = f"outputs/{run_date_time}"
  
@@ -138,37 +111,22 @@ def _render_streamlit_fn(state: AppState):
     st_script_dir = expander.text_input("Script Dir", value=state.script_dir, placeholder=".")
     st_script_name = expander.text_input("Script Name", value=state.script_name, placeholder="run.py")
 
-    st_config_dir = expander.text_input("Config Dir", value=state.config_dir, placeholder=".")
-    st_config_ext = expander.text_input("Config File Extensions", value=state.config_ext, placeholder="*.yaml")
-
-    # TODO: is refresh needed everytime?
-    options = []
-    print("building options")
-    for file in Path(st_config_dir).rglob(st_config_ext):
-        basename = os.path.basename(file)
-        options.append([basename, str(file)])
-    show_basename = lambda opt: opt[0]
-    st.selectbox(
-        "override hydra config", options, key="hydra_config", format_func=show_basename
-    )
-
-    options = hydra_config()
+    st_hydra_config = hydra_config(context=expander, config_dir=state.config_dir, config_name=state.config_name, root_dir=st_script_dir)
     
     # Lightning way of returning the parameters
     if st_submit_button:
       # add default options
       st_script_args = set_script_args(st_script_args) 
       # save them
-      state.form_values["eval_test_videos_directory"] = st_eval_test_videos_directory
+      state.st_eval_test_videos_directory = st_eval_test_videos_directory
 
-      state.form_values["script_dir"]  = st_script_dir
-      state.form_values["script_name"] = st_script_name
+      state.st_script_dir  = st_script_dir
+      state.st_script_name = st_script_name
 
-      state.form_values["script_args"] = st_script_args
-      state.form_values["script_env"]  = st_script_env
-      state.run_script     = True  # must the last to prevent race condition
+      state.st_script_args = st_script_args
+      state.st_script_env  = st_script_env
 
-      print(f"run_ui: {state.form_values}")
-      print(f"run_ui: {state.run_script}")
+      state.st_hydra_config_name = get_hydra_config_name()
+      state.st_hydra_config_dir = get_hydra_dir_name()
 
-
+      state.run_script  = True  # must the last to prevent race condition
