@@ -48,11 +48,6 @@ conda activate lai
 python -m pip install lightning
 ```
 
-- hack stramlit work in Grid Session with VSC 
-```
-sed -ibak 's/\(.*\)\(self\._process = subprocess\.Popen\)/\1print(f"streamlit starting http:\/\/{host}:{port}")\n\1\2/' ~/conda/envs/lai/lib/python3.8/site-packages/lightning_app/frontend/stream_lit.py 
-```
-
 - record versions and git hash
 ```
 git rev-parse HEAD

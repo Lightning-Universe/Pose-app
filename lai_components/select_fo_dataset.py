@@ -3,6 +3,8 @@ import lightning as L
 import streamlit as st
 import logging
 
+from lai_components.vsc_streamlit import StreamlitFrontend
+
 import fiftyone as fo
 import fiftyone.zoo as foz
 
@@ -34,7 +36,7 @@ class SelectDatasetUI(L.LightningFlow):
     self.dataset_names = dataset_names 
 
   def configure_layout(self):
-    return L.frontend.StreamlitFrontend(render_fn=render_fn)
+    return StreamlitFrontend(render_fn=render_fn)
 
 def render_fn(app_state):
   st_selectbox = st.selectbox("Select Dataset", app_state.dataset_names or [], key="dataset_names")  

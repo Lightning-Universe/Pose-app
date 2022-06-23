@@ -11,10 +11,10 @@ import fiftyone as fo
 
 from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
 from lai_components.args_utils import args_to_dict, dict_to_args 
+from lai_components.vsc_streamlit import StreamlitFrontend
 
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning_app.components.python import TracerPythonScript
-from lightning_app.frontend import StreamlitFrontend
 from lightning_app.utilities.state import AppState
 from lightning_app.storage.path import Path
 
