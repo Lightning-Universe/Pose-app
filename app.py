@@ -10,7 +10,6 @@ from lai_work.bashwork import LitBashWork
 
 from lai_components.run_fo_ui import FoRunUI
 from lai_components.run_ui import ScriptRunUI
-from lai_components.run_tb import RunTensorboard
 from lai_components.run_config_ui import ConfigUI
 
 import logging
@@ -85,11 +84,13 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.my_work = LitBashWork(cloud_compute=L.CloudCompute("gpu"))
 
     def run(self):
-      # these run in parallel
+      # run tb
       self.my_tb.run("tensorboard --logdir outputs --host %s --port %d" % (self.my_work.host, self.my_work.port),
         cwd="lightning_pose")
+      # run fiftyone  
       self.my_work.run("fiftyone app launch --address %s --port %d" % (self.my_work.host, self.my_work.port),
         cwd="lightning_pose" )
+      # train on ui button press  
       if self.train_ui.run_script == True:      
         # train 
         cmd = "python " + self.train_ui.form_values["script_name"] + " " + self.train_ui.form_values["script_args"] 
@@ -112,7 +113,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         # indicate to UI  
         self.train_ui.run_script = False    
   
-      # create fo dataset
+      # create fo dateset on ui button press  
       if self.fo_ui.run_script == True:      
         self.args_append = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
         self.args_append += " " + "eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 

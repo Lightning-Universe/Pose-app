@@ -1,0 +1,23 @@
+# lightning pose misc
+tensorboard
+# lightining pose
+black
+fiftyone
+h5py
+hydra-core
+imgaug
+kornia
+matplotlib
+pandas
+pillow
+pytest
+pytorch-lightning
+sklearn
+torchtyping
+torchvision
+typeguard
+# gpus
+nvidia-pyindex
+--extra-index-url https://developer.download.nvidia.com/compute/redist
+nvidia-dali-cuda110
+-e ../lightning-pose
