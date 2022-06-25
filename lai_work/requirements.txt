@@ -8,10 +8,12 @@ hydra-core
 imgaug
 kornia
 matplotlib
+moviepy
 pandas
 pillow
 pytest
 pytorch-lightning
+scikit-image
 sklearn
 torchtyping
 torchvision
@@ -20,4 +22,3 @@ typeguard
 nvidia-pyindex
 --extra-index-url https://developer.download.nvidia.com/compute/redist
 nvidia-dali-cuda110
--e lightning-pose

@@ -41,8 +41,10 @@ class LitBashWork(L.LightningWork):
     self.on_before_run()
 
     print(args, kwargs)
+    # convert args from str to array  
     if isinstance(args,str):
       args = shlex.split(args)
+    # add PYTHONPATH to ENV
     if 'env' in kwargs and isinstance(kwargs['env'],str):
       if kwargs['env'] == "":
         kwargs['env'] = None

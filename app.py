@@ -100,9 +100,10 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
       # train on ui button press  
       if self.train_ui.run_script == True:      
         # train 
+        python_path = "PYTHONPATH=" + os.path.abspath(os.path.expanduser(self.train_ui.st_script_dir))
         cmd = "python " + self.train_ui.st_script_name + " " + self.train_ui.st_script_args 
         self.my_work.run(cmd,
-          env=self.train_ui.st_script_env,
+          env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir, 
           )    
         # video
@@ -114,7 +115,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         script_args = f"eval.hydra_paths=[{eval_hydra_paths}] eval.test_videos_directory={eval_test_videos_directory} eval.saved_vid_preds_dir={hydra_run_dir}"
         cmd = "python " + "scripts/predict_new_vids.py" + " " + script_args
         self.my_work.run(cmd,
-          env=self.train_ui.st_script_env,
+          env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir,
           )          
         # indicate to UI  
@@ -122,6 +123,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
   
       # create fo dateset on ui button press  
       if self.fo_ui.run_script == True:      
+        python_path = "PYTHONPATH=" + os.path.abspath(os.path.expanduser(self.fo_ui.st_script_dir))
         self.args_append = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
         self.args_append += " " + "eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
         self.args_append += " " + f"eval.fiftyone.launch_app_from_script=False"
@@ -129,12 +131,12 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.args_append += " " + self.fo_ui.st_hydra_config_dir
         cmd = "python " + "scripts/create_fiftyone_dataset.py" + " " + f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=images {self.args_append}"
         self.my_work.run(cmd,
-          env=self.fo_ui.st_script_env,
+          env=" ".join([python_path, self.fo_ui.st_script_env]),
           cwd = self.fo_ui.st_script_dir, 
           )
         cmd = "python " + "scripts/create_fiftyone_dataset.py" + " " + f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.args_append}"
         self.my_work.run(cmd,
-          env=self.fo_ui.st_script_env,
+          env=" ".join([python_path, self.fo_ui.st_script_env]),
           cwd = self.fo_ui.st_script_dir, 
           )
         # add both names
