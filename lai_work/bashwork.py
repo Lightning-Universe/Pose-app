@@ -21,6 +21,9 @@ def args_to_dict(script_args:str) -> dict:
 class LitBashWork(L.LightningWork):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs,
+      # required to to grab self.host and self.port in the cloud.  
+      # otherwise, the values flips from 127.0.0.1 to 0.0.0.0 causing two runs
+      host='0.0.0.0',  
     )
     self.pid = None
     self.exit_code = None
