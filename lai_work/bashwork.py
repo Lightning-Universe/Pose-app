@@ -5,6 +5,7 @@ import os
 import subprocess
 import shlex
 from string import Template
+import signal
 
 def args_to_dict(script_args:str) -> dict:
   """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""

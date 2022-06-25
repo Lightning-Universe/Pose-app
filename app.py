@@ -3,8 +3,11 @@ import os
 import sys
 import shlex
 from string import Template
+from typing import Optional, Union, List
+
 import lightning as L
 import streamlit as st
+
 
 from lai_work.bashwork import LitBashWork
 
@@ -27,6 +30,23 @@ eval.hydra_paths=["${eval_hydra_paths}"] \
 eval.test_videos_directory=${root_dir}/${eval_test_videos_directory} \
 eval.saved_vid_preds_dir="${root_dir}/${hydra.run.dir}/
 """
+
+
+
+class DaliBuildConfig(L.BuildConfig):
+  def build_commands(self) -> List[str]:
+      return [
+          "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102",
+      ]
+
+class FiftyOneBuildConfig(L.BuildConfig):
+  def build_commands(self) -> List[str]:
+      return [
+          "sudo apt-get update",
+          "sudo apt-get install -y ffmpeg libsm6 libxext6",
+          "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102",
+          "pip install -e lightning-pose", 
+      ]
 
 def args_to_dict(script_args:str) -> dict:
   """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
@@ -82,13 +102,19 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         )   
 
         # workers
-        self.my_tb = LitBashWork(cloud_compute=L.CloudCompute("cpu-small"), cloud_build_config=L.BuildConfig(requirements=["tensorboard"]))
-        self.my_work = LitBashWork(cloud_compute=L.CloudCompute("gpu"))
+        self.my_tb = LitBashWork(
+          cloud_compute=L.CloudCompute("cpu-small"), 
+          cloud_build_config=L.BuildConfig(requirements=["tensorboard"]),
+          )
+        self.my_work = LitBashWork(
+          cloud_compute=L.CloudCompute("gpu"), 
+          cloud_build_config=FiftyOneBuildConfig(),
+          )
 
     def run(self):
       # run tb
-      self.my_tb.run(f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}",
-        wait_for_exit=False, cwd=lightning_pose_dir)
+      #self.my_tb.run(f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}",
+      #  wait_for_exit=False, cwd=lightning_pose_dir)
       # get fiftyone datasets  
       self.my_work.run("fiftyone datasets list", save_stdout = True)
       if not (self.my_work.stdout is None):

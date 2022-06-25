@@ -100,3 +100,19 @@ Subprocess ['/opt/miniconda3/envs/lai/lib/python3.8/site-packages/fiftyone/db/bi
 ```
 USE_GPU=1 lightning run app app.py --cloud --name lightning-pose
 ```
+
+## Conflict
+
+
+          "pip install fiftyone",
+          "pip uninstall -y opencv-python",
+          "pip uninstall -y opencv-python-headless",
+          "pip install opencv-python-headless==4.5.5.64",
+          "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102",
+          "pip install hydra-core",
+          "pip install pytorch-lightning",
+          "pip install moviepy",
+          "pip install typeguard",
+
+          "pip install matplotlib",
+          "pip install pandas",
