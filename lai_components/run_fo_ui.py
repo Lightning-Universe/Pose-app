@@ -7,7 +7,6 @@ import streamlit as st
 from streamlit_ace import st_ace
 import sh
 import shlex
-import fiftyone as fo
 
 from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
 from lai_components.args_utils import args_to_dict, dict_to_args 
@@ -50,6 +49,8 @@ class FoRunUI(LightningFlow):
 
     self.script_args = script_args
     self.outputs_dir = outputs_dir
+    # FO list
+    self.fo_datasets = []
     # submit count
     self.submit_count = 0
 
@@ -65,10 +66,19 @@ class FoRunUI(LightningFlow):
     self.st_hydra_config_name = None
     self.st_hydra_config_dir = None   
 
+  def set_fo_dataset(self, names):
+    self.fo_datasets = names
+
+  def add_fo_dataset(self, name):
+    self.fo_datasets.append(name)
+
+
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
+def get_existing_datasets():
+  return(self.fo_datasets)
 
 def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str):
   script_args_dict = args_to_dict(script_args)
@@ -123,13 +133,6 @@ def get_existing_outputs(state):
     pass  
   return(options)
 
-def get_existing_datasets():
-  options = fo.list_datasets()
-  try:
-    options.remove('')
-  except:
-    pass  
-  return(options)
 
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
@@ -146,7 +149,7 @@ def _render_streamlit_fn(state: AppState):
     print(f"{st_output_dir} {st_output_dir}")
 
     # dataset names
-    existing_datasets = get_existing_datasets()
+    existing_datasets = state.fo_datasets
     st.write(f"Existing Fifityone datasets {', '.join(existing_datasets)}")
     st_dataset_name = st.text_input("name other than the above existing names")
     if st_dataset_name in existing_datasets:

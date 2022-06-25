@@ -15,6 +15,8 @@ from lai_components.run_config_ui import ConfigUI
 import logging
 import time
 
+lightning_pose_dir = "./lightning-pose"
+
 # hydra.run.dir
 #   outputs/YY-MM-DD/HH-MM-SS
 # eval.hydra_paths
@@ -48,14 +50,14 @@ class LitPoseApp(L.LightningFlow):
         self.args_append = None
 
         self.config_ui = ConfigUI(
-          script_dir = "./lightning-pose",
+          script_dir = lightning_pose_dir,
           script_env = "HYDRA_FULL_ERROR=1",
           config_dir = "./scripts",
           eval_test_videos_directory = "./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos",     
         )
 
         self.train_ui = ScriptRunUI(
-          script_dir = "./lightning-pose",
+          script_dir = lightning_pose_dir,
           script_name = "scripts/train_hydra.py",
           script_env = "HYDRA_FULL_ERROR=1",
           config_dir = "./scripts",
@@ -85,21 +87,26 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
 
     def run(self):
       # run tb
-      self.my_tb.run("tensorboard --logdir outputs --host %s --port %d" % (self.my_work.host, self.my_work.port),
-        cwd="lightning_pose")
-      # run fiftyone  
+      self.my_tb.run("tensorboard --logdir outputs --host %s --port %d" % (self.my_tb.host, self.my_tb.port),
+        wait_for_exit=False, cwd=lightning_pose_dir)
+      # get fiftyone datasets  
+      self.my_work.run("fiftyone datasets list", save_stdout = True)
+      if not (self.my_work.stdout is None):
+        self.fo_ui.set_fo_dataset(self.my_work.stdout)
+        self.my_work.stdout = None
+      # start the fiftyone
       self.my_work.run("fiftyone app launch --address %s --port %d" % (self.my_work.host, self.my_work.port),
-        cwd="lightning_pose" )
+        wait_for_exit=False, cwd=lightning_pose_dir)
       # train on ui button press  
       if self.train_ui.run_script == True:      
         # train 
-        cmd = "python " + self.train_ui.form_values["script_name"] + " " + self.train_ui.form_values["script_args"] 
+        cmd = "python " + self.train_ui.st_script_name + " " + self.train_ui.st_script_args 
         self.my_work.run(cmd,
           env=self.train_ui.st_script_env,
           cwd = self.train_ui.st_script_dir, 
           )    
         # video
-        train_args = args_to_dict(self.train_ui.form_values["script_args"])
+        train_args = args_to_dict(self.train_ui.st_script_args)
         hydra_run_dir = train_args['hydra.run.dir']
         eval_hydra_paths = "/".join(hydra_run_dir.split("/")[-2:])
         eval_test_videos_directory = os.path.abspath(self.train_ui.st_eval_test_videos_directory)
@@ -130,6 +137,9 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           env=self.fo_ui.st_script_env,
           cwd = self.fo_ui.st_script_dir, 
           )
+        # add both names
+        self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)
+        self.fo_ui.add_fo_dataset(f"{self.fo_ui.st_dataset_name}_video")
         # indicate to UI  
         self.fo_ui.run_script = False
 
