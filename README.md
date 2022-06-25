@@ -67,7 +67,8 @@ git checkout rslee-prototype
 
 git clone https://github.com/danbider/lightning-pose lightning_pose
 # TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
-python -m pip install -r requirements.txt -e lightning-pose/.
+python -m pip install -r requirements.txt -r lai_work/requirements.txt
+export PYTHONPATH=~/lightning-pose:$PYTHONPATH
 ```
 
 NOTE: 

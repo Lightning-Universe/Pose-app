@@ -65,8 +65,8 @@ class LitBashWork(L.LightningWork):
                   self.stdout.append(decoded_line)
                 #logger.info("%s", line.decode().rstrip())
       self.exit_code = proc.wait()
-      if self.exit_code != 0:
-          raise Exception(self.exit_code)
+      #if self.exit_code != 0:
+      #    raise Exception(self.exit_code)
     else:
       proc = subprocess.Popen(args, **kwargs)
       self.pid = proc.pid

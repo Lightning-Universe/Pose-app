@@ -6,4 +6,8 @@ class StreamlitFrontend(LitStreamlitFrontend):
     super().__init__(*args, **kwargs)
   def start_server(self,*args,**kwargs):
     super().start_server(*args, **kwargs)
-    print(f"Running streamlit on http://{kwargs['host']}:{kwargs['port']}")
+    try:
+      print(f"Running streamlit on http://{kwargs['host']}:{kwargs['port']}")
+    except:
+      # on the cloud, args[0] = host, args[1] = port
+      pass  
