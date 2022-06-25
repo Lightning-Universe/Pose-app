@@ -82,12 +82,12 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         )   
 
         # workers
-        self.my_tb = LitBashWork(cloud_compute=L.CloudCompute("small-cpu"))
+        self.my_tb = LitBashWork(cloud_compute=L.CloudCompute("cpu-small"), cloud_build_config=L.BuildConfig(requirements=["tensorboard"]))
         self.my_work = LitBashWork(cloud_compute=L.CloudCompute("gpu"))
 
     def run(self):
       # run tb
-      self.my_tb.run("tensorboard --logdir outputs --host %s --port %d" % (self.my_tb.host, self.my_tb.port),
+      self.my_tb.run(f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}",
         wait_for_exit=False, cwd=lightning_pose_dir)
       # get fiftyone datasets  
       self.my_work.run("fiftyone datasets list", save_stdout = True)
@@ -95,7 +95,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.fo_ui.set_fo_dataset(self.my_work.stdout)
         self.my_work.stdout = None
       # start the fiftyone
-      self.my_work.run("fiftyone app launch --address %s --port %d" % (self.my_work.host, self.my_work.port),
+      self.my_work.run(f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}",
         wait_for_exit=False, cwd=lightning_pose_dir)
       # train on ui button press  
       if self.train_ui.run_script == True:      
