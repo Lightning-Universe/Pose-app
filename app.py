@@ -45,7 +45,7 @@ class FiftyOneBuildConfig(L.BuildConfig):
           "sudo apt-get update",
           "sudo apt-get install -y ffmpeg libsm6 libxext6",
           "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102",
-          "pip install -e lightning-pose", 
+          "pip install -r lightning-pose/requirements.txt",
       ]
 
 def args_to_dict(script_args:str) -> dict:
@@ -113,8 +113,8 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
 
     def run(self):
       # run tb
-      #self.my_tb.run(f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}",
-      #  wait_for_exit=False, cwd=lightning_pose_dir)
+      self.my_tb.run(f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}",
+        wait_for_exit=False, cwd=lightning_pose_dir)
       # get fiftyone datasets  
       self.my_work.run("fiftyone datasets list", save_stdout = True)
       if not (self.my_work.stdout is None):

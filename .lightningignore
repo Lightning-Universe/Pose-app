@@ -1,15 +1,11 @@
 lightning_logs/*
 static/*
-data/*
-data
 .shared
 *.ckpt
 *.shared*
-*data*
 *.git*
 *MNIST*
 *artifacts*
 *egg-info/*
 *model_weight.pt*
-*lightning-quick-start-quick_start_train*
 flagged
