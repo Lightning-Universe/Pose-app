@@ -45,7 +45,7 @@ class FiftyOneBuildConfig(L.BuildConfig):
           "sudo apt-get update",
           "sudo apt-get install -y ffmpeg libsm6 libxext6",
           "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102",
-          "pip install -r lightning-pose/requirements.txt",
+          "pip install -e lightning-pose",
       ]
 
 def args_to_dict(script_args:str) -> dict:
@@ -82,6 +82,7 @@ class LitPoseApp(L.LightningFlow):
           script_env = "HYDRA_FULL_ERROR=1",
           config_dir = "./scripts",
           script_args = """training.max_epochs=11
+training.num_workers=2
 model.losses_to_use=[]
 """,
           eval_test_videos_directory = "./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos",     

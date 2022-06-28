@@ -1,4 +1,5 @@
 lightning_logs/*
+outputs/*
 static/*
 .shared
 *.ckpt
