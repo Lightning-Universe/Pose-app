@@ -98,5 +98,5 @@ Subprocess ['/opt/miniconda3/envs/lai/lib/python3.8/site-packages/fiftyone/db/bi
 
 ### On GPU
 ```
-USE_GPU=1 lightning run app app.py --cloud --name lightning-pose
+lightning run app app.py --cloud --name lightning-pose --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 ```
