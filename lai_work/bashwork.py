@@ -38,14 +38,17 @@ class LitBashWork(L.LightningWork):
     self.inputs = None
     self.outputs = None
     self.sync_every_n_seconds = sync_every_n_seconds
-    self.args = []
+    self.args = ""
     self.drive_lpa = Drive("lit://lpa")
 
   def reset_last_args(self) -> str:
-    self.args = []
+    self.args = ""
 
   def last_args(self) -> str:
     return(self.args)
+
+  def last_stdout(self):
+    return(self.stdout)
 
   def on_before_run(self):
     """Called before the python script is executed."""

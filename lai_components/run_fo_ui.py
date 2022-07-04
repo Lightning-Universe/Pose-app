@@ -51,8 +51,7 @@ class FoRunUI(LightningFlow):
     self.outputs_dir = outputs_dir
     # FO list
     self.fo_datasets = []
-    self.hydra_outputs = []   
-    self.pred_csv_files = []   
+    self.hydra_outputs = {}
 
     # submit count
     self.submit_count = 0
@@ -75,12 +74,11 @@ class FoRunUI(LightningFlow):
   def add_fo_dataset(self, name):
     self.fo_datasets.append(name)
 
-  def set_hydra_outputs(self, names:list):
-      self.hydra_outputs = names
+  def set_hydra_outputs(self, names:dict):
+    self.hydra_outputs.update(names)
 
   def add_hydra_output(self, name:str):
-    self.hydra_outputs.append(name)
-
+    self.hydra_outputs.update(name)
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -89,7 +87,7 @@ class FoRunUI(LightningFlow):
 def get_existing_datasets():
   return(self.fo_datasets)
 
-def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str):
+def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str, hydra_outputs:dict):
   script_args_dict = args_to_dict(script_args)
 
   # enrich the args  
@@ -113,10 +111,10 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
     pred_csv_files_to_plot=[]
     pred_csv_files_root_dir = os.path.abspath(f"{script_dir}/{outputs_dir}/")
     for hydra_name in st_output_dir:
-      print(f"looking for {pred_csv_files_root_dir}/{hydra_name} {video_file_name_basename}_*.csv")
-      for file in Path(f"{pred_csv_files_root_dir}/{hydra_name}").rglob(f"{video_file_name_basename}_*.csv"):
+      if hydra_name in hydra_outputs:
+        file = hydra_outputs[hydra_name]
         print(f"found {file}")
-        pred_csv_files_to_plot.append(f"'{str(file)}'")
+        pred_csv_files_to_plot.append(f"'{pred_csv_files_root_dir}/{hydra_name}/{file}'")
     script_args_dict["eval.pred_csv_files_to_plot"] = "[%s]" % ",".join(pred_csv_files_to_plot) 
     print(f"pred_csv_files_to_plot={script_args_dict['eval.pred_csv_files_to_plot']}")
 
@@ -167,7 +165,7 @@ def _render_streamlit_fn(state: AppState):
 
     # parse
 
-    state.script_args, script_args_dict = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
+    state.script_args, script_args_dict = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir, hydra_outputs = state.hydra_outputs) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     if st_script_args != state.script_args:
       state.script_args = st_script_args 

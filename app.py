@@ -16,6 +16,8 @@ from lai_components.run_fo_ui import FoRunUI
 from lai_components.run_ui import ScriptRunUI
 from lai_components.run_config_ui import ConfigUI
 from lai_components.args_utils import args_to_dict, splitall
+from lai_components.lpa_utils import output_with_video_prediction
+
 
 import logging
 import time
@@ -109,6 +111,17 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           )
 
     def run(self):
+      # get existing hydra datasets 
+      # that has test*.csv
+      cmd = f"find {self.train_ui.outputs_dir} -maxdepth 3 -type f -name *.csv -not -name predictions.csv"  
+      self.my_work.run(cmd,
+        cwd=lightning_pose_dir)
+      if (self.my_work.last_args() == cmd):
+        outputs = output_with_video_prediction(self.my_work.last_stdout())
+        self.train_ui.set_hydra_outputs(outputs)
+        self.fo_ui.set_hydra_outputs(outputs)
+        self.my_work.reset_last_args()
+
       # start tensorboard
       cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
       self.my_tb.run(cmd,
@@ -128,19 +141,6 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           options.append(x)    
         self.fo_ui.set_fo_dataset(options)
 
-      # get existing hydra datasets
-      cmd = f"find {self.train_ui.outputs_dir} -type d -name tb_logs"  
-      self.my_work.run(cmd,
-        cwd=lightning_pose_dir)
-      if (self.my_work.last_args() == cmd):
-        print(cmd, self.my_work.last_args())
-        print(self.my_work.stdout)
-        options = ["/".join(x.strip().split("/")[-3:-1]) for x in self.my_work.stdout]
-        options.sort(reverse=True)
-        print(options)
-        self.train_ui.set_hydra_outputs(options)
-        self.fo_ui.set_hydra_outputs(options)
-
       # start the fiftyone
       # TODO:
       #   right after fiftyone, the previous find command is triggered should not be the case.
@@ -154,8 +154,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         train_args = args_to_dict(self.train_ui.st_script_args)         # dict version of arg to trainer
         hydra_run_dir = train_args['hydra.run.dir']                     # outputs/%Y-%m-%d/%H-%M-%S
         eval_hydra_paths = os.path.join(*splitall(hydra_run_dir)[-2:])  # %Y-%m-%d/%H-%M-%S
-
-        # train 
+        # train
         python_path = "PYTHONPATH=" + os.path.abspath(os.path.expanduser(self.train_ui.st_script_dir))
         cmd = "python " + self.train_ui.st_script_name + " " + self.train_ui.st_script_args 
         self.my_work.run(cmd,
@@ -163,9 +162,6 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           cwd = self.train_ui.st_script_dir, 
           outputs = [os.path.join(self.train_ui.st_script_dir,self.train_ui.outputs_dir)],
           )    
-        if (self.my_work.last_args() == cmd):
-          self.train_ui.add_hydra_output(eval_hydra_paths)
-          self.fo_ui.add_hydra_output(eval_hydra_paths)
 
         # video
         eval_test_videos_directory = os.path.abspath(self.train_ui.st_eval_test_videos_directory)
@@ -176,6 +172,16 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir,
           )          
+
+        # set the new outputs for UIs
+        cmd = f"find {hydra_run_dir} -maxdepth 3 -type f -name *.csv -not -name predictions.csv"  
+        self.my_work.run(cmd,
+          cwd=lightning_pose_dir)
+        if (self.my_work.last_args() == cmd):
+          outputs = output_with_video_prediction(self.my_work.last_stdout())
+          self.train_ui.set_hydra_outputs(outputs)
+          self.fo_ui.set_hydra_outputs(outputs)
+          self.my_work.reset_last_args()
 
         # have TB pull the new data
         cmd = f"{hydra_run_dir}"  # make this unique

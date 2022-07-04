@@ -53,7 +53,7 @@ class ScriptRunUI(LightningFlow):
     self.script_args = script_args
     self.outputs_dir = outputs_dir
     # hydra outputs list
-    self.hydra_outputs = []   
+    self.hydra_outputs = {} 
     # output from the UI
 
     self.st_eval_test_videos_directory = None
@@ -68,11 +68,11 @@ class ScriptRunUI(LightningFlow):
     self.st_hydra_config_name = None
     self.st_hydra_config_dir = None       
 
-  def set_hydra_outputs(self, names:list):
-    self.hydra_outputs = names
+  def set_hydra_outputs(self, names:dict):
+    self.hydra_outputs.update(names)
 
   def add_hydra_output(self, name:str):
-    self.hydra_outputs.append(name)
+    self.hydra_outputs.update(names)
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -100,7 +100,8 @@ def get_existing_outputs(state):
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
-    st_output_dir = st.selectbox("existing output", state.hydra_outputs)
+    st_output_dir = st.selectbox("existing output", 
+      [k for k,v in sorted(state.hydra_outputs.items(), reverse=True)])
 
     # edit the script_args
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
