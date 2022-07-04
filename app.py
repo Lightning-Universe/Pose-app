@@ -100,7 +100,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
 
         # workers
         self.my_tb = LitBashWork(
-          cloud_compute=L.CloudCompute("cpu-small"), 
+          cloud_compute=L.CloudCompute("default"), 
           cloud_build_config=L.BuildConfig(requirements=["tensorboard"]),
           )
         self.my_work = LitBashWork(
@@ -109,11 +109,24 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           )
 
     def run(self):
+      # start tensorboard
+      cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
+      self.my_tb.run(cmd,
+        wait_for_exit=False, 
+        cwd=lightning_pose_dir, 
+      )      
       # get existing fiftyone datasets
       cmd = f"fiftyone datasets list"  
       self.my_work.run(cmd)
       if (self.my_work.last_args() == cmd):
-        self.fo_ui.set_fo_dataset(self.my_work.stdout)
+        options = []
+        for x in self.my_work.stdout:
+          if x.endswith("No datasets found"):
+            continue
+          if x.startswith("Migrating database"):
+            continue
+          options.append(x)    
+        self.fo_ui.set_fo_dataset(options)
 
       # get existing hydra datasets
       cmd = f"find {self.train_ui.outputs_dir} -type d -name tb_logs"  
@@ -126,6 +139,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         options.sort(reverse=True)
         print(options)
         self.train_ui.set_hydra_outputs(options)
+        self.fo_ui.set_hydra_outputs(options)
 
       # start the fiftyone
       # TODO:
@@ -151,6 +165,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           )    
         if (self.my_work.last_args() == cmd):
           self.train_ui.add_hydra_output(eval_hydra_paths)
+          self.fo_ui.add_hydra_output(eval_hydra_paths)
 
         # video
         eval_test_videos_directory = os.path.abspath(self.train_ui.st_eval_test_videos_directory)
@@ -162,18 +177,17 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           cwd = self.train_ui.st_script_dir,
           )          
 
-        # start tensorboard
-        cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
+        # have TB pull the new data
+        cmd = f"{hydra_run_dir}"  # make this unique
         self.my_tb.run(cmd,
-          wait_for_exit=False, 
           cwd=lightning_pose_dir, 
+          input_output_only = True,
           inputs = [os.path.join(self.train_ui.script_dir,self.train_ui.outputs_dir)],
         )
         
         # indicate to UI  
         self.train_ui.run_script = False    
   
-
       # create fo dateset on ui button press  
       if self.fo_ui.run_script == True:      
         python_path = "PYTHONPATH=" + os.path.abspath(os.path.expanduser(self.fo_ui.st_script_dir))

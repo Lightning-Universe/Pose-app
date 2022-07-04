@@ -51,6 +51,9 @@ class FoRunUI(LightningFlow):
     self.outputs_dir = outputs_dir
     # FO list
     self.fo_datasets = []
+    self.hydra_outputs = []   
+    self.pred_csv_files = []   
+
     # submit count
     self.submit_count = 0
 
@@ -71,6 +74,12 @@ class FoRunUI(LightningFlow):
 
   def add_fo_dataset(self, name):
     self.fo_datasets.append(name)
+
+  def set_hydra_outputs(self, names:list):
+      self.hydra_outputs = names
+
+  def add_hydra_output(self, name:str):
+    self.hydra_outputs.append(name)
 
 
   def configure_layout(self):
@@ -139,7 +148,7 @@ def _render_streamlit_fn(state: AppState):
     """
 
     # outputs to choose from
-    st_output_dir = st.multiselect("select output", get_existing_outputs(state))
+    st_output_dir = st.multiselect("select output", state.hydra_outputs)
 
     # for each output, choose a name 
     model_display_names_str = st.text_input("display name for each output separated by space")

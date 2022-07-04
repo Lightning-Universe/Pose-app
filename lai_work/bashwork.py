@@ -56,7 +56,10 @@ class LitBashWork(L.LightningWork):
   def get_from_drive(self,inputs):
     for i in inputs:
       print(f"drive get {i}")
-      self.drive_lpa.get(i)  # Transfer the file from this drive to the local filesystem.
+      try:                     # file may not be ready 
+        self.drive_lpa.get(i)  # Transfer the file from this drive to the local filesystem.
+      except:
+        pass  
       os.system(f"ls -Rlia {i}")
 
   def put_to_drive(self,outputs):
@@ -68,7 +71,7 @@ class LitBashWork(L.LightningWork):
       os.system(f"ls -Rlia {o}")
       self.drive_lpa.put(o)  
 
-  def run(self, args, wait_for_exit=True, save_stdout = True, inputs=[], outputs=[], **kwargs):
+  def run(self, args, wait_for_exit=True, save_stdout = True, input_output_only = False, inputs=[], outputs=[], **kwargs):
 
     # save the args 
     self.args = args
@@ -82,37 +85,36 @@ class LitBashWork(L.LightningWork):
 
     self.get_from_drive(inputs)
 
-    # convert args from str to array  
-    if isinstance(args,str):
-      args = shlex.split(args)
-    # add PYTHONPATH to ENV
-    if 'env' in kwargs and isinstance(kwargs['env'],str):
-      if kwargs['env'] == "":
-        kwargs['env'] = None
-      else:  
-        env_copy = os.environ.copy()
-        env_copy.update(args_to_dict(kwargs['env']))
-        kwargs['env'] = env_copy
-
-    if wait_for_exit:
-      proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0, close_fds=True, **kwargs)
-      self.pid = proc.pid
-      if proc.stdout:
-        with proc.stdout:
-            for line in iter(proc.stdout.readline, b""):
-                decoded_line = line.decode().rstrip()
-                print(decoded_line)
-                if save_stdout:
-                  self.stdout.append(decoded_line)
-                #logger.info("%s", line.decode().rstrip())
-      self.exit_code = proc.wait()
-      self.put_to_drive(outputs)
-      #if self.exit_code != 0:
-      #    raise Exception(self.exit_code)
-    else:
-      proc = subprocess.Popen(args, **kwargs)
-      self.pid = proc.pid
-
+    if not(input_output_only):
+      # convert args from str to array  
+      if isinstance(args,str):
+        args = shlex.split(args)
+      # add PYTHONPATH to ENV
+      if 'env' in kwargs and isinstance(kwargs['env'],str):
+        if kwargs['env'] == "":
+          kwargs['env'] = None
+        else:  
+          env_copy = os.environ.copy()
+          env_copy.update(args_to_dict(kwargs['env']))
+          kwargs['env'] = env_copy
+      if wait_for_exit: 
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0, close_fds=True, **kwargs)
+        self.pid = proc.pid
+        if proc.stdout:
+          with proc.stdout:
+              for line in iter(proc.stdout.readline, b""):
+                  decoded_line = line.decode().rstrip()
+                  print(decoded_line)
+                  if save_stdout:
+                    self.stdout.append(decoded_line)
+                  #logger.info("%s", line.decode().rstrip())
+        self.exit_code = proc.wait()
+        self.put_to_drive(outputs)
+        #if self.exit_code != 0:
+        #    raise Exception(self.exit_code)
+      else:
+        proc = subprocess.Popen(args, **kwargs)
+        self.pid = proc.pid
     self.on_after_run()
     time.sleep(10) # give time for REDIS to catch up and propogate self.stdout back to flow
 
