@@ -15,7 +15,7 @@ from lai_work.bashwork import LitBashWork
 from lai_components.run_fo_ui import FoRunUI
 from lai_components.run_ui import ScriptRunUI
 from lai_components.run_config_ui import ConfigUI
-from lai_components.arg_utils import args_to_dict, splitall
+from lai_components.args_utils import args_to_dict, splitall
 
 import logging
 import time
@@ -121,13 +121,15 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.fo_ui.set_fo_dataset(self.my_work.stdout)
 
       # get existing hydra datasets
-      cmd = f"find {self.run_ui.script_dir}/{self.run_ui.outputs_dir} -type -d -name tb_logs"  
+      cmd = f"find {self.train_ui.outputs_dir} -type d -name tb_logs"  
       self.my_work.run(cmd,
         cwd=lightning_pose_dir, drive=self.drive_lpa)
       if (self.my_work.last_args() == cmd):
+        print(self.my_work.stdout)
         options = ["/".join(x.strip().split("/")[-3:-1]) for x in self.my_work.stdout]
         options.sort(reverse=True)
-        self.run_ui.set_hydra_outputs(options)
+        print(options)
+        self.train_ui.set_hydra_outputs(options)
 
       # start the fiftyone
       cmd = f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}"
@@ -150,7 +152,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           drive=self.drive_lpa,
           )    
         if (self.my_work.last_args() == cmd):
-          self.run_ui.add_hydra_output(eval_hydra_paths)
+          self.train_ui.add_hydra_output(eval_hydra_paths)
 
         # video
         eval_test_videos_directory = os.path.abspath(self.train_ui.st_eval_test_videos_directory)

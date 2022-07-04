@@ -53,7 +53,7 @@ class ScriptRunUI(LightningFlow):
     self.script_args = script_args
     self.outputs_dir = outputs_dir
     # hydra outputs list
-    self.hydra_outputs = List()    
+    self.hydra_outputs = []   
     # output from the UI
 
     self.st_eval_test_videos_directory = None
@@ -69,9 +69,10 @@ class ScriptRunUI(LightningFlow):
     self.st_hydra_config_dir = None       
 
   def set_hydra_outputs(self, names:list):
-    self.hydra_outputs = names
+    print(names)
+    self.hydra_outputs.extend(names)
 
-  def add_hydra_outputs(self, name:str):
+  def add_hydra_output(self, name:str):
     self.hydra_outputs.append(name)
 
   def configure_layout(self):
