@@ -122,7 +122,7 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
   # convert to absolute
   script_args_dict["eval.video_file_to_plot"] = os.path.abspath(script_args_dict["eval.video_file_to_plot"]) 
   
-  return(dict_to_args(script_args_dict)) 
+  return(dict_to_args(script_args_dict), script_args_dict) 
   
 def get_existing_outputs(state):
   options=[]
@@ -158,10 +158,13 @@ def _render_streamlit_fn(state: AppState):
 
     # parse
 
-    state.script_args = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
+    state.script_args, script_args_dict = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     if st_script_args != state.script_args:
       state.script_args = st_script_args 
+
+    # TODO:
+    # do not show outputs that does not have predict.csv and another CSV
 
     st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
     if state.run_script == True:

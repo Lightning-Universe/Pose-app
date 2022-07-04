@@ -69,8 +69,7 @@ class ScriptRunUI(LightningFlow):
     self.st_hydra_config_dir = None       
 
   def set_hydra_outputs(self, names:list):
-    print(names)
-    self.hydra_outputs.extend(names)
+    self.hydra_outputs = names
 
   def add_hydra_output(self, name:str):
     self.hydra_outputs.append(name)

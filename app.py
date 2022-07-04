@@ -109,22 +109,18 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           )
 
     def run(self):
-      # start tensorboard
-      cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
-      self.my_tb.run(cmd,
-        wait_for_exit=False, cwd=lightning_pose_dir, drive=self.drive_lpa)
-
       # get existing fiftyone datasets
       cmd = f"fiftyone datasets list"  
-      self.my_work.run(cmd, drive=self.drive_lpa)
+      self.my_work.run(cmd)
       if (self.my_work.last_args() == cmd):
         self.fo_ui.set_fo_dataset(self.my_work.stdout)
 
       # get existing hydra datasets
       cmd = f"find {self.train_ui.outputs_dir} -type d -name tb_logs"  
       self.my_work.run(cmd,
-        cwd=lightning_pose_dir, drive=self.drive_lpa)
+        cwd=lightning_pose_dir)
       if (self.my_work.last_args() == cmd):
+        print(cmd, self.my_work.last_args())
         print(self.my_work.stdout)
         options = ["/".join(x.strip().split("/")[-3:-1]) for x in self.my_work.stdout]
         options.sort(reverse=True)
@@ -132,9 +128,11 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.train_ui.set_hydra_outputs(options)
 
       # start the fiftyone
+      # TODO:
+      #   right after fiftyone, the previous find command is triggered should not be the case.
       cmd = f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}"
       self.my_work.run(cmd,
-        wait_for_exit=False, cwd=lightning_pose_dir, drive=self.drive_lpa)
+        wait_for_exit=False, cwd=lightning_pose_dir)
 
       # train on ui button press  
       if self.train_ui.run_script == True:      
@@ -149,7 +147,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.my_work.run(cmd,
           env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir, 
-          drive=self.drive_lpa,
+          outputs = [os.path.join(self.train_ui.st_script_dir,self.train_ui.outputs_dir)],
           )    
         if (self.my_work.last_args() == cmd):
           self.train_ui.add_hydra_output(eval_hydra_paths)
@@ -162,11 +160,20 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.my_work.run(cmd,
           env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir,
-          drive=self.drive_lpa,
           )          
+
+        # start tensorboard
+        cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
+        self.my_tb.run(cmd,
+          wait_for_exit=False, 
+          cwd=lightning_pose_dir, 
+          inputs = [os.path.join(self.train_ui.script_dir,self.train_ui.outputs_dir)],
+        )
+        
         # indicate to UI  
         self.train_ui.run_script = False    
   
+
       # create fo dateset on ui button press  
       if self.fo_ui.run_script == True:      
         python_path = "PYTHONPATH=" + os.path.abspath(os.path.expanduser(self.fo_ui.st_script_dir))
@@ -179,13 +186,11 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.my_work.run(cmd,
           env=" ".join([python_path, self.fo_ui.st_script_env]),
           cwd = self.fo_ui.st_script_dir, 
-          drive=self.drive_lpa,
           )
         cmd = "python " + "scripts/create_fiftyone_dataset.py" + " " + f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.args_append}"
         self.my_work.run(cmd,
           env=" ".join([python_path, self.fo_ui.st_script_env]),
           cwd = self.fo_ui.st_script_dir, 
-          drive=self.drive_lpa,
           )
         # add both names
         self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)

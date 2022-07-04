@@ -1,5 +1,6 @@
 import lightning_app as L
 from lightning_app.storage.path import Path
+from lightning.app.storage.drive import Drive
 from lightning_app.structures import Dict, List
 from lightning_app.utilities.app_helpers import _collect_child_process_pids
 
@@ -37,7 +38,11 @@ class LitBashWork(L.LightningWork):
     self.inputs = None
     self.outputs = None
     self.sync_every_n_seconds = sync_every_n_seconds
-    self.args = ""
+    self.args = []
+    self.drive_lpa = Drive("lit://lpa")
+
+  def reset_last_args(self) -> str:
+    self.args = []
 
   def last_args(self) -> str:
     return(self.args)
@@ -48,33 +53,34 @@ class LitBashWork(L.LightningWork):
   def on_after_run(self):
       """Called after the python script is executed. Wrap outputs in Path so they will be available"""
 
-  def get_from_drive(self,drive,inputs):
+  def get_from_drive(self,inputs):
     for i in inputs:
       print(f"drive get {i}")
-      drive.get(i)  # Transfer the file from this drive to the local filesystem.
-      os.system("ls -Rlia {i}")
+      self.drive_lpa.get(i)  # Transfer the file from this drive to the local filesystem.
+      os.system(f"ls -Rlia {i}")
 
-  def put_to_drive(self,drive,outputs):
+  def put_to_drive(self,outputs):
     for o in outputs:
       print(f"drive put {o}")
       # make sure dir end with / so that put works correctly
       if os.path.isdir(o):
         o = os.path.join(o,"")
-      drive.put(o)  
+      os.system(f"ls -Rlia {o}")
+      self.drive_lpa.put(o)  
 
-  def run(self, args, wait_for_exit=True, save_stdout = True, drive=None, inputs=[], outputs=[], **kwargs):
-    if save_stdout:
-      self.stdout = []
-    else:
-      self.stdout = None
-
-    self.on_before_run()
-
-    self.get_from_drive(drive, inputs)
+  def run(self, args, wait_for_exit=True, save_stdout = True, inputs=[], outputs=[], **kwargs):
 
     # save the args 
     self.args = args
+
     print(args, kwargs)
+
+    if save_stdout:
+      self.stdout = []
+
+    self.on_before_run()
+
+    self.get_from_drive(inputs)
 
     # convert args from str to array  
     if isinstance(args,str):
@@ -100,7 +106,7 @@ class LitBashWork(L.LightningWork):
                   self.stdout.append(decoded_line)
                 #logger.info("%s", line.decode().rstrip())
       self.exit_code = proc.wait()
-      self.put_to_drive(drive, outputs)
+      self.put_to_drive(outputs)
       #if self.exit_code != 0:
       #    raise Exception(self.exit_code)
     else:
@@ -108,6 +114,7 @@ class LitBashWork(L.LightningWork):
       self.pid = proc.pid
 
     self.on_after_run()
+    time.sleep(10) # give time for REDIS to catch up and propogate self.stdout back to flow
 
   def on_exit(self):
       for child_pid in _collect_child_process_pids(os.getpid()):
