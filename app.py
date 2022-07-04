@@ -5,7 +5,8 @@ import shlex
 from string import Template
 from typing import Optional, Union, List
 
-import lightning as L
+import lightning_app as L
+from lightning.app.storage.drive import Drive
 import streamlit as st
 
 
@@ -14,6 +15,7 @@ from lai_work.bashwork import LitBashWork
 from lai_components.run_fo_ui import FoRunUI
 from lai_components.run_ui import ScriptRunUI
 from lai_components.run_config_ui import ConfigUI
+from lai_components.arg_utils import args_to_dict, splitall
 
 import logging
 import time
@@ -48,14 +50,6 @@ class FiftyOneBuildConfig(L.BuildConfig):
           "pip install -e lightning-pose",
       ]
 
-def args_to_dict(script_args:str) -> dict:
-  """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
-  script_args_dict = {}
-  for x in shlex.split(script_args, posix=False):
-    k,v = x.split("=",1)
-    script_args_dict[k] = v
-  return(script_args_dict) 
-
 # data.data_dir=./lightning-pose/toy_datasets/toymouseRunningData 
 # Saved predictions to: pred_csv_files_to_plot=/home/jovyan/lightning-pose-app/lightning-pose/outputs/2022-05-15/16-06-45/predictions.csv
 #             pred_csv_files_to_plot=["./lightning-pose/outputs/2022-05-15/16-06-45/predictions.csv"]  
@@ -66,9 +60,11 @@ def args_to_dict(script_args:str) -> dict:
 class LitPoseApp(L.LightningFlow):
     def __init__(self):
         super().__init__()
-        # self.dataset_ui = SelectDatasetUI()
+        # shared data for apps
+        self.drive_lpa = Drive("lit://lpa")
+        # 
         self.args_append = None
-
+        # UIs
         self.config_ui = ConfigUI(
           script_dir = lightning_pose_dir,
           script_env = "HYDRA_FULL_ERROR=1",
@@ -113,30 +109,50 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           )
 
     def run(self):
-      # run tb
-      self.my_tb.run(f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}",
-        wait_for_exit=False, cwd=lightning_pose_dir)
-      # get fiftyone datasets  
-      self.my_work.run("fiftyone datasets list", save_stdout = True)
-      if not (self.my_work.stdout is None):
+      # start tensorboard
+      cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
+      self.my_tb.run(cmd,
+        wait_for_exit=False, cwd=lightning_pose_dir, drive=self.drive_lpa)
+
+      # get existing fiftyone datasets
+      cmd = f"fiftyone datasets list"  
+      self.my_work.run(cmd, drive=self.drive_lpa)
+      if (self.my_work.last_args() == cmd):
         self.fo_ui.set_fo_dataset(self.my_work.stdout)
-        self.my_work.stdout = None
+
+      # get existing hydra datasets
+      cmd = f"find {self.run_ui.script_dir}/{self.run_ui.outputs_dir} -type -d -name tb_logs"  
+      self.my_work.run(cmd,
+        cwd=lightning_pose_dir, drive=self.drive_lpa)
+      if (self.my_work.last_args() == cmd):
+        options = ["/".join(x.strip().split("/")[-3:-1]) for x in self.my_work.stdout]
+        options.sort(reverse=True)
+        self.run_ui.set_hydra_outputs(options)
+
       # start the fiftyone
-      self.my_work.run(f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}",
-        wait_for_exit=False, cwd=lightning_pose_dir)
+      cmd = f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}"
+      self.my_work.run(cmd,
+        wait_for_exit=False, cwd=lightning_pose_dir, drive=self.drive_lpa)
+
       # train on ui button press  
       if self.train_ui.run_script == True:      
+        # output for the train
+        train_args = args_to_dict(self.train_ui.st_script_args)         # dict version of arg to trainer
+        hydra_run_dir = train_args['hydra.run.dir']                     # outputs/%Y-%m-%d/%H-%M-%S
+        eval_hydra_paths = os.path.join(*splitall(hydra_run_dir)[-2:])  # %Y-%m-%d/%H-%M-%S
+
         # train 
         python_path = "PYTHONPATH=" + os.path.abspath(os.path.expanduser(self.train_ui.st_script_dir))
         cmd = "python " + self.train_ui.st_script_name + " " + self.train_ui.st_script_args 
         self.my_work.run(cmd,
           env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir, 
+          drive=self.drive_lpa,
           )    
+        if (self.my_work.last_args() == cmd):
+          self.run_ui.add_hydra_output(eval_hydra_paths)
+
         # video
-        train_args = args_to_dict(self.train_ui.st_script_args)
-        hydra_run_dir = train_args['hydra.run.dir']
-        eval_hydra_paths = "/".join(hydra_run_dir.split("/")[-2:])
         eval_test_videos_directory = os.path.abspath(self.train_ui.st_eval_test_videos_directory)
         root_dir = os.path.abspath(self.train_ui.st_script_dir)
         script_args = f"eval.hydra_paths=[{eval_hydra_paths}] eval.test_videos_directory={eval_test_videos_directory} eval.saved_vid_preds_dir={hydra_run_dir}"
@@ -144,6 +160,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.my_work.run(cmd,
           env=" ".join([python_path, self.train_ui.st_script_env]),
           cwd = self.train_ui.st_script_dir,
+          drive=self.drive_lpa,
           )          
         # indicate to UI  
         self.train_ui.run_script = False    
@@ -160,11 +177,13 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.my_work.run(cmd,
           env=" ".join([python_path, self.fo_ui.st_script_env]),
           cwd = self.fo_ui.st_script_dir, 
+          drive=self.drive_lpa,
           )
         cmd = "python " + "scripts/create_fiftyone_dataset.py" + " " + f"{self.fo_ui.st_script_args} eval.fiftyone.dataset_to_create=videos {self.args_append}"
         self.my_work.run(cmd,
           env=" ".join([python_path, self.fo_ui.st_script_env]),
           cwd = self.fo_ui.st_script_dir, 
+          drive=self.drive_lpa,
           )
         # add both names
         self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)

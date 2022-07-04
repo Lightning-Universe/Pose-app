@@ -1,4 +1,6 @@
-import lightning as L
+import lightning_app as L
+from lightning_app.storage.path import Path
+from lightning_app.structures import Dict, List
 from lightning_app.utilities.app_helpers import _collect_child_process_pids
 
 import os
@@ -6,6 +8,7 @@ import subprocess
 import shlex
 from string import Template
 import signal
+import time
 
 def args_to_dict(script_args:str) -> dict:
   """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
@@ -20,7 +23,9 @@ def args_to_dict(script_args:str) -> dict:
   return(script_args_dict) 
 
 class LitBashWork(L.LightningWork):
-  def __init__(self, *args, **kwargs):
+  def __init__(self, *args, 
+    sync_every_n_seconds = 5,
+    **kwargs):
     super().__init__(*args, **kwargs,
       # required to to grab self.host and self.port in the cloud.  
       # otherwise, the values flips from 127.0.0.1 to 0.0.0.0 causing two runs
@@ -29,14 +34,35 @@ class LitBashWork(L.LightningWork):
     self.pid = None
     self.exit_code = None
     self.stdout = None
+    self.inputs = None
+    self.outputs = None
+    self.sync_every_n_seconds = sync_every_n_seconds
+    self.args = ""
+
+  def last_args(self) -> str:
+    return(self.args)
 
   def on_before_run(self):
-      """Called before the python script is executed."""
+    """Called before the python script is executed."""
 
   def on_after_run(self):
-      """Called after the python script is executed."""
+      """Called after the python script is executed. Wrap outputs in Path so they will be available"""
 
-  def run(self, args, wait_for_exit=True, save_stdout=False, **kwargs):
+  def get_from_drive(self,drive,inputs):
+    for i in inputs:
+      print(f"drive get {i}")
+      drive.get(i)  # Transfer the file from this drive to the local filesystem.
+      os.system("ls -Rlia {i}")
+
+  def put_to_drive(self,drive,outputs):
+    for o in outputs:
+      print(f"drive put {o}")
+      # make sure dir end with / so that put works correctly
+      if os.path.isdir(o):
+        o = os.path.join(o,"")
+      drive.put(o)  
+
+  def run(self, args, wait_for_exit=True, save_stdout = True, drive=None, inputs=[], outputs=[], **kwargs):
     if save_stdout:
       self.stdout = []
     else:
@@ -44,7 +70,12 @@ class LitBashWork(L.LightningWork):
 
     self.on_before_run()
 
+    self.get_from_drive(drive, inputs)
+
+    # save the args 
+    self.args = args
     print(args, kwargs)
+
     # convert args from str to array  
     if isinstance(args,str):
       args = shlex.split(args)
@@ -69,6 +100,7 @@ class LitBashWork(L.LightningWork):
                   self.stdout.append(decoded_line)
                 #logger.info("%s", line.decode().rstrip())
       self.exit_code = proc.wait()
+      self.put_to_drive(drive, outputs)
       #if self.exit_code != 0:
       #    raise Exception(self.exit_code)
     else:
