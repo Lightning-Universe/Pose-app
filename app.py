@@ -146,7 +146,8 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
       #   right after fiftyone, the previous find command is triggered should not be the case.
       cmd = f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}"
       self.my_work.run(cmd,
-        wait_for_exit=False, cwd=lightning_pose_dir)
+        wait_for_exit=False, 
+        cwd=lightning_pose_dir)
 
       # train on ui button press  
       if self.train_ui.run_script == True:      
