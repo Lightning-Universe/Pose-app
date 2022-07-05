@@ -7,9 +7,26 @@ App for:
 * Looking at diagnostics via Tensorboard and FiftyOne
 * More to come! (Deploying for new videos, active learning, etc.)
 
-## Architecture
+## Screenshots
+- About Page
+![About Page](static/lpa-2-about.png)
+- Train UI
+![Train UI](static/lpa-3-train.png)
+- Train Daig
+![Train Diag](static/lpa-4-train-diag.png)
+- Predict UI
+![Predict UI](static/lpa-5-eval.png)
+- Compare PNG Models
+![Compare PNG models](static/lpa-6-eval-png.png)
+- Compare MP4 Models
+![Compare MP4 models](static/lpa-7-eval-mp4.png)
+- LPA Admin / Console UI
+![Admin UI](static/lpa-1-admin.png)
 
+## Architecture
+- Components
 ![Components](static/lpa-components.png)
+- Train Predict Steps
 ![Train Predict Steps](static/lpa-train-predict-steps.png)
 
 ## Prerequisites
