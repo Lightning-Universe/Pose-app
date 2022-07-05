@@ -7,7 +7,6 @@ import streamlit as st
 from streamlit_ace import st_ace
 import sh
 import shlex
-import fiftyone as fo
 
 from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
 from lai_components.args_utils import args_to_dict, dict_to_args 
@@ -50,6 +49,10 @@ class FoRunUI(LightningFlow):
 
     self.script_args = script_args
     self.outputs_dir = outputs_dir
+    # FO list
+    self.fo_datasets = []
+    self.hydra_outputs = {}
+
     # submit count
     self.submit_count = 0
 
@@ -65,12 +68,26 @@ class FoRunUI(LightningFlow):
     self.st_hydra_config_name = None
     self.st_hydra_config_dir = None   
 
+  def set_fo_dataset(self, names):
+    self.fo_datasets = names
+
+  def add_fo_dataset(self, name):
+    self.fo_datasets.append(name)
+
+  def set_hydra_outputs(self, names:dict):
+    self.hydra_outputs.update(names)
+
+  def add_hydra_output(self, name:str):
+    self.hydra_outputs.update(name)
+
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
+def get_existing_datasets():
+  return(self.fo_datasets)
 
-def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str):
+def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, outputs_dir:str, hydra_outputs:dict):
   script_args_dict = args_to_dict(script_args)
 
   # enrich the args  
@@ -94,10 +111,10 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
     pred_csv_files_to_plot=[]
     pred_csv_files_root_dir = os.path.abspath(f"{script_dir}/{outputs_dir}/")
     for hydra_name in st_output_dir:
-      print(f"looking for {pred_csv_files_root_dir}/{hydra_name} {video_file_name_basename}_*.csv")
-      for file in Path(f"{pred_csv_files_root_dir}/{hydra_name}").rglob(f"{video_file_name_basename}_*.csv"):
+      if hydra_name in hydra_outputs:
+        file = hydra_outputs[hydra_name]
         print(f"found {file}")
-        pred_csv_files_to_plot.append(f"'{str(file)}'")
+        pred_csv_files_to_plot.append(f"'{pred_csv_files_root_dir}/{hydra_name}/{file}'")
     script_args_dict["eval.pred_csv_files_to_plot"] = "[%s]" % ",".join(pred_csv_files_to_plot) 
     print(f"pred_csv_files_to_plot={script_args_dict['eval.pred_csv_files_to_plot']}")
 
@@ -112,7 +129,7 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
   # convert to absolute
   script_args_dict["eval.video_file_to_plot"] = os.path.abspath(script_args_dict["eval.video_file_to_plot"]) 
   
-  return(dict_to_args(script_args_dict)) 
+  return(dict_to_args(script_args_dict), script_args_dict) 
   
 def get_existing_outputs(state):
   options=[]
@@ -123,20 +140,13 @@ def get_existing_outputs(state):
     pass  
   return(options)
 
-def get_existing_datasets():
-  options = fo.list_datasets()
-  try:
-    options.remove('')
-  except:
-    pass  
-  return(options)
 
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
 
     # outputs to choose from
-    st_output_dir = st.multiselect("select output", get_existing_outputs(state))
+    st_output_dir = st.multiselect("select output", state.hydra_outputs)
 
     # for each output, choose a name 
     model_display_names_str = st.text_input("display name for each output separated by space")
@@ -146,7 +156,7 @@ def _render_streamlit_fn(state: AppState):
     print(f"{st_output_dir} {st_output_dir}")
 
     # dataset names
-    existing_datasets = get_existing_datasets()
+    existing_datasets = state.fo_datasets
     st.write(f"Existing Fifityone datasets {', '.join(existing_datasets)}")
     st_dataset_name = st.text_input("name other than the above existing names")
     if st_dataset_name in existing_datasets:
@@ -155,10 +165,13 @@ def _render_streamlit_fn(state: AppState):
 
     # parse
 
-    state.script_args = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir) 
+    state.script_args, script_args_dict = set_script_args(st_output_dir, script_args = state.script_args, script_dir = state.script_dir, outputs_dir = state.outputs_dir, hydra_outputs = state.hydra_outputs) 
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
     if st_script_args != state.script_args:
       state.script_args = st_script_args 
+
+    # TODO:
+    # do not show outputs that does not have predict.csv and another CSV
 
     st_submit_button = st.button("Submit", disabled=True if ((len(st_output_dir)==0) or (st_dataset_name is None) or (st_dataset_name == "") or (state.run_script == True)) else False)
     if state.run_script == True:

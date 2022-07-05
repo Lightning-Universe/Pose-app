@@ -1,0 +1,6 @@
+# app UI 
+streamlit
+streamlit_autorefresh
+watchdog
+streamlit-ace
+sh

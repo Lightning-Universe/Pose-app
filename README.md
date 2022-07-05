@@ -7,7 +7,29 @@ App for:
 * Looking at diagnostics via Tensorboard and FiftyOne
 * More to come! (Deploying for new videos, active learning, etc.)
 
-## Prerequsites
+## Screenshots
+- About Page
+![About Page](static/lpa-2-about.png)
+- Train UI
+![Train UI](static/lpa-3-train.png)
+- Train Daig
+![Train Diag](static/lpa-4-train-diag.png)
+- Predict UI
+![Predict UI](static/lpa-5-eval.png)
+- Compare PNG Models
+![Compare PNG models](static/lpa-6-eval-png.png)
+- Compare MP4 Models
+![Compare MP4 models](static/lpa-7-eval-mp4.png)
+- LPA Admin / Console UI
+![Admin UI](static/lpa-1-admin.png)
+
+## Architecture
+- Components
+![Components](static/lpa-components.png)
+- Train Predict Steps
+![Train Predict Steps](static/lpa-train-predict-steps.png)
+
+## Prerequisites
 
 For now, the installation assumes 
 - Grid Session GPU instance 
@@ -45,12 +67,11 @@ cd ~
 conda create --yes --name lai python=3.8
 conda activate lai
 # mandatory step to pull the dependencies from extra-index-url
-python -m pip install lightning
+python -m pip install lightning --upgrade
 ```
 
 - record versions and git hash
 ```
-git rev-parse HEAD
 lightning --version
 python --version
 ```
@@ -63,11 +84,12 @@ NOTE: requirements.txt has lightning-pose requirements.  this allows the app to 
 cd ~
 git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
-git checkout rslee-prototype
+git checkout rslee-prototype-cloud
 
-git clone https://github.com/danbider/lightning-pose
+git clone https://github.com/danbider/lightning-pose 
 # TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
-python -m pip install -r requirements.txt -e lightning-pose/.
+python -m pip install -r requirements.txt 
+cd lightning-pose; python -m pip install -r requirements.txt; cd ..
 ```
 
 NOTE: 
@@ -97,5 +119,5 @@ Subprocess ['/opt/miniconda3/envs/lai/lib/python3.8/site-packages/fiftyone/db/bi
 
 ### On GPU
 ```
-USE_GPU=1 lightning run app app.py --cloud --name lightning-pose
+lightning run app app.py --cloud --name lightning-pose --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 ```

@@ -16,7 +16,7 @@ from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning_app.components.python import TracerPythonScript
 from lightning_app.utilities.state import AppState
 from lightning_app.storage.path import Path
-
+from lightning_app.structures import Dict, List
 
 class ScriptRunUI(LightningFlow):
   """UI to enter training parameters
@@ -52,6 +52,8 @@ class ScriptRunUI(LightningFlow):
 
     self.script_args = script_args
     self.outputs_dir = outputs_dir
+    # hydra outputs list
+    self.hydra_outputs = {} 
     # output from the UI
 
     self.st_eval_test_videos_directory = None
@@ -65,6 +67,12 @@ class ScriptRunUI(LightningFlow):
     self.run_script = False
     self.st_hydra_config_name = None
     self.st_hydra_config_dir = None       
+
+  def set_hydra_outputs(self, names:dict):
+    self.hydra_outputs.update(names)
+
+  def add_hydra_output(self, name:str):
+    self.hydra_outputs.update(names)
 
   def configure_layout(self):
     return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -80,7 +88,7 @@ def set_script_args(script_args:str):
   # change back to array
   return(dict_to_args(script_args_dict))
   
-def get_existing_outpts(state):
+def get_existing_outputs(state):
   options=[]
   try:
     options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
@@ -92,7 +100,8 @@ def get_existing_outpts(state):
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
-    st_output_dir = st.selectbox("existing output", get_existing_outpts(state))
+    st_output_dir = st.selectbox("existing output", 
+      [k for k,v in sorted(state.hydra_outputs.items(), reverse=True)])
 
     # edit the script_args
     st_script_args = st.text_area("Script Args", value=state.script_args, placeholder='--a 1 --b 2')
