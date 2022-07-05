@@ -7,6 +7,11 @@ App for:
 * Looking at diagnostics via Tensorboard and FiftyOne
 * More to come! (Deploying for new videos, active learning, etc.)
 
+## Architecture
+
+![Components](static/lpa-components.png)
+![Train Predict Steps](static/lpa-train-predict-steps.png)
+
 ## Prerequisites
 
 For now, the installation assumes 
