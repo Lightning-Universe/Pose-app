@@ -66,7 +66,6 @@ open VSC
 cd ~
 conda create --yes --name lai python=3.8
 conda activate lai
-# mandatory step to pull the dependencies from extra-index-url
 python -m pip install lightning --upgrade
 ```
 
@@ -78,29 +77,36 @@ python --version
 
 ### Download lightning-pose-app and put lightning-pose inside it
 
-NOTE: requirements.txt has lightning-pose requirements.  this allows the app to run in the cloud.
-
+- setup lighting env
 ```bash
 cd ~
 git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
 git checkout rslee-prototype-cloud
-
-git clone https://github.com/danbider/lightning-pose 
-# TODO: torch and numpy are in requirements.txt, but pip cannt find it. so install first before the rest
 python -m pip install -r requirements.txt 
-cd lightning-pose; python -m pip install -r requirements.txt; cd ..
+git clone https://github.com/danbider/lightning-pose 
 ```
 
-NOTE: 
+- setup local environment to mirror cloud
+```bash
+virtualenv ~/venv-tensorboard 
+source ~/venv-tensorboard/bin/activate; which python; python -m pip install tensorflow tensorboard; deactivate
 
-Ignore the following error for now.
+virtualenv ~/venv-label-studio 
+git clone https://github.com/robert-s-lee/label-studio; cd label-studio; git checkout x-frame-options; cd ..
+source ~/venv-label-studio/bin/activate; cd label-studio; which python; python -m pip install -e .; cd ..; deactivate
 
+virtualenv ~/venv-lightning-pose
+source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -e .; cd ..; deactivate
 ```
-ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
-aiobotocore 2.1.2 requires botocore<1.23.25,>=1.23.24, but you have botocore 1.26.5 which is incompatible.
+- test tensorboard 
+```bash
+source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
 ```
-
+- test label-studio
+```bash
+source ~/venv-label-studio/bin/activate; cd label-studio; python label_studio/manage.py migrate; python label_studio/manage.py runserver; cd ..; deactivate
+```
 ### Locally
 
 In order to run the application locally, run the following commands

@@ -23,23 +23,38 @@ def args_to_dict(script_args:str) -> dict:
     script_args_dict[k] = v
   return(script_args_dict) 
 
+def add_to_system_env(env_key='env', **kwargs) -> dict:
+  """add env to the current system env"""
+  new_env = None
+  if env_key in kwargs: 
+    env = kwargs[env_key]
+    if isinstance(env,str):
+      env = args_to_dict(env)  
+    if not(env is None) and not(env == {}):
+      new_env = os.environ.copy()
+      new_env.update(env)
+  return(new_env)
+
 class LitBashWork(L.LightningWork):
   def __init__(self, *args, 
-    sync_every_n_seconds = 5,
+    wait_seconds_after_run = 10,
+    drive_name = "lit://lpa",
     **kwargs):
     super().__init__(*args, **kwargs,
       # required to to grab self.host and self.port in the cloud.  
       # otherwise, the values flips from 127.0.0.1 to 0.0.0.0 causing two runs
       host='0.0.0.0',  
     )
+    self.wait_seconds_after_run = wait_seconds_after_run
+    self.drive_lpa = Drive(drive_name)
+
     self.pid = None
     self.exit_code = None
     self.stdout = None
     self.inputs = None
     self.outputs = None
-    self.sync_every_n_seconds = sync_every_n_seconds
     self.args = ""
-    self.drive_lpa = Drive("lit://lpa")
+
 
   def reset_last_args(self) -> str:
     self.args = ""
@@ -63,7 +78,7 @@ class LitBashWork(L.LightningWork):
         self.drive_lpa.get(i)  # Transfer the file from this drive to the local filesystem.
       except:
         pass  
-      os.system(f"ls -Rlia {i}")
+      os.system(f"find {i} -print")
 
   def put_to_drive(self,outputs):
     for o in outputs:
@@ -71,55 +86,85 @@ class LitBashWork(L.LightningWork):
       # make sure dir end with / so that put works correctly
       if os.path.isdir(o):
         o = os.path.join(o,"")
-      os.system(f"ls -Rlia {o}")
+      os.system(f"find {o} -print")
       self.drive_lpa.put(o)  
 
-  def run(self, args, wait_for_exit=True, save_stdout = True, input_output_only = False, inputs=[], outputs=[], **kwargs):
-
-    # save the args 
-    self.args = args
-
-    print(args, kwargs)
-
-    if save_stdout:
-      self.stdout = []
-
-    self.on_before_run()
-
-    self.get_from_drive(inputs)
-
-    if not(input_output_only):
-      # convert args from str to array  
-      if isinstance(args,str):
-        args = shlex.split(args)
-      # add PYTHONPATH to ENV
-      if 'env' in kwargs and isinstance(kwargs['env'],str):
-        if kwargs['env'] == "":
-          kwargs['env'] = None
-        else:  
-          env_copy = os.environ.copy()
-          env_copy.update(args_to_dict(kwargs['env']))
-          kwargs['env'] = env_copy
-      if wait_for_exit: 
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0, close_fds=True, **kwargs)
+  def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
+    with subprocess.Popen(
+      cmd, 
+      stdout=subprocess.PIPE, 
+      stderr=subprocess.STDOUT, 
+      bufsize=0, 
+      close_fds=True, 
+      shell=True, 
+      executable='/bin/bash',
+      **kwargs
+    ) as proc:
         self.pid = proc.pid
         if proc.stdout:
-          with proc.stdout:
-              for line in iter(proc.stdout.readline, b""):
-                  decoded_line = line.decode().rstrip()
-                  print(decoded_line)
-                  if save_stdout:
-                    self.stdout.append(decoded_line)
-                  #logger.info("%s", line.decode().rstrip())
-        self.exit_code = proc.wait()
-        self.put_to_drive(outputs)
-        #if self.exit_code != 0:
-        #    raise Exception(self.exit_code)
-      else:
-        proc = subprocess.Popen(args, **kwargs)
-        self.pid = proc.pid
+            with proc.stdout:
+                for line in iter(proc.stdout.readline, b""):
+                    #logger.info("%s", line.decode().rstrip())
+                    line = line.decode().rstrip() 
+                    print(line)
+                    if save_stdout:
+                      self.last_stdout.append(line)
+    if exception_on_error and self.exit_code != 0:
+      raise Exception(self.exit_code)  
+
+  def popen_nowait(self, cmd, **kwargs):
+    proc = subprocess.Popen(
+      cmd, 
+      shell=True, 
+      executable='/bin/bash',
+      close_fds=True,
+      **kwargs
+    )
+    self.pid = proc.pid
+
+  def subprocess_call(self, cmd, save_stdout=False, exception_on_error=False, venv_name = "", wait_for_exit=True, **kwargs):
+    """run the command"""
+    print(cmd, kwargs)
+    kwargs['env'] = add_to_system_env(**kwargs)
+    pwd = os.path.abspath(os.getcwd())
+    if venv_name:
+      cmd = f"source ~/{venv_name}/bin/activate; which python; {cmd}; deactivate"
+      
+    if wait_for_exit:
+      print("wait")
+      self.popen_wait(cmd, save_stdout=save_stdout, exception_on_error=exception_on_error, **kwargs)
+      print("wait completed",cmd, kwargs)
+    else:
+      print("no wait")
+      self.popen_nowait(cmd, **kwargs)
+      print("no wait completed",cmd, kwargs)
+
+  def run(self, args, 
+    venv_name="",
+    save_stdout=False,
+    wait_for_exit=True, 
+    input_output_only = False, 
+    inputs=[], outputs=[], 
+    **kwargs):
+
+    print(args, kwargs)
+    
+    # pre processing
+    self.on_before_run()    
+    self.get_from_drive(inputs)
+    self.args = args
+    self.stdout = []
+
+    # run the command
+    if not(input_output_only):
+      self.subprocess_call(
+        cmd=args, venv_name = venv_name, save_stdout=save_stdout, wait_for_exit=wait_for_exit, **kwargs)
+
+    # post processing
+    self.put_to_drive(outputs) 
+    # give time for REDIS to catch up and propagate self.stdout back to flow
+    if save_stdout: time.sleep(self.wait_seconds_after_run) 
     self.on_after_run()
-    time.sleep(10) # give time for REDIS to catch up and propogate self.stdout back to flow
 
   def on_exit(self):
       for child_pid in _collect_child_process_pids(os.getpid()):

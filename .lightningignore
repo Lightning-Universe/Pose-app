@@ -1,3 +1,4 @@
+label-studio/*
 lightning_logs/*
 outputs/*
 static/*
