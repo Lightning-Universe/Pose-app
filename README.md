@@ -82,7 +82,6 @@ python --version
 cd ~
 git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
-git checkout rslee-prototype-cloud
 python -m pip install -r requirements.txt 
 git clone https://github.com/danbider/lightning-pose 
 ```
@@ -96,8 +95,13 @@ virtualenv ~/venv-label-studio
 git clone https://github.com/robert-s-lee/label-studio; cd label-studio; git checkout x-frame-options; cd ..
 source ~/venv-label-studio/bin/activate; cd label-studio; which python; python -m pip install -e .; cd ..; deactivate
 
+# on laptop without GPU
 virtualenv ~/venv-lightning-pose
 source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -e .; cd ..; deactivate
+
+# on grid session with GPU
+virtualenv ~/venv-lightning-pose
+source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -r requirements.txt; cd ..; deactivate
 ```
 - test tensorboard 
 ```bash
@@ -107,6 +111,9 @@ source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
 ```bash
 source ~/venv-label-studio/bin/activate; cd label-studio; python label_studio/manage.py migrate; python label_studio/manage.py runserver; cd ..; deactivate
 ```
+- test fiftyone
+source ~/venv-lightning-pose/bin/activate; cd lightning-pose; fiftyone app launch; cd ..; deactivate
+
 ### Locally
 
 In order to run the application locally, run the following commands

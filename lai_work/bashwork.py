@@ -43,14 +43,14 @@ class LitBashWork(L.LightningWork):
     super().__init__(*args, **kwargs,
       # required to to grab self.host and self.port in the cloud.  
       # otherwise, the values flips from 127.0.0.1 to 0.0.0.0 causing two runs
-      host='0.0.0.0',  
+      # host='0.0.0.0',  
     )
     self.wait_seconds_after_run = wait_seconds_after_run
     self.drive_lpa = Drive(drive_name)
 
     self.pid = None
     self.exit_code = None
-    self.stdout = None
+    self.stdout = []
     self.inputs = None
     self.outputs = None
     self.args = ""
@@ -108,7 +108,7 @@ class LitBashWork(L.LightningWork):
                     line = line.decode().rstrip() 
                     print(line)
                     if save_stdout:
-                      self.last_stdout.append(line)
+                      self.stdout.append(line)
     if exception_on_error and self.exit_code != 0:
       raise Exception(self.exit_code)  
 
@@ -122,8 +122,10 @@ class LitBashWork(L.LightningWork):
     )
     self.pid = proc.pid
 
-  def subprocess_call(self, cmd, save_stdout=False, exception_on_error=False, venv_name = "", wait_for_exit=True, **kwargs):
+  def subprocess_call(self, cmd, save_stdout=True, exception_on_error=False, venv_name = "", wait_for_exit=True, **kwargs):
     """run the command"""
+    cmd = cmd.format(host=self.host,port=self.port) # replace host and port
+    cmd = ' '.join(shlex.split(cmd))                # convert multiline to a single line
     print(cmd, kwargs)
     kwargs['env'] = add_to_system_env(**kwargs)
     pwd = os.path.abspath(os.getcwd())
@@ -131,17 +133,17 @@ class LitBashWork(L.LightningWork):
       cmd = f"source ~/{venv_name}/bin/activate; which python; {cmd}; deactivate"
       
     if wait_for_exit:
-      print("wait")
+      print("wait popen")
       self.popen_wait(cmd, save_stdout=save_stdout, exception_on_error=exception_on_error, **kwargs)
-      print("wait completed",cmd, kwargs)
+      print("wait completed",cmd)
     else:
-      print("no wait")
+      print("no wait popen")
       self.popen_nowait(cmd, **kwargs)
-      print("no wait completed",cmd, kwargs)
+      print("no wait completed",cmd)
 
   def run(self, args, 
     venv_name="",
-    save_stdout=False,
+    save_stdout=True,
     wait_for_exit=True, 
     input_output_only = False, 
     inputs=[], outputs=[], 
@@ -163,7 +165,8 @@ class LitBashWork(L.LightningWork):
     # post processing
     self.put_to_drive(outputs) 
     # give time for REDIS to catch up and propagate self.stdout back to flow
-    if save_stdout: time.sleep(self.wait_seconds_after_run) 
+    if save_stdout: 
+      time.sleep(self.wait_seconds_after_run) 
     self.on_after_run()
 
   def on_exit(self):

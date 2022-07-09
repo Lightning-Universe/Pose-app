@@ -29,7 +29,7 @@ lightning_pose_dir  = "lightning-pose"
 label_studio_dir    = "label-studio"
 # virtualenv names located in ~
 label_studio_venv   = "venv-label-studio"
-lightning_pose_venv = "venv-lightening-pose"
+lightning_pose_venv = "venv-lightning-pose"
 tensorboard_venv    = "venv-tensorboard"
 
 # hydra.run.dir
@@ -135,6 +135,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         cwd=lightning_pose_dir)
       if (self.my_work.last_args() == cmd):
         outputs = output_with_video_prediction(self.my_work.last_stdout())
+        print(outputs)
         self.train_ui.set_hydra_outputs(outputs)
         self.fo_ui.set_hydra_outputs(outputs)
         self.my_work.reset_last_args()
@@ -148,7 +149,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           venv_name=label_studio_venv,
           cwd=label_studio_dir)
         self.my_label_studio.run(
-          f"python label_studio/manage.py runserver {self.my_label_studio.host}:{self.my_label_studio.port}", 
+          "python label_studio/manage.py runserver {host}:{port}", 
           venv_name=label_studio_venv,
           wait_for_exit=False,    
           env={
@@ -167,15 +168,13 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
 
     def start_tensorboard(self):
       """run tensorboard"""
-      cmd = f"tensorboard --logdir outputs --host {self.my_tb.host} --port {self.my_tb.port}"
+      cmd = "tensorboard --logdir outputs --host {host} --port {port}"
       self.my_tb.run(cmd,
         venv_name=tensorboard_venv,
         wait_for_exit=False, 
         cwd=lightning_pose_dir, 
       )     
-
-    def start_fiftyone(self):
-      """get fiftyone dateset and start the background service"""
+    def init_fiftyone_outputs_to_ui(self):
       # get existing fiftyone datasets
       cmd = f"fiftyone datasets list"  
       self.my_work.run(cmd)
@@ -189,16 +188,18 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           options.append(x)    
         self.fo_ui.set_fo_dataset(options)
 
+    def start_fiftyone(self):
+      """start the background service"""
       # start the fiftyone
       # TODO:
       #   right after fiftyone, the previous find command is triggered should not be the case.
-      cmd = f"fiftyone app launch --address {self.my_work.host} --port {self.my_work.port}"
+      cmd = "fiftyone app launch --address {host} --port {port}"
       self.my_work.run(cmd,
         venv_name=lightning_pose_venv,
         wait_for_exit=False, 
         cwd=lightning_pose_dir)
 
-    def start_lp_train_video_predict(self):
+    def start_lp_train_video_eval(self):
         # output for the train
         train_args = args_to_dict(self.train_ui.st_script_args)         # dict version of arg to trainer
         hydra_run_dir = train_args['hydra.run.dir']                     # outputs/%Y-%m-%d/%H-%M-%S
@@ -245,7 +246,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         # indicate to UI  
         self.train_ui.run_script = False    
 
-    def start_lp_eval_image_video(self):
+    def start_lp_image_video_eval(self):
         self.args_append = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
         self.args_append += " " + "eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names]) 
         self.args_append += " " + f"eval.fiftyone.launch_app_from_script=False"
@@ -270,8 +271,11 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         self.fo_ui.run_script = False
 
     def run(self):
-      # run once 
+      # init once 
       self.init_lp_outputs_to_ui()
+      self.init_fiftyone_outputs_to_ui()
+
+      # background services once
       self.start_tensorboard()
       self.start_label_studio()
       self.start_fiftyone()
