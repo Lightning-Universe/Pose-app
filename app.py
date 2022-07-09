@@ -176,8 +176,10 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
       )     
     def init_fiftyone_outputs_to_ui(self):
       # get existing fiftyone datasets
-      cmd = f"fiftyone datasets list"  
-      self.my_work.run(cmd)
+      cmd = "fiftyone datasets list"  
+      self.my_work.run(cmd,
+          venv_name=lightning_pose_venv,
+        )
       if (self.my_work.last_args() == cmd):
         options = []
         for x in self.my_work.stdout:
