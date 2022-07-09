@@ -50,7 +50,6 @@ class TensorboardBuildConfig(L.BuildConfig):
       f". ~/{tensorboard_venv}/bin/activate; python -m pip install tensorflow tensorboard;deactivate",
     ]
 
-
 class LabelStudioBuildConfig(L.BuildConfig):
   def build_commands(self) -> List[str]:
     return [
@@ -124,7 +123,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         # workers
         self.my_tb = LitBashWork(
           cloud_compute=L.CloudCompute("default"), 
-          cloud_build_config=LabelStudioBuildConfig(),
+          cloud_build_config=TensorboardBuildConfig(),
           )
         self.my_label_studio = LitBashWork(
           cloud_compute=L.CloudCompute("default"), 
@@ -209,7 +208,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         wait_for_exit=False, 
         cwd=lightning_pose_dir)
 
-    def start_lp_train_video_eval(self):
+    def start_lp_train_video_predict(self):
         # output for the train
         train_args = args_to_dict(self.train_ui.st_script_args)         # dict version of arg to trainer
         hydra_run_dir = train_args['hydra.run.dir']                     # outputs/%Y-%m-%d/%H-%M-%S
