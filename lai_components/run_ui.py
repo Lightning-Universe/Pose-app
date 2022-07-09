@@ -1,7 +1,6 @@
 import os
 import logging
 import string
-import sh
 import shlex
 from datetime import datetime
 
@@ -87,15 +86,6 @@ def set_script_args(script_args:str):
  
   # change back to array
   return(dict_to_args(script_args_dict))
-  
-def get_existing_outputs(state):
-  options=[]
-  try:
-    options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
-    options.sort(reverse=True)
-  except:
-    pass  
-  return(options)
 
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
