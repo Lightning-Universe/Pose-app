@@ -43,6 +43,14 @@ eval.test_videos_directory=${root_dir}/${eval_test_videos_directory} \
 eval.saved_vid_preds_dir="${root_dir}/${hydra.run.dir}/
 """
 
+class TensorboardBuildConfig(L.BuildConfig):
+  def build_commands(self) -> List[str]:
+    return [
+      f"virtualenv ~/{tensorboard_venv}",
+      f". ~/{tensorboard_venv}/bin/activate; python -m pip install tensorflow tensorboard;deactivate",
+    ]
+
+
 class LabelStudioBuildConfig(L.BuildConfig):
   def build_commands(self) -> List[str]:
     return [
@@ -116,7 +124,7 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         # workers
         self.my_tb = LitBashWork(
           cloud_compute=L.CloudCompute("default"), 
-          cloud_build_config=L.BuildConfig(requirements=["tensorboard"]),
+          cloud_build_config=LabelStudioBuildConfig(),
           )
         self.my_label_studio = LitBashWork(
           cloud_compute=L.CloudCompute("default"), 
