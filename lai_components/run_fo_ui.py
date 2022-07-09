@@ -5,7 +5,6 @@ from datetime import datetime
 
 import streamlit as st
 from streamlit_ace import st_ace
-import sh
 import shlex
 
 from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name 
@@ -131,16 +130,6 @@ def set_script_args(st_output_dir:[str], script_args:str, script_dir:str, output
   
   return(dict_to_args(script_args_dict), script_args_dict) 
   
-def get_existing_outputs(state):
-  options=[]
-  try:
-    options = ["/".join(x.strip().split("/")[-3:-1]) for x in sh.find(f"{state.script_dir}/{state.outputs_dir}","-type","d", "-name", "tb_logs",)]
-    options.sort(reverse=True)
-  except:
-    pass  
-  return(options)
-
-
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset
     """
