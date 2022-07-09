@@ -1,7 +1,6 @@
 import os
 import logging
 import string
-import sh
 import shlex
 from datetime import datetime
 
