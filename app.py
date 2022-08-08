@@ -25,8 +25,10 @@ import time
 # sub dirs
 #   lightening-pose
 #   label-studio
+#   tracking-diagnostics
 lightning_pose_dir  = "lightning-pose"
 label_studio_dir    = "label-studio"
+tracking_diag_dir   = "tracking-diagnostics"
 # virtualenv names located in ~
 label_studio_venv   = "venv-label-studio"
 lightning_pose_venv = "venv-lightning-pose"
@@ -70,6 +72,13 @@ class FiftyOneBuildConfig(L.BuildConfig):
       f"virtualenv ~/{lightning_pose_venv}",
       f". ~/{lightning_pose_venv}/bin/activate;python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102; deactivate",
       f". ~/{lightning_pose_venv}/bin/activate;python -m pip install -e {lightning_pose_dir}; deactivate",
+    ]
+
+class StreamlitBuildConfig(L.BuildConfig):
+  def build_commands(self) -> List[str]:
+    return [
+      f"virtualenv ~/{lightning_pose_venv}",
+      f". ~/{lightning_pose_venv}/bin/activate; cd tracking-diagnostics; which python; python -m pip install -e .; deactivate",
     ]
 
 # data.data_dir=./lightning-pose/toy_datasets/toymouseRunningData 
@@ -118,7 +127,12 @@ eval.fiftyone.build_speed="fast"
 eval.fiftyone.launch_app_from_script=True 
 eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4
 """  
-        )   
+        )
+
+        # self.st_labeled_ui = StreamlitLabeledUI(
+        #     script_dir="./lightning-pose",
+        #     script_name="scripts/create_fiftyone_dataset.py",
+        # )
 
         # workers
         self.my_tb = LitBashWork(
@@ -133,6 +147,10 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
           cloud_compute=L.CloudCompute("gpu"), 
           cloud_build_config=FiftyOneBuildConfig(),
           )
+        self.my_streamlit = LitBashWork(
+            cloud_compute=L.CloudCompute("gpu"),
+            cloud_build_config=StreamlitBuildConfig(),
+        )
 
     def init_lp_outputs_to_ui(self):
       # get existing hydra datasets 
@@ -180,7 +198,8 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         venv_name=tensorboard_venv,
         wait_for_exit=False, 
         cwd=lightning_pose_dir, 
-      )     
+      )
+
     def init_fiftyone_outputs_to_ui(self):
       # get existing fiftyone datasets
       cmd = "fiftyone datasets list"  
@@ -207,6 +226,14 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         venv_name=lightning_pose_venv,
         wait_for_exit=False, 
         cwd=lightning_pose_dir)
+
+    def start_st_labeled(self):
+      """start the background service"""
+      cmd = "streamlit run ./tracking-diagnostics/apps/labeled_frame_diagnostics.py --server.address {host} --server.port {port}"
+      self.my_streamlit.run(cmd,
+        venv_name=lightning_pose_venv,
+        wait_for_exit=False,
+        cwd=".")
 
     def start_lp_train_video_predict(self):
         # output for the train
@@ -282,12 +309,13 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
     def run(self):
       # init once 
       self.init_lp_outputs_to_ui()
-      self.init_fiftyone_outputs_to_ui()
+      # self.init_fiftyone_outputs_to_ui()
 
       # background services once
       self.start_tensorboard()
-      self.start_label_studio()
-      self.start_fiftyone()
+      self.start_st_labeled()
+      # self.start_label_studio()
+      # self.start_fiftyone()
 
       # train on ui button press  
       if self.train_ui.run_script == True:      
@@ -302,7 +330,17 @@ eval.video_file_to_plot=./lightning-pose/toy_datasets/toymouseRunningData/unlabe
         train_diag_tab = {"name": "Train Diag", "content": self.my_tb}
         image_diag_prep_tab = {"name": "Image/Video Diag Prep", "content": self.fo_ui}
         image_diag_tab = {"name": "Image/Video Diag", "content": self.my_work}
-        data_anntate_tab = {"name": "Image/Video Annotation", "content": self.my_label_studio}
-        return [config_tab, train_tab, train_diag_tab, image_diag_prep_tab, image_diag_tab, data_anntate_tab]
+        st_labeled_tab = {"name": "Image Diag 2", "content": self.my_streamlit}
+        data_annotate_tab = {"name": "Image/Video Annotation", "content": self.my_label_studio}
+        return [
+            config_tab,
+            train_tab,
+            train_diag_tab,
+            image_diag_prep_tab,
+            image_diag_tab,
+            st_labeled_tab,
+            data_annotate_tab,
+        ]
+
 
 app = L.LightningApp(LitPoseApp())
