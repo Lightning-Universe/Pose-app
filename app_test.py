@@ -13,6 +13,14 @@ import streamlit as st
 
 from lai_work.bashwork import LitBashWork
 
+from lai_components.build_utils import lightning_pose_dir, label_studio_dir, tracking_diag_dir
+from lai_components.build_utils import lightning_pose_venv, label_studio_venv, tensorboard_venv
+from lai_components.build_utils import (
+    TensorboardBuildConfig,
+    LabelStudioBuildConfig,
+    FiftyOneBuildConfig,
+    StreamlitBuildConfig,
+)
 from lai_components.args_utils import args_to_dict, splitall
 from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
@@ -20,15 +28,6 @@ from lai_components.vsc_streamlit import StreamlitFrontend
 import logging
 import time
 
-# sub dirs
-lightning_pose_dir = "lightning-pose"
-label_studio_dir = "label-studio"
-tracking_diag_dir = "tracking-diagnostics"
-
-# virtualenv names located in ~
-label_studio_venv = "venv-label-studio"
-lightning_pose_venv = "venv-lightning-pose"
-tensorboard_venv = "venv-tensorboard"
 
 # hydra.run.dir
 #   outputs/YY-MM-DD/HH-MM-SS

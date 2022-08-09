@@ -12,6 +12,14 @@ import streamlit as st
 
 from lai_work.bashwork import LitBashWork
 
+from lai_components.build_utils import lightning_pose_dir, label_studio_dir, tracking_diag_dir
+from lai_components.build_utils import lightning_pose_venv, label_studio_venv, tensorboard_venv
+from lai_components.build_utils import (
+    TensorboardBuildConfig,
+    LabelStudioBuildConfig,
+    FiftyOneBuildConfig,
+    StreamlitBuildConfig,
+)
 from lai_components.run_fo_ui import FoRunUI
 from lai_components.run_ui import ScriptRunUI
 from lai_components.run_config_ui import ConfigUI
@@ -22,17 +30,6 @@ from lai_components.lpa_utils import output_with_video_prediction
 import logging
 import time
 
-# sub dirs
-#   lightening-pose
-#   label-studio
-#   tracking-diagnostics
-lightning_pose_dir  = "lightning-pose"
-label_studio_dir    = "label-studio"
-tracking_diag_dir   = "tracking-diagnostics"
-# virtualenv names located in ~
-label_studio_venv   = "venv-label-studio"
-lightning_pose_venv = "venv-lightning-pose"
-tensorboard_venv    = "venv-tensorboard"
 
 # hydra.run.dir
 #   outputs/YY-MM-DD/HH-MM-SS
@@ -45,48 +42,13 @@ eval.test_videos_directory=${root_dir}/${eval_test_videos_directory} \
 eval.saved_vid_preds_dir="${root_dir}/${hydra.run.dir}/
 """
 
-class TensorboardBuildConfig(L.BuildConfig):
-  def build_commands(self) -> List[str]:
-    return [
-      f"virtualenv ~/{tensorboard_venv}",
-      f". ~/{tensorboard_venv}/bin/activate; python -m pip install tensorflow tensorboard;deactivate",
-    ]
-
-class LabelStudioBuildConfig(L.BuildConfig):
-  def build_commands(self) -> List[str]:
-    return [
-      f"virtualenv ~/{label_studio_venv}",
-      "git clone https://github.com/robert-s-lee/label-studio",
-      "cd label-studio; git checkout x-frame-options; cd ..",
-      # source is not available, so using "."
-      f". ~/{label_studio_venv}/bin/activate; cd label-studio; which python; python -m pip install -e .;deactivate",
-      # TODO: after PR is merged,
-      # f". ~/{label_studio_venv}/bin/activate; which python; python -m pip install label-studio",
-    ]
-
-class FiftyOneBuildConfig(L.BuildConfig):
-  def build_commands(self) -> List[str]:
-    return [
-      "sudo apt-get update",
-      "sudo apt-get install -y ffmpeg libsm6 libxext6",
-      f"virtualenv ~/{lightning_pose_venv}",
-      f". ~/{lightning_pose_venv}/bin/activate;python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102; deactivate",
-      f". ~/{lightning_pose_venv}/bin/activate;python -m pip install -e {lightning_pose_dir}; deactivate",
-    ]
-
-class StreamlitBuildConfig(L.BuildConfig):
-  def build_commands(self) -> List[str]:
-    return [
-      f"virtualenv ~/{lightning_pose_venv}",
-      f". ~/{lightning_pose_venv}/bin/activate; cd tracking-diagnostics; which python; python -m pip install -e .; deactivate",
-    ]
-
-# data.data_dir=./lightning-pose/toy_datasets/toymouseRunningData 
+# data.data_dir=./lightning-pose/toy_datasets/toymouseRunningData
 # Saved predictions to: pred_csv_files_to_plot=/home/jovyan/lightning-pose-app/lightning-pose/outputs/2022-05-15/16-06-45/predictions.csv
 #             pred_csv_files_to_plot=["./lightning-pose/outputs/2022-05-15/16-06-45/predictions.csv"]  
 #            test_videos_directory="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos" \##
 #            saved_vid_preds_dir="./lightning-pose/toy_datasets/toymouseRunningData" \
 #            video_file_to_plot="./lightning-pose/toy_datasets/toymouseRunningData/unlabeled_videos/test_vid.mp4" \
+
 
 class LitPoseApp(L.LightningFlow):
     def __init__(self):
