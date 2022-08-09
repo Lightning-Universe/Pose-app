@@ -63,8 +63,6 @@ class TrainDemoUI(LightningFlow):
         self.st_script_args = None
         self.st_semi_losses = None
 
-        self.st_script_args = None
-
         # copy over for now, we can add these to the UI later if we want
         self.st_script_dir = script_dir
         self.st_script_name = script_name
