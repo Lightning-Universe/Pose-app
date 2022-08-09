@@ -103,7 +103,7 @@ source ~/venv-lightning-pose/bin/activate; cd tracking-diagnostics; which python
 
 # on grid session with GPU
 virtualenv ~/venv-lightning-pose
-source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -r requirements.txt; cd ..; deactivate
+source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; git checkout develop; python -m pip install -r requirements.txt; cd ..; deactivate
 source ~/venv-lightning-pose/bin/activate; cd tracking-diagnostics; which python; python -m pip install -r requirements.txt; python -m pip install -e .; cd ..; deactivate
 
 ```
