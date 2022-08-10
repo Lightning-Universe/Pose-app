@@ -189,10 +189,20 @@ def _render_streamlit_fn(state: AppState):
 
         state.submit_count += 1
 
+        # save streamlit options to flow object
         state.st_dataset_name = st_dataset_name
         state.st_model_display_names = st_model_display_names
         state.st_script_args = state.script_args
         state.st_hydra_config_name = get_hydra_config_name()
         state.st_hydra_config_dir = get_hydra_dir_name()
+
+        # set key-value pairs that will be used as script args
+        script_args_append = f"eval.fiftyone.dataset_name={st_dataset_name}"
+        script_args_append += " " + "eval.fiftyone.model_display_names=[%s]" % \
+                              ','.join([f"'{x}'" for x in st_model_display_names])
+        script_args_append += " " + "eval.fiftyone.launch_app_from_script=False"
+        script_args_append += " " + state.st_hydra_config_name
+        script_args_append += " " + state.st_hydra_config_dir
+        state.script_args_append = script_args_append
 
         state.run_script = True  # must the last to prevent race condition

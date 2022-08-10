@@ -186,7 +186,6 @@ def _render_streamlit_fn(state: AppState):
 
         # set key-value pairs that will be used as script args
         state.st_script_args = {}
-
         for i in range(2):
             tmp = set_script_args(state.script_args)  # sets date/time for output dir
             tmp += f" training.max_epochs={st_max_epochs}"

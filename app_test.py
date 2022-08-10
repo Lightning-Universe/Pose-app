@@ -100,7 +100,7 @@ class LitPoseApp(L.LightningFlow):
         if not search_dir:
             search_dir = self.train_ui.outputs_dir
 
-        cmd = f"find {search_dir} -maxdepth 3 -type f -name predictions.csv"
+        cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
         self.my_work.run(cmd, cwd=lightning_pose_dir)
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
@@ -201,7 +201,7 @@ class LitPoseApp(L.LightningFlow):
         )
 
         # set the new outputs for UIs
-        cmd = f"find {self.train_ui.outputs_dir} -maxdepth 3 -type f -name predictions.csv"
+        cmd = f"find {self.train_ui.outputs_dir} -maxdepth 4 -type f -name predictions.csv"
         self.my_work.run(cmd, cwd=lightning_pose_dir)
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
@@ -213,12 +213,6 @@ class LitPoseApp(L.LightningFlow):
         self.train_ui.run_script = False
 
     def start_fiftyone_dataset_creation(self):
-
-        self.fo_ui.script_args_append = f"eval.fiftyone.dataset_name={self.fo_ui.st_dataset_name}"
-        self.fo_ui.script_args_append += " " + "eval.fiftyone.model_display_names=[%s]" % ','.join([f"'{x}'" for x in self.fo_ui.st_model_display_names])
-        self.fo_ui.script_args_append += " " + "eval.fiftyone.launch_app_from_script=False"
-        self.fo_ui.script_args_append += " " + self.fo_ui.st_hydra_config_name
-        self.fo_ui.script_args_append += " " + self.fo_ui.st_hydra_config_dir
 
         cmd = "python" \
               + " " + self.fo_ui.st_script_name \
