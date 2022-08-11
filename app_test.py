@@ -6,6 +6,7 @@ from lightning_app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
 import os
 import streamlit as st
+import yaml
 from typing import Optional, Union, List
 
 from lai_components.args_utils import args_to_dict, dict_to_args
@@ -72,7 +73,7 @@ class LitPoseApp(L.LightningFlow):
                 eval.fiftyone.model_display_names=["test1"]
                 eval.fiftyone.dataset_to_create="images"
                 eval.fiftyone.build_speed="fast" 
-                eval.fiftyone.launch_app_from_script=True 
+                eval.fiftyone.launch_app_from_script=False 
             """
         )
 
@@ -92,6 +93,16 @@ class LitPoseApp(L.LightningFlow):
         self.my_work = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=FiftyOneBuildConfig(),
+        )
+        # streamlit labeled
+        self.my_streamlit_frame = LitBashWork(
+            cloud_compute=L.CloudCompute("gpu"),
+            cloud_build_config=StreamlitBuildConfig(),
+        )
+        # streamlit video
+        self.my_streamlit_video = LitBashWork(
+            cloud_compute=L.CloudCompute("gpu"),
+            cloud_build_config=StreamlitBuildConfig(),
         )
 
     def init_lp_outputs_to_ui(self, search_dir=None):
@@ -123,6 +134,8 @@ class LitPoseApp(L.LightningFlow):
                     continue
                 options.append(x)
             self.fo_ui.set_fo_dataset(options)
+        else:
+            pass
 
     def start_tensorboard(self):
         """run tensorboard"""
@@ -232,6 +245,101 @@ class LitPoseApp(L.LightningFlow):
         # indicate to UI
         self.fo_ui.run_script = False
 
+    def start_st_frame(self):
+        """run streamlit for labeled frames"""
+
+        # set labeled csv
+        # TODO: extract this directly from hydra
+        csv_file = os.path.join(
+            lightning_pose_dir, "toy_datasets/toymouseRunningData/CollectedData_.csv")
+        labeled_csv_args = f"--labels_csv={csv_file}"
+
+        # set prediction files (hard code some paths for now)
+        prediction_file_args = ""
+        for model_dir in self.fo_ui.st_model_dirs:
+            abs_file = os.path.join(
+                lightning_pose_dir, self.fo_ui.outputs_dir, model_dir, "predictions.csv")
+            prediction_file_args += f" --prediction_files={abs_file}"
+
+        # set model names
+        model_name_args = ""
+        for name in self.fo_ui.st_model_display_names:
+            model_name_args += f" --model_names={name}"
+
+        # set data config (take config from first selected model)
+        cfg_file = os.path.join(
+            lightning_pose_dir, self.fo_ui.outputs_dir, self.fo_ui.st_model_dirs[0], ".hydra",
+            "config.yaml")
+        # replace relative paths of example dataset
+        cfg = yaml.safe_load(open(cfg_file))
+        if not os.path.isabs(cfg["data"]["data_dir"]):
+            # data_dir = cfg["data"]["data_dir"]
+            cfg["data"]["data_dir"] = os.path.join(
+                os.getcwd(), lightning_pose_dir, cfg["data"]["data_dir"])
+        # resave file
+        yaml.safe_dump(cfg, open(cfg_file, "w"))
+
+        data_cfg_args = f" --data_cfg={cfg_file}"
+
+        cmd = "streamlit run ./tracking-diagnostics/apps/labeled_frame_diagnostics.py" \
+              + " --server.address {host} --server.port {port}" \
+              + " -- " \
+              + " " + labeled_csv_args \
+              + " " + prediction_file_args \
+              + " " + model_name_args \
+              + " " + data_cfg_args
+        self.my_streamlit_frame.run(
+            cmd,
+            venv_name=lightning_pose_venv,
+            wait_for_exit=False,
+            cwd="."
+        )
+
+    def start_st_video(self):
+        """run streamlit for videos"""
+
+        # set prediction files (hard code some paths for now)
+        # select random video
+        prediction_file_args = ""
+        video_file = "test_vid.csv"  # TODO: find random vid in predictions directory
+        for model_dir in self.fo_ui.st_model_dirs:
+            abs_file = os.path.join(
+                lightning_pose_dir, self.fo_ui.outputs_dir, model_dir, "video_preds", video_file)
+            prediction_file_args += f" --prediction_files={abs_file}"
+
+        # set model names
+        model_name_args = ""
+        for name in self.fo_ui.st_model_display_names:
+            model_name_args += f" --model_names={name}"
+
+        # set data config (take config from first selected model)
+        cfg_file = os.path.join(
+            lightning_pose_dir, self.fo_ui.outputs_dir, self.fo_ui.st_model_dirs[0], ".hydra",
+            "config.yaml")
+        # replace relative paths of example dataset
+        cfg = yaml.safe_load(open(cfg_file))
+        if not os.path.isabs(cfg["data"]["data_dir"]):
+            # data_dir = cfg["data"]["data_dir"]
+            cfg["data"]["data_dir"] = os.path.join(
+                os.getcwd(), lightning_pose_dir, cfg["data"]["data_dir"])
+        # resave file
+        yaml.safe_dump(cfg, open(cfg_file, "w"))
+
+        data_cfg_args = f" --data_cfg={cfg_file}"
+
+        cmd = "streamlit run ./tracking-diagnostics/apps/video_diagnostics.py" \
+              + " --server.address {host} --server.port {port}" \
+              + " -- " \
+              + " " + prediction_file_args \
+              + " " + model_name_args \
+              + " " + data_cfg_args
+        self.my_streamlit_video.run(
+            cmd,
+            venv_name=lightning_pose_venv,
+            wait_for_exit=False,
+            cwd="."
+        )
+
     def run(self):
 
         # -----------------------------
@@ -248,7 +356,6 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         self.start_tensorboard()
         self.start_fiftyone()
-        # self.start_st_labeled()
         # self.start_label_studio()
 
         # -----------------------------
@@ -261,6 +368,8 @@ class LitPoseApp(L.LightningFlow):
         # create fiftyone dataset on button press
         if self.fo_ui.run_script:
             self.start_fiftyone_dataset_creation()
+            self.start_st_frame()
+            self.start_st_video()
 
         # elif self.config_ui.st_mode == "new project":
         # else:
@@ -272,14 +381,19 @@ class LitPoseApp(L.LightningFlow):
         train_diag_tab = {"name": "Train Status", "content": self.my_tb}
         fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
         fo_tab = {"name": "View Preds", "content": self.my_work}
-        # st_frame_tab = {"name": "Frame Diag", "content": self.my_streamlit}
-        # st_video_tab = {"name": "Video Diag", "content": self.my_streamlit}
+        st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
+        st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 
         test_tab_a = {"name": "Test A", "content": self.test_ui_a}
         test_tab_b = {"name": "Test B", "content": self.test_ui_b}
 
         if self.landing_ui.st_mode == "demo":
-            return [landing_tab, train_demo_tab, train_diag_tab, fo_prep_tab, fo_tab]
+            return [
+                landing_tab,
+                train_demo_tab, train_diag_tab,
+                fo_prep_tab, fo_tab,
+                st_frame_tab, st_video_tab,
+            ]
 
         elif self.landing_ui.st_mode == "new":
             return [landing_tab, test_tab_a]

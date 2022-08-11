@@ -54,11 +54,11 @@ class FoRunUI(LightningFlow):
         self.submit_count = 0
 
         # output from the UI
-        self.st_output_dir = None
         self.st_model_display_names = None
         self.st_submit = False
         self.st_script_args = None
         self.st_dataset_name = None
+        self.st_model_dirs = None
         self.st_hydra_config_name = None
         self.st_hydra_config_dir = None
 
@@ -192,6 +192,7 @@ def _render_streamlit_fn(state: AppState):
         # save streamlit options to flow object
         state.st_dataset_name = st_dataset_name
         state.st_model_display_names = st_model_display_names
+        state.st_model_dirs = st_model_dirs
         state.st_script_args = state.script_args
         state.st_hydra_config_name = get_hydra_config_name()
         state.st_hydra_config_dir = get_hydra_dir_name()
