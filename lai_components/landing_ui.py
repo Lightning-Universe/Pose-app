@@ -27,17 +27,20 @@ def _render_streamlit_fn(state: AppState):
 
     st.markdown("""
     
-        <img src="https://github.com/danbider/lightning-pose/raw/main/assets/images/LightningPose_horizontal_light.png" alt="Wide Lightning Pose Logo" width="200"/>
+        <img src="https://github.com/danbider/lightning-pose/raw/main/assets/images/LightningPose_horizontal_light.png" alt="Wide Lightning Pose Logo" width="400"/>
 
-        Convolutional Networks for pose tracking implemented in **Pytorch Lightning**, 
+        Lightning Pose is a software package for animal pose estimation implemented in 
+        **Pytorch Lightning**, 
         supporting massively accelerated training on *unlabeled* videos using **NVIDIA DALI**.
         
-        #### A single application with pre-integrated components
-        * Train Models
-        * Training Diagnostics
-        * View Predictions on Images
-        * Diagnostics on Labeled Images
-        * Diagnostics on Unlabeled Videos
+        ##### A single application that integrates various components:
+        * Label data
+        * Train models locally or on the cloud
+        * Monitor training
+        * View predictions on labeled frames
+        * View predictions on unlabeled videos
+        * Diagnostics on labeled frames
+        * Diagnostics on unlabeled videos
         
         """, unsafe_allow_html=True)
 
@@ -60,33 +63,16 @@ def _render_streamlit_fn(state: AppState):
 
     st.markdown(
         """
-        #### Start new project
-        Start a new project: upload videos, label frames, and train models.
+        #### Manage project
+        Start a new project or load an existing project.
         """
     )
-    button_new = st.button("New project")
+    button_new = st.button("Launch project")
     if button_new:
-        state.st_mode = "new"
-        state.st_action = "start a new project"
+        state.st_mode = "project"
+        state.st_action = "manage your project"
         state.st_proceed_str = "Please proceed to the next tab to {}.".format(state.st_action)
-    if state.st_mode == "new":
-        st.markdown(
-            "<p style='font-family:sans-serif; color:Green;'>%s</p>" % state.st_proceed_str,
-            unsafe_allow_html=True
-        )
-
-    st.markdown(
-        """
-        #### Load existing project
-        Train new models, label new frames, process new videos.
-        """
-    )
-    button_load = st.button("Load project")
-    if button_load:
-        state.st_mode = "resume"
-        state.st_action = "resume a previously initialized project"
-        state.st_proceed_str = "Please proceed to the next tab to {}.".format(state.st_action)
-    if state.st_mode == "resume":
+    if state.st_mode == "project":
         st.markdown(
             "<p style='font-family:sans-serif; color:Green;'>%s</p>" % state.st_proceed_str,
             unsafe_allow_html=True

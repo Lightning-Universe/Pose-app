@@ -21,6 +21,7 @@ from lai_components.build_utils import (
 from lai_components.landing_ui import LandingUI
 from lai_components.train_ui import TrainDemoUI
 from lai_components.fo_ui import FoRunUI
+from lai_components.video_ui import VideoUI
 from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
 from lai_work.bashwork import LitBashWork
@@ -76,6 +77,9 @@ class LitPoseApp(L.LightningFlow):
                 eval.fiftyone.launch_app_from_script=False 
             """
         )
+
+        # video tab
+        self.video_ui = VideoUI(video_file=None)
 
         # dummy tabs
         self.test_ui_a = TestUI(text="Test A")
@@ -239,11 +243,54 @@ class LitPoseApp(L.LightningFlow):
             cwd=self.fo_ui.st_script_dir,
           )
 
-        # add name
+        # add dataset name to list for user to see
         self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)
 
         # indicate to UI
         self.fo_ui.run_script = False
+
+    def start_labeled_video_creation(self):
+
+        # set prediction files (hard code some paths for now)
+        # select random video
+        prediction_file_args = ""
+        video_file = "test_vid.csv"  # TODO: find random vid in predictions directory
+        for model_dir in self.fo_ui.st_model_dirs:
+            abs_file = os.path.abspath(os.path.join(
+                lightning_pose_dir, self.fo_ui.outputs_dir, model_dir, "video_preds", video_file))
+            prediction_file_args += f" --prediction_files={abs_file}"
+
+        # set model names
+        model_name_args = ""
+        for name in self.fo_ui.st_model_display_names:
+            model_name_args += f" --model_names={name}"
+
+        # get absolute path of video file
+        video_file_abs = os.path.abspath(os.path.join(
+            lightning_pose_dir, self.train_ui.test_videos_dir, video_file.replace(".csv", ".mp4")))
+
+        # set absolute path of labeled video file
+        save_file_abs = video_file_abs.replace(".mp4", f"_{self.fo_ui.st_dataset_name}.mp4")
+
+        # set reasonable defaults for video creation
+        cmd = "python ./tracking-diagnostics/scripts/create_labeled_video.py" \
+              + f" " + prediction_file_args \
+              + f" " + model_name_args \
+              + f" --video_file={video_file_abs}" \
+              + f" --save_file={save_file_abs}" \
+              + f" --likelihood_thresh=0.05" \
+              + f" --max_frames=100" \
+              + f" --markersize=6" \
+              + f" --framerate=20" \
+              + f" --height=4"
+        self.my_work.run(
+            cmd,
+            venv_name=lightning_pose_venv,
+            outputs=[save_file_abs],
+            cwd="."
+        )
+
+        self.video_ui.video_file = save_file_abs
 
     def start_st_frame(self):
         """run streamlit for labeled frames"""
@@ -274,8 +321,8 @@ class LitPoseApp(L.LightningFlow):
         cfg = yaml.safe_load(open(cfg_file))
         if not os.path.isabs(cfg["data"]["data_dir"]):
             # data_dir = cfg["data"]["data_dir"]
-            cfg["data"]["data_dir"] = os.path.join(
-                os.getcwd(), lightning_pose_dir, cfg["data"]["data_dir"])
+            cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
+                lightning_pose_dir, cfg["data"]["data_dir"]))
         # resave file
         yaml.safe_dump(cfg, open(cfg_file, "w"))
 
@@ -320,8 +367,8 @@ class LitPoseApp(L.LightningFlow):
         cfg = yaml.safe_load(open(cfg_file))
         if not os.path.isabs(cfg["data"]["data_dir"]):
             # data_dir = cfg["data"]["data_dir"]
-            cfg["data"]["data_dir"] = os.path.join(
-                os.getcwd(), lightning_pose_dir, cfg["data"]["data_dir"])
+            cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
+                lightning_pose_dir, cfg["data"]["data_dir"]))
         # resave file
         yaml.safe_dump(cfg, open(cfg_file, "w"))
 
@@ -365,14 +412,14 @@ class LitPoseApp(L.LightningFlow):
         if self.train_ui.run_script:
             self.start_lp_train_video_predict()
 
-        # create fiftyone dataset on button press
+        # initialize diagnostics on button press
         if self.fo_ui.run_script:
             self.start_fiftyone_dataset_creation()
-            self.start_st_frame()
-            self.start_st_video()
+            self.start_labeled_video_creation()
+            # self.start_st_frame()
+            # self.start_st_video()
 
-        # elif self.config_ui.st_mode == "new project":
-        # else:
+        # elif self.config_ui.st_mode == "project":
 
     def configure_layout(self):
 
@@ -380,8 +427,9 @@ class LitPoseApp(L.LightningFlow):
         train_demo_tab = {"name": "Train", "content": self.train_ui}
         train_diag_tab = {"name": "Train Status", "content": self.my_tb}
         fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
-        fo_tab = {"name": "View Preds", "content": self.my_work}
+        fo_tab = {"name": "Labeled Preds", "content": self.my_work}
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
+        video_tab = {"name": "Video Preds", "content": self.video_ui}
         st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 
         test_tab_a = {"name": "Test A", "content": self.test_ui_a}
@@ -391,15 +439,15 @@ class LitPoseApp(L.LightningFlow):
             return [
                 landing_tab,
                 train_demo_tab, train_diag_tab,
-                fo_prep_tab, fo_tab,
-                st_frame_tab, st_video_tab,
+                fo_prep_tab,
+                fo_tab,
+                # st_frame_tab,
+                video_tab,
+                # st_video_tab,
             ]
 
-        elif self.landing_ui.st_mode == "new":
+        elif self.landing_ui.st_mode == "project":
             return [landing_tab, test_tab_a]
-
-        elif self.landing_ui.st_mode == "resume":
-            return [landing_tab, test_tab_b]
 
         else:
             return [landing_tab]
