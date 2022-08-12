@@ -44,6 +44,9 @@ def _render_streamlit_fn(state: AppState):
         
         """, unsafe_allow_html=True)
 
+    proceed_str = "Please proceed to the next tab to {}."
+    proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+
     st.markdown(
         """
         #### Run demo
@@ -54,12 +57,9 @@ def _render_streamlit_fn(state: AppState):
     if button_demo:
         state.st_mode = "demo"
         state.st_action = "review and train several baseline models on an example dataset"
-        state.st_proceed_str = "Please proceed to the next tab to {}.".format(state.st_action)
+        state.st_proceed_str = proceed_str.format(state.st_action)
     if state.st_mode == "demo":
-        st.markdown(
-            "<p style='font-family:sans-serif; color:Green;'>%s</p>" % state.st_proceed_str,
-            unsafe_allow_html=True
-        )
+        st.markdown(proceed_fmt % state.st_proceed_str, unsafe_allow_html=True)
 
     st.markdown(
         """
@@ -70,10 +70,15 @@ def _render_streamlit_fn(state: AppState):
     button_new = st.button("Launch project")
     if button_new:
         state.st_mode = "project"
-        state.st_action = "manage your project"
-        state.st_proceed_str = "Please proceed to the next tab to {}.".format(state.st_action)
+        state.st_action = "launch your project"
+        state.st_proceed_str = proceed_str.format(state.st_action)
     if state.st_mode == "project":
-        st.markdown(
-            "<p style='font-family:sans-serif; color:Green;'>%s</p>" % state.st_proceed_str,
-            unsafe_allow_html=True
-        )
+        st.markdown(proceed_fmt % state.st_proceed_str, unsafe_allow_html=True)
+
+    # button_new = st.button("Load project")
+    # if button_new:
+    #     state.st_mode = "project"
+    #     state.st_action = "manage your project"
+    #     state.st_proceed_str = proceed_str.format(state.st_action)
+    # if state.st_mode == "project":
+    #     st.markdown(proceed_fmt % state.st_proceed_str, unsafe_allow_html=True)

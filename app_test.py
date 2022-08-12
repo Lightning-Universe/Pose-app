@@ -19,6 +19,7 @@ from lai_components.build_utils import (
     StreamlitBuildConfig,
 )
 from lai_components.landing_ui import LandingUI
+from lai_components.project_ui import ProjectUI
 from lai_components.train_ui import TrainDemoUI
 from lai_components.fo_ui import FoRunUI
 from lai_components.video_ui import VideoUI
@@ -54,6 +55,14 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # landing tab
         self.landing_ui = LandingUI()
+
+        # project manager tab
+        self.project_ui = ProjectUI(
+            config_dir=os.path.abspath(os.path.join(lightning_pose_dir, "scripts")),
+            data_dir=os.path.abspath(os.path.join(lightning_pose_dir, "data")),
+            default_config_file=os.path.abspath(os.path.join(
+                lightning_pose_dir, "scripts", "config_default.yaml"))
+        )
 
         # training tab
         self.train_ui = TrainDemoUI(
@@ -393,21 +402,25 @@ class LitPoseApp(L.LightningFlow):
         # init UIs (find prev artifacts)
         # -----------------------------
         # find previously trained models, expose to training UI
-        self.init_lp_outputs_to_ui()
+        # self.init_lp_outputs_to_ui()
 
         # find previously constructed fiftyone datasets, expose to fiftyone UI
-        self.init_fiftyone_outputs_to_ui()
+        # self.init_fiftyone_outputs_to_ui()
 
         # -----------------------------
         # init background services once
         # -----------------------------
-        self.start_tensorboard()
-        self.start_fiftyone()
+        # self.start_tensorboard()
+        # self.start_fiftyone()
         # self.start_label_studio()
 
         # -----------------------------
         # run work
         # -----------------------------
+        # update project configuration
+        if self.project_ui.run_script:
+            self.project_ui.update_project_config()
+
         # train on ui button press
         if self.train_ui.run_script:
             self.start_lp_train_video_predict()
@@ -423,15 +436,22 @@ class LitPoseApp(L.LightningFlow):
 
     def configure_layout(self):
 
+        # init tabs
         landing_tab = {"name": "Lightning Pose", "content": self.landing_ui}
+        project_tab = {"name": "Manage Project", "content": self.project_ui}
+
+        # training tabs
         train_demo_tab = {"name": "Train", "content": self.train_ui}
         train_diag_tab = {"name": "Train Status", "content": self.my_tb}
+
+        # diagnostics tabs
         fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
         fo_tab = {"name": "Labeled Preds", "content": self.my_work}
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
         video_tab = {"name": "Video Preds", "content": self.video_ui}
         st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 
+        # dummy tabs
         test_tab_a = {"name": "Test A", "content": self.test_ui_a}
         test_tab_b = {"name": "Test B", "content": self.test_ui_b}
 
@@ -446,8 +466,11 @@ class LitPoseApp(L.LightningFlow):
                 # st_video_tab,
             ]
 
+        # elif self.landing_ui.st_mode == "new":
+        #     return [landing_tab, test_tab_a]
+
         elif self.landing_ui.st_mode == "project":
-            return [landing_tab, test_tab_a]
+            return [landing_tab, project_tab]
 
         else:
             return [landing_tab]
