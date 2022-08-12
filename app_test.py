@@ -64,6 +64,15 @@ class LitPoseApp(L.LightningFlow):
                 lightning_pose_dir, "scripts", "config_default.yaml"))
         )
 
+        # extract frames tab
+        self.extract_ui = ExtractFramesUI(
+            script_dir=lightning_pose_dir,
+            script_name="scripts/extract_frames.py",
+            script_args="",
+            config_dir=None,  # to be set upon project load/creation
+            data_dir=None,  # to be set upon project load/creation
+        )
+
         # training tab
         self.train_ui = TrainDemoUI(
             script_dir=lightning_pose_dir,
@@ -396,6 +405,16 @@ class LitPoseApp(L.LightningFlow):
             cwd="."
         )
 
+    def update_project_paths(self):
+        """Update paths using project_ui."""
+
+        # update data dir
+        data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
+        self.extract_ui.data_dir = data_dir
+
+        # update config file
+        self.extract_ui.cfg_file = self.project_ui.cfg_file
+
     def run(self):
 
         # -----------------------------
@@ -419,7 +438,10 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # update project configuration
         if self.project_ui.run_script:
+            # update user-supplied parameters in config yaml file
             self.project_ui.update_project_config()
+            # update paths to data and config file for all UI objects that need these
+            self.update_project_paths()
 
         # train on ui button press
         if self.train_ui.run_script:

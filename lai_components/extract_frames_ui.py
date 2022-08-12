@@ -11,7 +11,16 @@ from lai_components.vsc_streamlit import StreamlitFrontend
 class ProjectUI(LightningFlow):
     """UI to set up project."""
 
-    def __init__(self, *args, config_dir, data_dir, default_config_file, **kwargs):
+    def __init__(
+            self,
+            *args,
+            script_dir,
+            script_name,
+            script_args,
+            config_dir,
+            data_dir,
+            **kwargs
+    ):
         super().__init__(*args, **kwargs)
 
         # control runners
@@ -20,29 +29,16 @@ class ProjectUI(LightningFlow):
         # Job Runner sets to False when done
         self.run_script = False
 
-        # config for project named <PROJ_NAME> will be stored as
-        # <config_dir>/configs_<PROJ_NAME>/config_<PROJ_NAME>.yaml
+        # save parameters for later run
+        self.script_dir = script_dir
+        self.script_name = script_name
+        self.script_args = script_args
         self.config_dir = config_dir
-        if not os.path.exists(self.config_dir):
-            os.makedirs(self.config_dir)
-        self.cfg_file = None
-
-        # save default config file for initializing new projects
-        assert default_config_file.endswith("yaml")
-        self.default_config_file = default_config_file
-
-        # data for project named <PROJ_NAME> will be stored as
-        # <data_dir>/<PROJ_NAME>
-        #   ├── labeled-data/
-        #   ├── videos/
-        #   └── CollectedData.csv
         self.data_dir = data_dir
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
 
         # output from the UI
-        self.st_project_name = None
-        self.st_new_vals = None
+        self.st_n_videos = None
+        self.st_n_frames_per_video = None
 
     def update_project_config(self, new_vals_dict=None):
         """triggered by button click in UI"""
@@ -51,8 +47,8 @@ class ProjectUI(LightningFlow):
         cfg_dir = os.path.join(self.config_dir, f"configs_{self.st_project_name}")
         if not os.path.exists(cfg_dir):
             os.makedirs(cfg_dir)
-        self.cfg_file = os.path.join(cfg_dir, f"config_{self.st_project_name}.yaml")
-        if not os.path.exists(self.cfg_file):
+        self.cfg_file_abs = os.path.join(cfg_dir, f"config_{self.st_project_name}.yaml")
+        if not os.path.exists(self.cfg_file_abs):
             # copy default config
             cfg_dict = yaml.safe_load(open(self.default_config_file))
             # empty out project-specific entries
@@ -66,7 +62,7 @@ class ProjectUI(LightningFlow):
             cfg_dict["data"]["mirrored_column_matches"] = None
         else:
             # load existing config
-            cfg_dict = yaml.safe_load(open(self.cfg_file))
+            cfg_dict = yaml.safe_load(open(self.cfg_file_abs))
 
         # update config using new_vals_dict; assume this is a dict of dicts
         # new_vals_dict = {
@@ -79,7 +75,7 @@ class ProjectUI(LightningFlow):
                 cfg_dict[scfg_name][key] = val
 
         # save out updated config file
-        yaml.dump(cfg_dict, open(self.cfg_file, "w"))
+        yaml.dump(cfg_dict, open(self.cfg_file_abs, "w"))
 
         self.run_script = False
 
