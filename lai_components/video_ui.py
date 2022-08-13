@@ -22,7 +22,7 @@ def _render_streamlit_fn(state: AppState):
 
     # st.markdown(
     #     """
-    #     ### Train models
+    #     ## Train models
     #     This tab presents options for training two models:
     #     * fully supervised model
     #     * semi-supervised model

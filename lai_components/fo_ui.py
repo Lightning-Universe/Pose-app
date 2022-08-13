@@ -115,7 +115,7 @@ def _render_streamlit_fn(state: AppState):
 
     st.markdown(
         """
-        ### Prepare diagnostics
+        ## Prepare diagnostics
 
         Choose a supervised model and a semi-supervised model for evaluation.
 

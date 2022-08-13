@@ -25,7 +25,7 @@ class ProjectUI(LightningFlow):
         self.config_dir = config_dir
         if not os.path.exists(self.config_dir):
             os.makedirs(self.config_dir)
-        self.cfg_file = None
+        self.config_file = None
 
         # save default config file for initializing new projects
         assert default_config_file.endswith("yaml")
@@ -41,6 +41,7 @@ class ProjectUI(LightningFlow):
             os.makedirs(self.data_dir)
 
         # output from the UI
+        self.st_submits = 0
         self.st_project_name = None
         self.st_new_vals = None
 
@@ -48,25 +49,25 @@ class ProjectUI(LightningFlow):
         """triggered by button click in UI"""
 
         # check to see if config exists; if not, copy default config
-        cfg_dir = os.path.join(self.config_dir, f"configs_{self.st_project_name}")
-        if not os.path.exists(cfg_dir):
-            os.makedirs(cfg_dir)
-        self.cfg_file = os.path.join(cfg_dir, f"config_{self.st_project_name}.yaml")
-        if not os.path.exists(self.cfg_file):
+        config_dir = os.path.join(self.config_dir, f"configs_{self.st_project_name}")
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+        self.config_file = os.path.join(config_dir, f"config_{self.st_project_name}.yaml")
+        if not os.path.exists(self.config_file):
             # copy default config
-            cfg_dict = yaml.safe_load(open(self.default_config_file))
+            config_dict = yaml.safe_load(open(self.default_config_file))
             # empty out project-specific entries
-            cfg_dict["data"]["image_orig_dims"]["width"] = None
-            cfg_dict["data"]["image_orig_dims"]["height"] = None
-            cfg_dict["data"]["image_resize_dims"]["width"] = None
-            cfg_dict["data"]["image_resize_dims"]["height"] = None
-            cfg_dict["data"]["data_dir"] = None
-            cfg_dict["data"]["num_keypoints"] = None
-            cfg_dict["data"]["columns_for_singleview_pca"] = None
-            cfg_dict["data"]["mirrored_column_matches"] = None
+            config_dict["data"]["image_orig_dims"]["width"] = None
+            config_dict["data"]["image_orig_dims"]["height"] = None
+            config_dict["data"]["image_resize_dims"]["width"] = None
+            config_dict["data"]["image_resize_dims"]["height"] = None
+            config_dict["data"]["data_dir"] = None
+            config_dict["data"]["num_keypoints"] = None
+            config_dict["data"]["columns_for_singleview_pca"] = None
+            config_dict["data"]["mirrored_column_matches"] = None
         else:
             # load existing config
-            cfg_dict = yaml.safe_load(open(self.cfg_file))
+            config_dict = yaml.safe_load(open(self.config_file))
 
         # update config using new_vals_dict; assume this is a dict of dicts
         # new_vals_dict = {
@@ -74,16 +75,14 @@ class ProjectUI(LightningFlow):
         #     "eval": new_eval_dict,
         #     ...}
         new_vals_dict = new_vals_dict or self.st_new_vals
-        for scfg_name, scfg_dict in new_vals_dict.items():
-            for key, val in scfg_dict.items():
-                cfg_dict[scfg_name][key] = val
+        for sconfig_name, sconfig_dict in new_vals_dict.items():
+            for key, val in sconfig_dict.items():
+                config_dict[sconfig_name][key] = val
 
         # save out updated config file
-        yaml.dump(cfg_dict, open(self.cfg_file, "w"))
+        yaml.dump(config_dict, open(self.config_file, "w"))
 
         self.run_script = False
-
-        print(cfg_dict)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -230,7 +229,9 @@ def _render_streamlit_fn(state: AppState):
                 # set bodypart dropdowns
                 for c, col in enumerate(cols[1:]):
                     kp = col.selectbox(
-                        f"", st_keypoints, key=f"Bodypart {r} view {c}")
+                        f"", st_keypoints, key=f"Bodypart {r} view {c}",
+                        index=c * st_n_bodyparts + r
+                    )
                     st_pcamv_columns[c, r] = np.where(np.array(st_keypoints) == kp)[0]
 
             print(st_pcamv_columns)
@@ -277,9 +278,15 @@ def _render_streamlit_fn(state: AppState):
             st_new_vals["data"]["mirrored_column_matches"] = None
 
         st_submit_button = st.button("Create project", disabled=need_update_pcamv)
+        if state.st_submits > 0:
+            proceed_str = "Please proceed to the next tab to extract frames for labeling."
+            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
         # Lightning way of returning the parameters
         if st_submit_button:
+
+            state.st_submits += 1
 
             state.st_project_name = st_project_name
             state.st_new_vals = st_new_vals

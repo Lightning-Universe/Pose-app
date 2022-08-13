@@ -5,6 +5,7 @@ import lightning_app as L
 from lightning_app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
 import os
+import shutil
 import streamlit as st
 import yaml
 from typing import Optional, Union, List
@@ -20,6 +21,7 @@ from lai_components.build_utils import (
 )
 from lai_components.landing_ui import LandingUI
 from lai_components.project_ui import ProjectUI
+from lai_components.extract_frames_ui import ExtractFramesUI
 from lai_components.train_ui import TrainDemoUI
 from lai_components.fo_ui import FoRunUI
 from lai_components.video_ui import VideoUI
@@ -69,8 +71,8 @@ class LitPoseApp(L.LightningFlow):
             script_dir=lightning_pose_dir,
             script_name="scripts/extract_frames.py",
             script_args="",
-            config_dir=None,  # to be set upon project load/creation
             data_dir=None,  # to be set upon project load/creation
+            config_file=None,  # to be set upon project load/creation
         )
 
         # training tab
@@ -158,6 +160,34 @@ class LitPoseApp(L.LightningFlow):
             self.fo_ui.set_fo_dataset(options)
         else:
             pass
+
+    def start_extract_frames(self):
+
+        # set videos to select frames from
+        vid_file_args = ""
+        for vid_file in self.extract_ui.st_video_files:
+            vid_file_args += f" --video_files={vid_file}"
+
+        data_dir = os.path.join(self.extract_ui.data_dir, "labeled-data")
+        cmd = "python" \
+              + " " + self.extract_ui.script_name \
+              + vid_file_args \
+              + f" --data_dir={data_dir}" \
+              + f" --n_frames_per_video={self.extract_ui.st_n_frames_per_video}"
+        self.my_work.run(
+            cmd,
+            venv_name=lightning_pose_venv,
+            cwd=self.train_ui.st_script_dir,
+            # outputs=[self.extract_ui.data_dir],
+        )
+
+        # copy videos to data directory
+        video_dir = os.path.join(self.extract_ui.data_dir, "videos")
+        if not os.path.exists(video_dir):
+            os.makedirs(video_dir)
+        for vid_file in self.extract_ui.st_video_files:
+            shutil.copyfile(vid_file, os.path.join(video_dir, os.path.basename(vid_file)))
+        self.extract_ui.run_script = False
 
     def start_tensorboard(self):
         """run tensorboard"""
@@ -413,7 +443,7 @@ class LitPoseApp(L.LightningFlow):
         self.extract_ui.data_dir = data_dir
 
         # update config file
-        self.extract_ui.cfg_file = self.project_ui.cfg_file
+        self.extract_ui.config_file = self.project_ui.config_file
 
     def run(self):
 
@@ -443,6 +473,10 @@ class LitPoseApp(L.LightningFlow):
             # update paths to data and config file for all UI objects that need these
             self.update_project_paths()
 
+        # extract frames for labeleding from uploaded videos
+        if self.extract_ui.run_script:
+            self.start_extract_frames()
+
         # train on ui button press
         if self.train_ui.run_script:
             self.start_lp_train_video_predict()
@@ -461,6 +495,7 @@ class LitPoseApp(L.LightningFlow):
         # init tabs
         landing_tab = {"name": "Lightning Pose", "content": self.landing_ui}
         project_tab = {"name": "Manage Project", "content": self.project_ui}
+        extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
 
         # training tabs
         train_demo_tab = {"name": "Train", "content": self.train_ui}
@@ -488,11 +523,13 @@ class LitPoseApp(L.LightningFlow):
                 # st_video_tab,
             ]
 
-        # elif self.landing_ui.st_mode == "new":
-        #     return [landing_tab, test_tab_a]
-
         elif self.landing_ui.st_mode == "project":
-            return [landing_tab, project_tab]
+            if not self.project_ui.st_project_name:
+                # need to create/load new project before moving on to other tabs
+                return [landing_tab, project_tab]
+            else:
+                # show all tabs
+                return [landing_tab, project_tab, extract_tab]
 
         else:
             return [landing_tab]
