@@ -118,6 +118,11 @@ class LitPoseApp(L.LightningFlow):
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=FiftyOneBuildConfig(),
         )
+        # label studio
+        self.my_label_studio = LitBashWork(
+            cloud_compute=L.CloudCompute("default"),
+            cloud_build_config=LabelStudioBuildConfig(),
+        )
         # streamlit labeled
         self.my_streamlit_frame = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
@@ -209,6 +214,31 @@ class LitPoseApp(L.LightningFlow):
             venv_name=lightning_pose_venv,
             wait_for_exit=False,
             cwd=lightning_pose_dir,
+        )
+
+    def start_label_studio(self):
+        """run label studio migrate, then runserver"""
+        # Install for local development
+        # https://github.com/heartexlabs/label-studio#install-for-local-development
+        self.my_label_studio.run(
+            f"python label_studio/manage.py migrate",
+            venv_name=label_studio_venv,
+            cwd=label_studio_dir
+        )
+        self.my_label_studio.run(
+            "python label_studio/manage.py runserver {host}:{port}",
+            venv_name=label_studio_venv,
+            wait_for_exit=False,
+            env={
+                # label-studio/label_studio/core/settings/label_studio.py
+                # label-studio/label_studio/core/settings/base.py
+                # label-studio/label_studio/core/middleware.py
+                'USE_ENFORCE_CSRF_CHECKS': 'false',
+                'LABEL_STUDIO_X_FRAME_OPTIONS': 'sameorgin',
+                'LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED': 'true',
+                'LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT': os.path.abspath(os.getcwd())
+            },
+            cwd=label_studio_dir
         )
 
     def start_lp_train_video_predict(self):
@@ -461,7 +491,7 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # self.start_tensorboard()
         # self.start_fiftyone()
-        # self.start_label_studio()
+        self.start_label_studio()
 
         # -----------------------------
         # run work
@@ -496,6 +526,7 @@ class LitPoseApp(L.LightningFlow):
         landing_tab = {"name": "Lightning Pose", "content": self.landing_ui}
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
+        annotate_tab = {"name": "Annotate Frames", "content": self.my_label_studio}
 
         # training tabs
         train_demo_tab = {"name": "Train", "content": self.train_ui}
@@ -529,7 +560,7 @@ class LitPoseApp(L.LightningFlow):
                 return [landing_tab, project_tab]
             else:
                 # show all tabs
-                return [landing_tab, project_tab, extract_tab]
+                return [landing_tab, project_tab, extract_tab, annotate_tab]
 
         else:
             return [landing_tab]

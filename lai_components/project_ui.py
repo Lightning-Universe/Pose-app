@@ -43,6 +43,7 @@ class ProjectUI(LightningFlow):
         # output from the UI
         self.st_submits = 0
         self.st_project_name = None
+        self.st_project_loaded = False
         self.st_new_vals = None
 
     def update_project_config(self, new_vals_dict=None):
@@ -63,6 +64,7 @@ class ProjectUI(LightningFlow):
             config_dict["data"]["image_resize_dims"]["height"] = None
             config_dict["data"]["data_dir"] = None
             config_dict["data"]["num_keypoints"] = None
+            config_dict["data"]["keypoints"] = None
             config_dict["data"]["columns_for_singleview_pca"] = None
             config_dict["data"]["mirrored_column_matches"] = None
         else:
@@ -88,6 +90,28 @@ class ProjectUI(LightningFlow):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
+@st.cache
+def get_project_defaults(config_file):
+
+    if config_file is not None:
+        # set values from config
+        config_dict = yaml.safe_load(open(config_file))
+        st_n_views = len(config_dict["data"]["mirrored_column_matches"])
+        st_keypoints = config_dict["data"]["keypoints"]
+        st_n_keypoints = config_dict["data"]["num_keypoints"]
+        st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
+        st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
+    else:
+        # reset values
+        st_n_views = 0
+        st_keypoints = []
+        st_n_keypoints = 0
+        st_pcasv_columns = []
+        st_pcamv_columns = np.array([])
+
+    return st_n_views, st_keypoints, st_n_keypoints, st_pcasv_columns, st_pcamv_columns
+
+
 def _render_streamlit_fn(state: AppState):
 
     # ----------------------------------------------------
@@ -109,12 +133,24 @@ def _render_streamlit_fn(state: AppState):
 
     if st_project_name and st_mode == "Load existing project":
         project_loaded = st.button(
-            "Load project", disabled=True if not st_project_name != "" else False)
-    else:
-        project_loaded = False
+            "Load project",
+            disabled=True if not st_project_name != "" else False
+        )
+        if project_loaded:
+            # load config file
+            config_dir = os.path.join(state.config_dir, f"configs_{st_project_name}")
+            config_file = os.path.join(config_dir, f"config_{st_project_name}.yaml")
+            # update project manager
+            state.config_file = config_file
+            state.st_submits += 1
+            state.st_project_name = st_project_name
+            state.st_project_loaded = True
+
+    st_n_views, st_keypoints, st_n_keypoints, st_pcasv_columns, st_pcamv_columns = \
+        get_project_defaults(state.config_file)
 
     if st_project_name:
-        if st_mode == "Load existing project" and project_loaded:
+        if st_mode == "Load existing project" and state.st_project_loaded:
             enter_data = True
         elif st_mode == "Create new project" and st_project_name != "":
             enter_data = True
@@ -131,16 +167,14 @@ def _render_streamlit_fn(state: AppState):
     # user input for data config
     # ----------------------------------------------------
 
-    st_n_views = 0
-    st_keypoints = []
-    st_n_keypoints = 0
-    st_pcasv_columns = []
-    st_pcamv_columns = np.array([])
-
     # camera views
     if enter_data:
         st.markdown("##### Camera views")
-        n_views = st.text_input("Enter number of camera views:", disabled=not enter_data)
+        n_views = st.text_input(
+            "Enter number of camera views:",
+            disabled=not enter_data,
+            value="" if not state.st_project_loaded else str(st_n_views),
+        )
         if n_views:
             st_n_views = int(n_views)
         else:
@@ -169,8 +203,12 @@ def _render_streamlit_fn(state: AppState):
             The order in which you list the keypoints here determines the labeling order.
         """
         st.markdown(keypoint_instructions)
-        keypoints = st.text_area("Enter keypoint names (one per line):", disabled=not enter_data)
-        st_keypoints = keypoints.strip().split('\n')
+        keypoints = st.text_area(
+            "Enter keypoint names (one per line):",
+            disabled=not enter_data,
+            value="" if not state.st_project_loaded else "\n".join(st_keypoints),
+        )
+        st_keypoints = keypoints.strip().split("\n")
         if len(st_keypoints) == 1 and st_keypoints[0] == "":
             st_keypoints = []
         st_n_keypoints = len(st_keypoints)
@@ -188,7 +226,12 @@ def _render_streamlit_fn(state: AppState):
         """)
         pcasv_selected = [False for _ in st_keypoints]
         for k, kp in enumerate(st_keypoints):
-            pcasv_selected[k] = st.checkbox(kp, disabled=not enter_data)
+            pcasv_selected[k] = st.checkbox(
+                kp,
+                disabled=not enter_data,
+                value=False if not state.st_project_loaded else (k in st_pcasv_columns),
+
+            )
         st_pcasv_columns = list(np.where(pcasv_selected)[0])
         st.markdown("")
 
@@ -205,7 +248,10 @@ def _render_streamlit_fn(state: AppState):
         # for k, kp in enumerate(st_keypoints):
         #     pcasv_selected[k] = st.checkbox(kp, disabled=not enter_data)
         # st.markdown("")
-        n_bodyparts = st.text_input("Enter number of body parts visible in all views:")
+        n_bodyparts = st.text_input(
+            "Enter number of body parts visible in all views:",
+            value="" if not state.st_project_loaded else str(len(st_pcamv_columns[0])),
+        )
         if n_bodyparts:
             st_n_bodyparts = int(n_bodyparts)
         else:
@@ -236,6 +282,8 @@ def _render_streamlit_fn(state: AppState):
 
             print(st_pcamv_columns)
         st.markdown("")
+    else:
+        st_n_bodyparts = 0
 
     # construct config file
     pcamv_ready = True if (len(st_keypoints) > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
@@ -263,6 +311,7 @@ def _render_streamlit_fn(state: AppState):
         st_new_vals["data"]["video_dir"] = os.path.join(st_new_vals["data"]["data_dir"], "videos")
         st_new_vals["data"]["csv_file"] = "CollectedData.csv"
         st_new_vals["data"]["num_keypoints"] = st_n_keypoints
+        st_new_vals["data"]["keypoints"] = st_keypoints
 
         if len(st_pcasv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow
