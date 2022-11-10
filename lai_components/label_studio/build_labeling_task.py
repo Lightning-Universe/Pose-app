@@ -10,7 +10,8 @@ parser.add_argument('--api_key', type=str)
 parser.add_argument('--project_name', type=str)
 parser.add_argument('--label_config', type=str)
 args = parser.parse_args()
-basedir = os.path.basename(args.data_dir)
+# basedir = os.path.basename(args.data_dir)
+basedir = os.path.relpath(args.data_dir, os.getcwd())
 
 # print that we're executing this script
 print("Executing build_labeling_task.py")

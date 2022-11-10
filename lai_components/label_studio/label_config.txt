@@ -1,5 +1,10 @@
  <!--Basic keypoint image labeling configuration for multiple regions-->
         <View>
+        <Header value="Select keypoint name with the cursor/number button, then click on the image."/>
+        <Text name="text1"
+              value="Important: Click Submit after you have labeled all visible keypoints in this image."/>
+        <Text name="text2"
+              value="Also useful: Press H for hand tool, CTRL+ to zoom in and CTRL- to zoom out"/>
         <KeyPointLabels name="kp-1" toName="img-1" strokeWidth="3" maxUsages="1">
             <Label value="Bros" background="red" />
             <Label value="Dan" background="blue" />

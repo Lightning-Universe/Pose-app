@@ -90,8 +90,9 @@ class LabelStudioJSONProcessor:
 
     def get_relative_image_path(self, annotated_example) -> str:
         """ paths within data_dir"""
-        relative_image_path = os.path.join(self.relative_image_dir,
-                                           annotated_example["data"]["img"].split("=")[-1])
+        path = os.path.join(
+            self.relative_image_dir, annotated_example["data"]["img"].split("=")[-1])
+        relative_image_path = path[path.find('labeled-data'):]
         return relative_image_path
 
     def get_absolute_image_paths(self) -> List[str]:

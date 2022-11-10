@@ -18,37 +18,40 @@ from lightning.app.storage.path import Path
 
 
 class ConfigUI(LightningFlow):
-  """UI to enter training parameters
-  Input and output variables with streamlit must be pre decleared
-  """
+    """UI to enter training parameters.
 
-  def __init__(self, 
-      *args,
-      script_dir, 
-      script_env, 
-      config_dir = "./", 
-      config_name = "config.yaml", 
-      eval_test_videos_directory,
-      **kwargs):
-    super().__init__(*args, **kwargs)   
-    # input to UI
-    self.eval_test_videos_directory = eval_test_videos_directory
+    Input and output variables with streamlit must be pre decleared
+    """
 
-    self.script_dir = script_dir
-    self.script_env = script_env
+    def __init__(
+        self,
+        *args,
+        script_dir,
+        script_env,
+        config_dir = "./",
+        config_name = "config.yaml",
+        eval_test_videos_directory,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        # input to UI
+        self.eval_test_videos_directory = eval_test_videos_directory
 
-    self.config_dir = config_dir
-    self.config_name = config_name        
+        self.script_dir = script_dir
+        self.script_env = script_env
 
-    # output from the UI
-    self.st_script_dir = None
-    self.st_script_env = None  
-    self.st_hydra_config_name = None
-    self.st_hydra_config_dir = None   
-    self.st_eval_test_videos_directory = None
+        self.config_dir = config_dir
+        self.config_name = config_name
 
-  def configure_layout(self):
-    return StreamlitFrontend(render_fn=_render_streamlit_fn)
+        # output from the UI
+        self.st_script_dir = None
+        self.st_script_env = None
+        self.st_hydra_config_name = None
+        self.st_hydra_config_dir = None
+        self.st_eval_test_videos_directory = None
+
+    def configure_layout(self):
+        return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
 def _render_streamlit_fn(state: AppState):

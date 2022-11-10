@@ -19,7 +19,8 @@ new_conf_file = "nginx-new-8080.conf"
 
 class LabelStudioBuildConfig(la.BuildConfig):
 
-    def build_commands(self) -> List[str]:
+    @staticmethod
+    def build_commands() -> List[str]:
         # added an install for label-studio-sdk to automatically launch the label studio server.
         return [
             "sudo apt-get update",
@@ -35,7 +36,13 @@ class LabelStudioBuildConfig(la.BuildConfig):
 
 
 class LitLabelStudio(la.LightningFlow):
-    def __init__(self, *args, drive_name=label_studio_drive_name, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        drive_name=label_studio_drive_name,
+        data_dir=None,  # this should point to
+        **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.label_studio = LitBashWork(
             cloud_compute=la.CloudCompute("default"),
@@ -44,15 +51,20 @@ class LitLabelStudio(la.LightningFlow):
         self.drive = Drive(drive_name)
         self.count = 0
         self.label_studio_url = 'http://localhost:8080'
-        self.data_dir = os.path.join(os.getcwd(), "images_to_label")  # could have subdirs
         self.username = "matt@columbia.edu"
         self.password = "whiteway123"
         self.user_token = "whitenoise1"  # '4949affb1e0883c20552b123a7aded4e6c76760b'
+        self.time = time.time()
+
+        # these attributes get set by external app
+        self.data_dir = data_dir
 
     def start_label_studio(self):
+
         # create config file
         self.label_studio.run(
-            f"sed -e s/__port__/{self.label_studio.port}/g -e s/__host__/{self.label_studio.host}/ nginx-8080.conf > ~/{new_conf_file}",
+            f"sed -e s/__port__/{self.label_studio.port}/g -e s/__host__/{self.label_studio.host}/"
+            f" nginx-8080.conf > ~/{new_conf_file}",
             wait_for_exit=True,
         )
 
@@ -63,8 +75,6 @@ class LitLabelStudio(la.LightningFlow):
         )
 
         # start label-studio on the default port 8080
-        # added start, make sure it doesn't break
-        # TODO: we need to take in username, password from users. add tokens ourselves so that we can sync data.
         self.label_studio.run(
             f"label-studio start --no-browser --internal-host $host",
             venv_name=label_studio_venv,
@@ -128,7 +138,9 @@ class LitLabelStudio(la.LightningFlow):
             self.start_label_studio()
             self.build_labeling_task()
 
-        # execute another command on self.label_studio that checks for updates in the annotation
-        # files. if so, we export the data and convert to lightning pose format.
-        time.sleep(15)  # TODO: make this programmatic check for 15 seconds difference
-        self.check_labeling_task_and_export(time=time.time())
+        # check for new annotations every 15 seconds
+        # if updates, export the data and convert to lightning pose format
+        new_time = time.time()
+        if (new_time - self.time) > 15:
+            self.time = new_time
+            self.check_labeling_task_and_export(time=new_time)

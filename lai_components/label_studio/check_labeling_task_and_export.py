@@ -33,7 +33,12 @@ for task in exported_tasks:
 # use our processor to convert into pandas dlc format
 if len(exported_tasks) > 0:
     print("Converting to pandas dlc format...")
-    processor = LabelStudioJSONProcessor(label_studio_json_export=exported_tasks, data_dir=args.data_dir, relative_image_dir="", keypoint_names=["Bros", "Dan", "Matt"])
+    processor = LabelStudioJSONProcessor(
+        label_studio_json_export=exported_tasks,
+        data_dir=args.data_dir,
+        relative_image_dir="",
+        keypoint_names=["Bros", "Dan", "Matt"]
+    )
 
     df = processor()
 

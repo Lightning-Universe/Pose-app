@@ -235,7 +235,7 @@ class LitBashWork(L.LightningWork):
                 self._wait_proc.terminate()
             # should either wait, process is already done, or kill
             thread.join()
-            print(self._wait_proc.returncode)
+            # print(self._wait_proc.returncode)
             print("wait completed", cmd)
         else:
             print("no wait popen")

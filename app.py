@@ -1,5 +1,3 @@
-# app_old.py
-
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 import lightning.app as L
 from lightning.app.utilities.state import AppState
@@ -11,23 +9,39 @@ import yaml
 from typing import Optional, Union, List
 
 from lai_components.args_utils import args_to_dict, dict_to_args
-from lai_components.build_utils import lightning_pose_dir, label_studio_dir, tracking_diag_dir
-from lai_components.build_utils import lightning_pose_venv, label_studio_venv, tensorboard_venv
+from lai_components.build_utils import lightning_pose_dir, tracking_diag_dir
+from lai_components.build_utils import lightning_pose_venv, tensorboard_venv
 from lai_components.build_utils import (
     TensorboardBuildConfig,
-    LabelStudioBuildConfig,
     FiftyOneBuildConfig,
     StreamlitBuildConfig,
 )
 from lai_components.landing_ui import LandingUI
 from lai_components.project_ui import ProjectUI
 from lai_components.extract_frames_ui import ExtractFramesUI
+from lai_components.label_studio.component import LitLabelStudio
 from lai_components.train_ui import TrainDemoUI
 from lai_components.fo_ui import FoRunUI
 from lai_components.video_ui import VideoUI
 from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
 from lai_work.bashwork import LitBashWork
+
+
+# TODO
+# - revisit project config page and trigger the following
+#   - *auto-generate xml file
+#   - *accessing images/passing paths
+#   - get username/password
+#   - advanced
+#       - multiple projects
+#       - reload existing project
+# - after labeling
+#   - print out "x/x frames have been labeled" (train y/n): pull info from dlc folder
+# - get file loading to work on cloud
+# - better way to upload video files
+# - test speed of dali pipeline
+# - show labeled videos
 
 
 class TestUI(LightningFlow):
@@ -119,10 +133,7 @@ class LitPoseApp(L.LightningFlow):
             cloud_build_config=FiftyOneBuildConfig(),
         )
         # label studio
-        self.my_label_studio = LitBashWork(
-            cloud_compute=L.CloudCompute("default"),
-            cloud_build_config=LabelStudioBuildConfig(),
-        )
+        self.label_studio = LitLabelStudio()
         # streamlit labeled
         self.my_streamlit_frame = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
@@ -214,31 +225,6 @@ class LitPoseApp(L.LightningFlow):
             venv_name=lightning_pose_venv,
             wait_for_exit=False,
             cwd=lightning_pose_dir,
-        )
-
-    def start_label_studio(self):
-        """run label studio migrate, then runserver"""
-        # Install for local development
-        # https://github.com/heartexlabs/label-studio#install-for-local-development
-        self.my_label_studio.run(
-            f"python label_studio/manage.py migrate",
-            venv_name=label_studio_venv,
-            cwd=label_studio_dir
-        )
-        self.my_label_studio.run(
-            "python label_studio/manage.py runserver {host}:{port}",
-            venv_name=label_studio_venv,
-            wait_for_exit=False,
-            env={
-                # label-studio/label_studio/core/settings/label_studio.py
-                # label-studio/label_studio/core/settings/base.py
-                # label-studio/label_studio/core/middleware.py
-                'USE_ENFORCE_CSRF_CHECKS': 'false',
-                'LABEL_STUDIO_X_FRAME_OPTIONS': 'sameorgin',
-                'LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED': 'true',
-                'LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT': os.path.abspath(os.getcwd())
-            },
-            cwd=label_studio_dir
         )
 
     def start_lp_train_video_predict(self):
@@ -465,15 +451,11 @@ class LitPoseApp(L.LightningFlow):
             cwd="."
         )
 
-    def update_project_paths(self):
+    def return_project_info(self):
         """Update paths using project_ui."""
-
-        # update data dir
         data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
-        self.extract_ui.data_dir = data_dir
-
-        # update config file
-        self.extract_ui.config_file = self.project_ui.config_file
+        print("DATA_DIR=%s" % data_dir)
+        return data_dir, self.project_ui.config_file
 
     def run(self):
 
@@ -491,7 +473,6 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # self.start_tensorboard()
         # self.start_fiftyone()
-        self.start_label_studio()
 
         # -----------------------------
         # run work
@@ -500,13 +481,21 @@ class LitPoseApp(L.LightningFlow):
         if self.project_ui.run_script:
             # update user-supplied parameters in config yaml file
             self.project_ui.update_project_config()
-            # update paths to data and config file for all UI objects that need these
-            self.update_project_paths()
+            # update paths and config file for all UI objects that need these
+            data_dir, proj_config = self.return_project_info()
+            self.extract_ui.data_dir = data_dir
+            self.label_studio.data_dir = data_dir
+            self.extract_ui.config_file = proj_config
 
         # extract frames for labeleding from uploaded videos
         if self.extract_ui.run_script:
             self.start_extract_frames()
 
+        # launch label studio after extracting frames
+        if self.label_studio.data_dir is not None and os.path.isdir(self.label_studio.data_dir):
+            self.label_studio.run()
+
+        # the run method for label studio will init label studio
         # train on ui button press
         if self.train_ui.run_script:
             self.start_lp_train_video_predict()
@@ -526,7 +515,7 @@ class LitPoseApp(L.LightningFlow):
         landing_tab = {"name": "Lightning Pose", "content": self.landing_ui}
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        annotate_tab = {"name": "Annotate Frames", "content": self.my_label_studio}
+        annotate_tab = {"name": "Annotate Frames", "content": self.label_studio.label_studio}
 
         # training tabs
         train_demo_tab = {"name": "Train", "content": self.train_ui}
