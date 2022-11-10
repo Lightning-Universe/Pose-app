@@ -31,7 +31,6 @@ from lai_work.bashwork import LitBashWork
 # TODO
 # - revisit project config page and trigger the following
 #   - *auto-generate xml file
-#   - *accessing images/passing paths
 #   - get username/password
 #   - advanced
 #       - multiple projects
@@ -77,7 +76,7 @@ class LitPoseApp(L.LightningFlow):
             config_dir=os.path.abspath(os.path.join(lightning_pose_dir, "scripts")),
             data_dir=os.path.abspath(os.path.join(lightning_pose_dir, "data")),
             default_config_file=os.path.abspath(os.path.join(
-                lightning_pose_dir, "scripts", "config_default.yaml"))
+                lightning_pose_dir, "scripts", "config_default.yaml")),
         )
 
         # extract frames tab
@@ -86,16 +85,19 @@ class LitPoseApp(L.LightningFlow):
             script_name="scripts/extract_frames.py",
             script_args="",
             data_dir=None,  # to be set upon project load/creation
-            config_file=None,  # to be set upon project load/creation
+            # config_file=None,  # to be set upon project load/creation
         )
 
-        # training tab
+        # training tab; this will default to the toy dataset, unless a project is created/loaded
         self.train_ui = TrainDemoUI(
             script_dir=lightning_pose_dir,
             script_name="scripts/train_hydra.py",
             script_args="",
             script_env="HYDRA_FULL_ERROR=1",
-            test_videos_dir="toy_datasets/toymouseRunningData/unlabeled_videos"
+            config_dir=os.path.abspath(os.path.join(lightning_pose_dir, "scripts")),
+            config_name=None,  # to be set upon project load/creation
+            test_videos_dir="toy_datasets/toymouseRunningData/unlabeled_videos",
+            max_epochs=200,
         )
 
         # fiftyone tab (images only for now)
@@ -244,11 +246,19 @@ class LitPoseApp(L.LightningFlow):
         #     outputs=[os.path.join(self.train_ui.st_script_dir, self.train_ui.outputs_dir)],
         # )
 
+        # check to see if we're in demo mode or not
+        if self.train_ui.config_name is not None:
+            config_cmd = " --config-path=%s --config_name=%s" % (
+                self.train_ui.config_dir, self.train_ui.config_name)
+        else:
+            config_cmd = ""
+
         # train supervised model
         if self.train_ui.st_train_super:
             cmd = "python" \
                   + " " + self.train_ui.st_script_name \
-                  + " " + self.train_ui.st_script_args["super"]
+                  + " " + self.train_ui.st_script_args["super"] \
+                  + config_cmd
             self.my_work.run(
                 cmd,
                 venv_name=lightning_pose_venv,
@@ -261,7 +271,8 @@ class LitPoseApp(L.LightningFlow):
         if self.train_ui.st_train_semisuper:
             cmd = "python" \
                   + " " + self.train_ui.st_script_name \
-                  + " " + self.train_ui.st_script_args["semisuper"]
+                  + " " + self.train_ui.st_script_args["semisuper"] \
+                  + config_cmd
             self.my_work.run(
                 cmd,
                 venv_name=lightning_pose_venv,
@@ -454,7 +465,6 @@ class LitPoseApp(L.LightningFlow):
     def return_project_info(self):
         """Update paths using project_ui."""
         data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
-        print("DATA_DIR=%s" % data_dir)
         return data_dir, self.project_ui.config_file
 
     def run(self):
@@ -479,13 +489,24 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # update project configuration
         if self.project_ui.run_script:
-            # update user-supplied parameters in config yaml file
+
+            # update user-supplied parameters in config yaml file and label studio xml file
             self.project_ui.update_project_config()
-            # update paths and config file for all UI objects that need these
-            data_dir, proj_config = self.return_project_info()
+
+            # update paths data dir for frame extraction object
+            data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
             self.extract_ui.data_dir = data_dir
+
+            # update label studio object
             self.label_studio.data_dir = data_dir
-            self.extract_ui.config_file = proj_config
+            self.label_studio.create_labeling_config_xml(
+                self.project_ui.st_new_vals["data"]["keypoints"])
+            self.label_studio.project_name = self.project_ui.st_project_name
+
+            # point training UI to config file
+            self.train_ui.config_name = "config_%s" % self.project_ui.st_project_name
+
+            # self.extract_ui.config_file = proj_config
 
         # extract frames for labeleding from uploaded videos
         if self.extract_ui.run_script:
@@ -549,7 +570,7 @@ class LitPoseApp(L.LightningFlow):
                 return [landing_tab, project_tab]
             else:
                 # show all tabs
-                return [landing_tab, project_tab, extract_tab, annotate_tab]
+                return [landing_tab, project_tab, extract_tab, annotate_tab, train_demo_tab]
 
         else:
             return [landing_tab]

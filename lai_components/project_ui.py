@@ -21,7 +21,7 @@ class ProjectUI(LightningFlow):
         self.run_script = False
 
         # config for project named <PROJ_NAME> will be stored as
-        # <config_dir>/configs_<PROJ_NAME>/config_<PROJ_NAME>.yaml
+        # <config_dir>/config_<PROJ_NAME>.yaml
         self.config_dir = config_dir
         if not os.path.exists(self.config_dir):
             os.makedirs(self.config_dir)
@@ -50,10 +50,7 @@ class ProjectUI(LightningFlow):
         """triggered by button click in UI"""
 
         # check to see if config exists; if not, copy default config
-        config_dir = os.path.join(self.config_dir, f"configs_{self.st_project_name}")
-        if not os.path.exists(config_dir):
-            os.makedirs(config_dir)
-        self.config_file = os.path.join(config_dir, f"config_{self.st_project_name}.yaml")
+        self.config_file = os.path.join(self.config_dir, f"config_{self.st_project_name}.yaml")
         if not os.path.exists(self.config_file):
             # copy default config
             config_dict = yaml.safe_load(open(self.default_config_file))
@@ -138,8 +135,7 @@ def _render_streamlit_fn(state: AppState):
         )
         if project_loaded:
             # load config file
-            config_dir = os.path.join(state.config_dir, f"configs_{st_project_name}")
-            config_file = os.path.join(config_dir, f"config_{st_project_name}.yaml")
+            config_file = os.path.join(state.config_dir, f"config_{st_project_name}.yaml")
             # update project manager
             state.config_file = config_file
             state.st_submits += 1

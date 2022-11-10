@@ -13,18 +13,7 @@ import signal
 import time
 from functools import partial
 
-
-def args_to_dict(script_args:str) -> dict:
-  """convert str to dict A=1 B=2 to {'A':1, 'B':2}"""
-  script_args_dict = {}
-  for x in shlex.split(script_args, posix=False):
-    try:
-      k,v = x.split("=",1)
-    except:
-      k=x
-      v=None
-    script_args_dict[k] = v
-  return(script_args_dict)
+from lai_components.args_utils import args_to_dict
 
 
 def add_to_system_env(env_key='env', **kwargs) -> dict:

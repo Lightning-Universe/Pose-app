@@ -15,15 +15,18 @@ class TrainDemoUI(LightningFlow):
     """UI to enter training parameters for demo data."""
 
     def __init__(
-            self,
-            *args,
-            script_dir,
-            script_name,
-            script_args,
-            script_env,
-            test_videos_dir="",
-            outputs_dir="outputs",
-            **kwargs
+        self,
+        *args,
+        script_dir,
+        script_name,
+        script_args,
+        script_env,
+        config_dir=None,
+        config_name=None,  # to be set upon project load/creation
+        test_videos_dir="",
+        outputs_dir="outputs",
+        max_epochs=200,
+        **kwargs
     ):
         super().__init__(*args, **kwargs)
         # control runners
@@ -40,11 +43,14 @@ class TrainDemoUI(LightningFlow):
         self.test_videos_dir = test_videos_dir
         self.outputs_dir = outputs_dir
 
+        self.config_dir = config_dir
+        self.config_name = config_name
+
         # hydra outputs list (updated externally by top-level flow)
         self.hydra_outputs = {}
 
         # input to the UI
-        self.max_epochs = 100
+        self.max_epochs = max_epochs
         self.train_frames = 1
         self.train_super = True
         self.train_semisuper = True
