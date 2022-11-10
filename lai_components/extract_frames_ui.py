@@ -1,5 +1,5 @@
 from lightning import LightningFlow
-from lightning_app.utilities.state import AppState
+from lightning.app.utilities.state import AppState
 import numpy as np
 import os
 import streamlit as st

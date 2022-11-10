@@ -5,7 +5,7 @@ import streamlit as st
 from lai_components.vsc_streamlit import StreamlitFrontend
 
 from lightning import LightningFlow
-from lightning_app.utilities.state import AppState
+from lightning.app.utilities.state import AppState
 
 
 class LandingUI(LightningFlow):

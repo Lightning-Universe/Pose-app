@@ -12,9 +12,9 @@ from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.vsc_streamlit import StreamlitFrontend
 
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning_app.components.python import TracerPythonScript
-from lightning_app.utilities.state import AppState
-from lightning_app.storage.path import Path
+from lightning.app.components.python import TracerPythonScript
+from lightning.app.utilities.state import AppState
+from lightning.app.storage.path import Path
 
 
 class ConfigUI(LightningFlow):

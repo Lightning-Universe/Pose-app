@@ -27,5 +27,6 @@ def run(root_dir=".",sub_dir=".",dir_name="unlabeled_videos"):
     if video_file:
       st.video(video_file["abs_path"], format="video/mp4", start_time=0)
 
+
 if __name__ == "__main__":
   run(root_dir="../lightning_pose")

@@ -1,7 +1,7 @@
 """Note: this replaces run_ui.py"""
 
 from lightning import LightningFlow
-from lightning_app.utilities.state import AppState
+from lightning.app.utilities.state import AppState
 import streamlit as st
 
 from lai_components.vsc_streamlit import StreamlitFrontend

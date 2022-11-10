@@ -1,0 +1,9 @@
+ <!--Basic keypoint image labeling configuration for multiple regions-->
+        <View>
+        <KeyPointLabels name="kp-1" toName="img-1" strokeWidth="3" maxUsages="1">
+            <Label value="Bros" background="red" />
+            <Label value="Dan" background="blue" />
+            <Label value="Matt" background="green" />
+        </KeyPointLabels>
+        <Image name="img-1" value="$img" />
+        </View>

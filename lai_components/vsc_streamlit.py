@@ -1,4 +1,5 @@
-from lightning_app.frontend import StreamlitFrontend as LitStreamlitFrontend
+from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
+
 
 class StreamlitFrontend(LitStreamlitFrontend):
   """VSC requires output to auto forward port"""
@@ -10,4 +11,4 @@ class StreamlitFrontend(LitStreamlitFrontend):
       print(f"Running streamlit on http://{kwargs['host']}:{kwargs['port']}")
     except:
       # on the cloud, args[0] = host, args[1] = port
-      pass  
+      pass
