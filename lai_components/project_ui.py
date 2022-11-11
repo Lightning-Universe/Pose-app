@@ -79,6 +79,8 @@ class ProjectUI(LightningFlow):
                 config_dict[sconfig_name][key] = val
 
         # save out updated config file
+        if not os.path.exists(self.config_dir):
+            os.makedirs(self.config_dir)
         yaml.dump(config_dict, open(self.config_file, "w"))
 
         self.run_script = False

@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--label_studio_url', type=str)
 parser.add_argument('--data_dir', type=str)
 parser.add_argument('--api_key', type=str)
-# TODO: add keypoint names as an argument coming from outside
+parser.add_argument('--keypoints_list', type=str)  # assume keypoint names separates by colons
 
 args = parser.parse_args()
 
@@ -26,9 +26,7 @@ print("Fetched Project ID: %s, Project Title: %s" % (label_studio_project.id, la
 # export the labeled tasks
 print("Exporting labeled tasks...")
 exported_tasks = label_studio_project.export_tasks()
-print("Exported tasks:")
-for task in exported_tasks:
-    print(task)
+print("Exported %i tasks" % len(exported_tasks))
 
 # use our processor to convert into pandas dlc format
 if len(exported_tasks) > 0:
@@ -37,9 +35,8 @@ if len(exported_tasks) > 0:
         label_studio_json_export=exported_tasks,
         data_dir=args.data_dir,
         relative_image_dir="",
-        keypoint_names=["Bros", "Dan", "Matt"]
+        keypoint_names=args.keypoints_list.split(";"),
     )
-
     df = processor()
 
     print("Pandas dlc format:")
@@ -47,4 +44,4 @@ if len(exported_tasks) > 0:
 
     # save to csv in data_dir
     print("Saving to csv...")
-    df.to_csv(os.path.join(args.data_dir, "labeled_data.csv"))
+    df.to_csv(os.path.join(args.data_dir, "CollectedData.csv"))

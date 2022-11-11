@@ -46,6 +46,9 @@ class TrainDemoUI(LightningFlow):
         self.config_dir = config_dir
         self.config_name = config_name
 
+        self.n_labeled_frames = None  # set externally
+        self.n_total_frames = None  # set externally
+
         # hydra outputs list (updated externally by top-level flow)
         self.hydra_outputs = {}
 
@@ -119,6 +122,10 @@ def _render_streamlit_fn(state: AppState):
         
         """
     )
+
+    st.text(
+        "Note: you have labeled %s / %s frames" % (state.n_labeled_frames, state.n_total_frames))
+
     st.selectbox(
         "Existing Models",
         [k for k, v in sorted(state.hydra_outputs.items(), reverse=True)]

@@ -56,11 +56,12 @@ class LitLabelStudio(la.LightningFlow):
         self.project_name = None
         self.username = "matt@columbia.edu"
         self.password = "whiteway123"
-        self.user_token = "whitenoise1"  # '4949affb1e0883c20552b123a7aded4e6c76760b'
+        self.user_token = "whitenoise1"
         self.time = time.time()
 
         # these attributes get set by external app
         self.data_dir = data_dir
+        self.keypoints = None
 
     def start_label_studio(self):
 
@@ -104,8 +105,7 @@ class LitLabelStudio(la.LightningFlow):
                         f"--data_dir {self.data_dir} " \
                         f"--api_key {self.user_token} " \
                         f"--project_name {self.project_name} " \
-                        f"--label_config {self.label_studio_config_file}"
-
+                        f"--label_config {self.label_studio_config_file} "
         self.label_studio.run(
             build_command,
             venv_name=label_studio_venv,
@@ -116,10 +116,12 @@ class LitLabelStudio(la.LightningFlow):
         # check labeling task
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "check_labeling_task_and_export.py")
+        keypoints_list = ";".join(self.keypoints)
         run_command = f"python {script_path} " \
                       f"--label_studio_url {self.label_studio_url} " \
                       f"--data_dir {self.data_dir} " \
-                      f"--api_key {self.user_token}"
+                      f"--api_key {self.user_token} " \
+                      f"--keypoints_list {keypoints_list} "
         self.label_studio.run(
             run_command,
             venv_name=label_studio_venv,
@@ -128,6 +130,7 @@ class LitLabelStudio(la.LightningFlow):
         )
 
     def create_labeling_config_xml(self, keypoints):
+        self.keypoints = keypoints
         xml_str = build_xml(keypoints)
         filename = os.path.join(self.data_dir, "label_studio_config.xml")
         if not os.path.exists(self.data_dir):
@@ -167,7 +170,7 @@ def build_xml(bodypart_names: List[str]) -> str:
                 "all visible keypoints in this image.\"/>"
     view_str += "\n<Text name=\"text2\" value=\"Also useful: Press H for hand tool, " \
                 "CTRL+ to zoom in and CTRL- to zoom out\"/>"
-    view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\">"  # indent 2
+    view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\" strokeWidth=\"3\">"  # indent 2
     for keypoint, color in zip(bodypart_names, colors_to_use):
         view_str += f"\n    <Label value=\"{keypoint}\" />"  # indent 4
     view_str += "\n  </KeyPointLabels>"  # indent 2

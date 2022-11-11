@@ -126,7 +126,7 @@ class LitBashWork(L.LightningWork):
         pass
 
     def on_after_run(self):
-        """Called after the python script is executed. Wrap outputs in Path so they will be available"""
+        """Called after python script executes. Wrap outputs in Path so they will be available"""
         pass
 
     # statistics on this work
@@ -200,12 +200,12 @@ class LitBashWork(L.LightningWork):
         **kwargs
     ):
         """run the command"""
-        cmd = Template(cmd).substitute(
-            {'host': self.host, 'port': self.port})  # replace host and port
-        cmd = ' '.join(shlex.split(cmd))  # convert multiline to a single line
+        # replace host and port
+        cmd = Template(cmd).substitute({'host': self.host, 'port': self.port})
+        # convert multiline to a single line
+        cmd = ' '.join(shlex.split(cmd))
         print(cmd, kwargs)
         kwargs['env'] = add_to_system_env(**kwargs)
-        pwd = os.path.abspath(os.getcwd())
         if venv_name:
             cmd = f"source ~/{venv_name}/bin/activate; which python; {cmd}; deactivate"
 

@@ -12,14 +12,13 @@ class ExtractFramesUI(LightningFlow):
     """UI to set up project."""
 
     def __init__(
-            self,
-            *args,
-            script_dir,
-            script_name,
-            script_args,
-            data_dir,
-            # config_file,
-            **kwargs
+        self,
+        *args,
+        script_dir,
+        script_name,
+        script_args,
+        data_dir,
+        **kwargs
     ):
         super().__init__(*args, **kwargs)
 
@@ -34,7 +33,6 @@ class ExtractFramesUI(LightningFlow):
         self.script_name = script_name
         self.script_args = script_args
         self.data_dir = data_dir
-        # self.config_file = config_file
 
         # output from the UI
         self.st_submits = 0

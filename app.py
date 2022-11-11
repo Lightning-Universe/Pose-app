@@ -1,8 +1,11 @@
+import glob
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 import lightning.app as L
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
+import math
 import os
+from PIL import Image
 import shutil
 import streamlit as st
 import yaml
@@ -30,31 +33,15 @@ from lai_work.bashwork import LitBashWork
 
 # TODO
 # - revisit project config page and trigger the following
-#   - *auto-generate xml file
 #   - get username/password
 #   - advanced
-#       - multiple projects
 #       - reload existing project
+#       - multiple projects
 # - after labeling
 #   - print out "x/x frames have been labeled" (train y/n): pull info from dlc folder
 # - get file loading to work on cloud
 # - better way to upload video files
 # - test speed of dali pipeline
-# - show labeled videos
-
-
-class TestUI(LightningFlow):
-
-    def __init__(self, *args, text="default", **kwargs):
-        super().__init__(*args, **kwargs)
-        self.text = text
-
-    def configure_layout(self):
-        return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-
-def _render_streamlit_fn(state: AppState):
-    st.markdown(state.text)
 
 
 class LitPoseApp(L.LightningFlow):
@@ -85,7 +72,6 @@ class LitPoseApp(L.LightningFlow):
             script_name="scripts/extract_frames.py",
             script_args="",
             data_dir=None,  # to be set upon project load/creation
-            # config_file=None,  # to be set upon project load/creation
         )
 
         # training tab; this will default to the toy dataset, unless a project is created/loaded
@@ -94,7 +80,7 @@ class LitPoseApp(L.LightningFlow):
             script_name="scripts/train_hydra.py",
             script_args="",
             script_env="HYDRA_FULL_ERROR=1",
-            config_dir=os.path.abspath(os.path.join(lightning_pose_dir, "scripts")),
+            config_dir=None,  # to be set upon project load/creation
             config_name=None,  # to be set upon project load/creation
             test_videos_dir="toy_datasets/toymouseRunningData/unlabeled_videos",
             max_epochs=200,
@@ -116,10 +102,6 @@ class LitPoseApp(L.LightningFlow):
 
         # video tab
         self.video_ui = VideoUI(video_file=None)
-
-        # dummy tabs
-        self.test_ui_a = TestUI(text="Test A")
-        self.test_ui_b = TestUI(text="Test B")
 
         # -----------------------------
         # workers
@@ -154,7 +136,7 @@ class LitPoseApp(L.LightningFlow):
             search_dir = self.train_ui.outputs_dir
 
         cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
-        self.my_work.run(cmd, cwd=lightning_pose_dir)
+        self.my_work.run(cmd, cwd=lightning_pose_dir, save_stdout=True)
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
             self.train_ui.set_hydra_outputs(outputs)
@@ -209,7 +191,7 @@ class LitPoseApp(L.LightningFlow):
 
     def start_tensorboard(self):
         """run tensorboard"""
-        cmd = "tensorboard --logdir outputs --host {host} --port {port}"
+        cmd = "tensorboard --logdir outputs --host $host --port $port"
         self.my_tb.run(
             cmd,
             venv_name=tensorboard_venv,
@@ -221,7 +203,7 @@ class LitPoseApp(L.LightningFlow):
         """run fiftyone"""
         # TODO:
         #   right after fiftyone, the previous find command is triggered should not be the case.
-        cmd = "fiftyone app launch --address {host} --port {port}"
+        cmd = "fiftyone app launch --address $host --port $port"
         self.my_work.run(
             cmd,
             venv_name=lightning_pose_venv,
@@ -231,24 +213,9 @@ class LitPoseApp(L.LightningFlow):
 
     def start_lp_train_video_predict(self):
 
-        # train model
-        # multirun issues; something with gradients not being computed correctly, does not happen
-        # with non-multiruns
-        # cmd = "python" \
-        #       + " " + self.train_ui.st_script_name \
-        #       + " --multirun" \
-        #       + " " + self.train_ui.st_script_args
-        # self.my_work.run(
-        #     cmd,
-        #     venv_name=lightning_pose_venv,
-        #     env=self.train_ui.st_script_env,
-        #     cwd=self.train_ui.st_script_dir,
-        #     outputs=[os.path.join(self.train_ui.st_script_dir, self.train_ui.outputs_dir)],
-        # )
-
         # check to see if we're in demo mode or not
         if self.train_ui.config_name is not None:
-            config_cmd = " --config-path=%s --config_name=%s" % (
+            config_cmd = " --config-path=%s --config-name=%s" % (
                 self.train_ui.config_dir, self.train_ui.config_name)
         else:
             config_cmd = ""
@@ -257,8 +224,8 @@ class LitPoseApp(L.LightningFlow):
         if self.train_ui.st_train_super:
             cmd = "python" \
                   + " " + self.train_ui.st_script_name \
-                  + " " + self.train_ui.st_script_args["super"] \
-                  + config_cmd
+                  + config_cmd \
+                  + " " + self.train_ui.st_script_args["super"]
             self.my_work.run(
                 cmd,
                 venv_name=lightning_pose_venv,
@@ -271,8 +238,8 @@ class LitPoseApp(L.LightningFlow):
         if self.train_ui.st_train_semisuper:
             cmd = "python" \
                   + " " + self.train_ui.st_script_name \
-                  + " " + self.train_ui.st_script_args["semisuper"] \
-                  + config_cmd
+                  + config_cmd \
+                  + " " + self.train_ui.st_script_args["semisuper"]
             self.my_work.run(
                 cmd,
                 venv_name=lightning_pose_venv,
@@ -294,7 +261,7 @@ class LitPoseApp(L.LightningFlow):
 
         # set the new outputs for UIs
         cmd = f"find {self.train_ui.outputs_dir} -maxdepth 4 -type f -name predictions.csv"
-        self.my_work.run(cmd, cwd=lightning_pose_dir)
+        self.my_work.run(cmd, cwd=lightning_pose_dir, save_stdout=True)
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
             self.train_ui.set_hydra_outputs(outputs)
@@ -353,7 +320,7 @@ class LitPoseApp(L.LightningFlow):
               + f" " + model_name_args \
               + f" --video_file={video_file_abs}" \
               + f" --save_file={save_file_abs}" \
-              + f" --likelihood_thresh=0.05" \
+              + f" --likelihood_thresh=0.9" \
               + f" --max_frames=100" \
               + f" --markersize=6" \
               + f" --framerate=20" \
@@ -462,10 +429,39 @@ class LitPoseApp(L.LightningFlow):
             cwd="."
         )
 
-    def return_project_info(self):
-        """Update paths using project_ui."""
-        data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
-        return data_dir, self.project_ui.config_file
+    def _update_frame_shapes(self):
+        # load single frame from labeled data
+        img = glob.glob(os.path.join(self.extract_ui.data_dir, "labeled-data", "*", "*.png"))[0]
+        image = Image.open(img)
+        self.project_ui.update_project_config({
+            "data": {
+                "image_orig_dims": {
+                    "height": image.height,
+                    "width": image.width
+                },
+                "image_resize_dims": {
+                    "height": 2 ** (math.floor(math.log(image.height, 2))),
+                    "width": 2 ** (math.floor(math.log(image.width, 2))),
+                }
+            }
+        })
+
+    def _compute_labeled_frame_fraction(self):
+        try:
+            cfg_dict = yaml.safe_load(open(self.project_ui.config_file))
+            data_dir = cfg_dict["data"]["data_dir"]
+            csv_file = os.path.join(data_dir, cfg_dict["data"]["csv_file"])
+            # iterating through the whole file without pandas dependency
+            n_header_rows = cfg_dict["data"]["header_rows"][-1] + 1
+            rowcount = 0
+            for _ in open(csv_file):
+                rowcount += 1
+            n_labeled_frames = rowcount - n_header_rows
+            n_total_frames = len(glob.glob(os.path.join(data_dir, "labeled-data", "*", "*.png")))
+        except FileNotFoundError:
+            n_labeled_frames = None
+            n_total_frames = None
+        return n_labeled_frames, n_total_frames
 
     def run(self):
 
@@ -481,7 +477,7 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # init background services once
         # -----------------------------
-        # self.start_tensorboard()
+        self.start_tensorboard()
         # self.start_fiftyone()
 
         # -----------------------------
@@ -490,31 +486,39 @@ class LitPoseApp(L.LightningFlow):
         # update project configuration
         if self.project_ui.run_script:
 
-            # update user-supplied parameters in config yaml file and label studio xml file
+            data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
+
+            # update user-supplied parameters in config yaml file
+            self.project_ui.config_dir = data_dir
             self.project_ui.update_project_config()
 
             # update paths data dir for frame extraction object
-            data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
             self.extract_ui.data_dir = data_dir
 
-            # update label studio object
+            # update label studio object and create label studio xml file
             self.label_studio.data_dir = data_dir
             self.label_studio.create_labeling_config_xml(
                 self.project_ui.st_new_vals["data"]["keypoints"])
             self.label_studio.project_name = self.project_ui.st_project_name
 
             # point training UI to config file
+            self.train_ui.config_dir = data_dir
             self.train_ui.config_name = "config_%s" % self.project_ui.st_project_name
-
-            # self.extract_ui.config_file = proj_config
+            self.train_ui.test_videos_dir = os.path.join(data_dir, "videos")
 
         # extract frames for labeleding from uploaded videos
         if self.extract_ui.run_script:
             self.start_extract_frames()
+            self._update_frame_shapes()
 
         # launch label studio after extracting frames
-        if self.label_studio.data_dir is not None and os.path.isdir(self.label_studio.data_dir):
+        if self.label_studio.data_dir is not None \
+                and os.path.isdir(os.path.join(self.label_studio.data_dir, "labeled-data")):
             self.label_studio.run()
+            # find fraction of labeled frames to return to UI
+            n_labeled_frames, n_total_frames = self._compute_labeled_frame_fraction()
+            self.train_ui.n_labeled_frames = n_labeled_frames
+            self.train_ui.n_total_frames = n_total_frames
 
         # the run method for label studio will init label studio
         # train on ui button press
@@ -549,14 +553,11 @@ class LitPoseApp(L.LightningFlow):
         video_tab = {"name": "Video Preds", "content": self.video_ui}
         st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 
-        # dummy tabs
-        test_tab_a = {"name": "Test A", "content": self.test_ui_a}
-        test_tab_b = {"name": "Test B", "content": self.test_ui_b}
-
         if self.landing_ui.st_mode == "demo":
             return [
                 landing_tab,
-                train_demo_tab, train_diag_tab,
+                train_demo_tab,
+                train_diag_tab,
                 fo_prep_tab,
                 fo_tab,
                 # st_frame_tab,
@@ -570,7 +571,17 @@ class LitPoseApp(L.LightningFlow):
                 return [landing_tab, project_tab]
             else:
                 # show all tabs
-                return [landing_tab, project_tab, extract_tab, annotate_tab, train_demo_tab]
+                return [
+                    landing_tab,
+                    project_tab,
+                    extract_tab,
+                    annotate_tab,
+                    train_demo_tab,
+                    train_diag_tab,
+                    # fo_prep_tab,
+                    # fo_tab,
+                    # video_tab,
+                ]
 
         else:
             return [landing_tab]
