@@ -62,28 +62,26 @@ class LabelStudioJSONProcessor:
         return os.path.join(self.data_dir, self.relative_image_dir)
 
     def get_relative_image_paths(self) -> List[str]:
-        """ paths within data_dir"""
+        """Paths within data_dir"""
         relative_image_paths = [self.get_relative_image_path(annotated_example) for
                                 annotated_example in self.label_studio_json_export]
         return relative_image_paths
 
     def get_relative_image_path(self, annotated_example) -> str:
-        """ paths within data_dir"""
+        """Paths within data_dir"""
         path = os.path.join(
             self.relative_image_dir, annotated_example["data"]["img"].split("=")[-1])
         relative_image_path = path[path.find('labeled-data'):]
         return relative_image_path
 
     def get_absolute_image_paths(self) -> List[str]:
-        """ absolute paths on the machine"""
+        """Absolute paths on the machine"""
         abs_image_paths = [
             os.path.join(self.absolute_image_dir, annotated_example["data"]["img"].split("=")[-1])
             for annotated_example in self.label_studio_json_export]
         return abs_image_paths
 
     def get_keypoint_names(self) -> List[str]:
-        """ get the keypoint names from the json file, assuming all images have the same keypoint names, we only need to look at the first image"""
-        # keypoint_names = [keypoint["value"]['keypointlabels'][0] for keypoint in self.label_studio_json_export[0]["annotations"][0]["result"]]
         return self.keypoint_names
 
     @staticmethod
@@ -95,7 +93,7 @@ class LabelStudioJSONProcessor:
         return pdindex
 
     def build_zeros_dataframe(self) -> pd.DataFrame:
-        """ build a dataframe with the keypoint names as columns and the image paths as the index"""
+        """Build a dataframe with the keypoint names as columns and the image paths as the index"""
         keypoint_names = self.get_keypoint_names()
         image_paths = self.get_relative_image_paths()
         # build the hierarchical index
@@ -105,15 +103,10 @@ class LabelStudioJSONProcessor:
         df.sort_index(inplace=True)
         return df
 
-    # def get_keypoint_coordinates(self) -> List[List[Tuple[float, float]]]:
-    #     """ get the keypoint coordinates from the json file"""
-    #     keypoint_coordinates = [[(keypoint["value"]['x'], keypoint["value"]['y']) for keypoint in annotation["result"]] for annotation in loaded_file["annotations"] for loaded_file in self.loaded_file]
-    #     return keypoint_coordinates
-
     # have one method per a single keypoint, one per frame, and one across frames.
     @staticmethod
     def get_pixel_coordinates_per_image(result: Dict[str, Any]) -> Tuple[float, float]:
-        """ Convert from the result dict of a single image, to a dict with image name, keypoint name, and x,y values."""
+        """Convert result dict of an image to a dict with img name, keypoint name, x,y vals."""
         if 'original_width' not in result or 'original_height' not in result:
             # we need these to resize images
             return None
@@ -127,7 +120,7 @@ class LabelStudioJSONProcessor:
                    height * value['y'] / 100.0
 
     def __call__(self) -> pd.DataFrame:
-        """ build a dataframe with the keypoint names as columns and the image paths as the index"""
+        """Build a dataframe with the keypoint names as columns and the image paths as the index"""
         df = self.build_zeros_dataframe()
         # fill the dataframe with the keypoint coordinates
         for i, example in enumerate(self.label_studio_json_export):  # loop over the images
@@ -140,18 +133,21 @@ class LabelStudioJSONProcessor:
                     continue
                 x, y = pixel_coordinates
                 keypoint_name = result['value']['keypointlabels'][0]
-                # note, if we have multiple annotations of the same keypoint and image, the last one overrides the previous ones in the dataframe.
+                # note, if we have multiple annotations of the same keypoint and image, the last
+                # one overrides the previous ones in the dataframe.
                 df.loc[relative_image_path, ("lightning_tracker", keypoint_name, "x")] = x
                 df.loc[relative_image_path, ("lightning_tracker", keypoint_name, "y")] = y
         return df
 
 
-# a function that gets relative image paths from a base dir
-def get_rel_image_paths(basedir: str) -> List[str]:
+# a function that gets relative image paths from csv files inside of a base dir
+def get_rel_image_paths_from_idx_files(basedir: str) -> List[str]:
     img_list = []
     for root, dirs, files in os.walk(basedir):
         for file in files:
-            if file.endswith(".png"):
+            if file.endswith(".csv"):
                 abspath = os.path.join(root, file)
-                img_list.append(os.path.relpath(abspath, start=basedir))
+                img_files = np.genfromtxt(abspath, delimiter=',', dtype=str)
+                for img_file in img_files:
+                    img_list.append(os.path.relpath(os.path.join(root, img_file), start=basedir))
     return img_list

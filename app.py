@@ -38,10 +38,8 @@ from lai_work.bashwork import LitBashWork
 #       - reload existing project
 #       - multiple projects
 # - after labeling
-#   - print out "x/x frames have been labeled" (train y/n): pull info from dlc folder
 # - get file loading to work on cloud
 # - better way to upload video files
-# - test speed of dali pipeline
 
 
 class LitPoseApp(L.LightningFlow):
@@ -173,7 +171,9 @@ class LitPoseApp(L.LightningFlow):
               + " " + self.extract_ui.script_name \
               + vid_file_args \
               + f" --data_dir={data_dir}" \
-              + f" --n_frames_per_video={self.extract_ui.st_n_frames_per_video}"
+              + f" --n_frames_per_video={self.extract_ui.st_n_frames_per_video}" \
+              + f" --context_frames=2" \
+              + f" --export_idxs_as_csv"
         self.my_work.run(
             cmd,
             venv_name=lightning_pose_venv,
@@ -484,7 +484,7 @@ class LitPoseApp(L.LightningFlow):
         # run work
         # -----------------------------
         # update project configuration
-        if self.project_ui.run_script:
+        if self.project_ui.run_script:  # better name?
 
             data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
 

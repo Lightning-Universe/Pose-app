@@ -123,6 +123,7 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
+    # TODO: update with st_radial
     st.text(
         "Note: you have labeled %s / %s frames" % (state.n_labeled_frames, state.n_total_frames))
 
@@ -215,3 +216,5 @@ def _render_streamlit_fn(state: AppState):
             time.sleep(1)  # allow date/time to update
 
         state.run_script = True  # must the last to prevent race condition
+
+        # TODO: show training progress

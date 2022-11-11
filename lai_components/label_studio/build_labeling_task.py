@@ -3,7 +3,7 @@
 import os
 import argparse
 from lai_components.label_studio.utils import (
-    connect_to_label_studio, start_project, create_data_source, get_rel_image_paths)
+    connect_to_label_studio, start_project, create_data_source, get_rel_image_paths_from_idx_files)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--label_studio_url', type=str)
@@ -45,7 +45,8 @@ create_data_source(label_studio_project=label_studio_project, json=json)
 print("LabelStudio data source created.")
 
 print("Importing tasks...")
-rel_images = get_rel_image_paths(args.data_dir)
+rel_images = get_rel_image_paths_from_idx_files(args.data_dir)
+print(rel_images)
 label_studio_prefix = f"data/local-files?d={basedir}/"
 # loop over the png files in the directory and add them as dicts to the lisr, using labelstudio
 # path format
