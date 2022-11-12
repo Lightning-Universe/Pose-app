@@ -41,7 +41,7 @@ class LitLabelStudio(la.LightningFlow):
         self,
         *args,
         drive_name=label_studio_drive_name,
-        data_dir=None,  # this should point to
+        proj_dir=None,
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -60,10 +60,13 @@ class LitLabelStudio(la.LightningFlow):
         self.time = time.time()
 
         # these attributes get set by external app
-        self.data_dir = data_dir
+        self.proj_dir = proj_dir
         self.keypoints = None
 
     def start_label_studio(self):
+
+        if self.count > 0:
+            return
 
         # create config file
         self.label_studio.run(
@@ -96,13 +99,12 @@ class LitLabelStudio(la.LightningFlow):
 
         self.count += 1
 
-    def build_labeling_task(self):
-        # create labeling task
+    def create_new_project(self):
         script_path = os.path.join(
-            os.getcwd(), "lai_components", "label_studio", "build_labeling_task.py")
+            os.getcwd(), "lai_components", "label_studio", "create_new_project.py")
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--data_dir {self.data_dir} " \
+                        f"--proj_dir {self.proj_dir} " \
                         f"--api_key {self.user_token} " \
                         f"--project_name {self.project_name} " \
                         f"--label_config {self.label_studio_config_file} "
@@ -112,45 +114,57 @@ class LitLabelStudio(la.LightningFlow):
             wait_for_exit=True,
         )
 
-    def check_labeling_task_and_export(self, time):
+    def update_tasks(self, timer):
+        script_path = os.path.join(
+            os.getcwd(), "lai_components", "label_studio", "update_tasks.py")
+        build_command = f"python {script_path} " \
+                        f"--label_studio_url {self.label_studio_url} " \
+                        f"--proj_dir {self.proj_dir} " \
+                        f"--api_key {self.user_token} "
+        self.label_studio.run(
+            build_command,
+            venv_name=label_studio_venv,
+            wait_for_exit=True,
+            timer=timer,
+        )
+
+    def check_labeling_task_and_export(self, timer):
         # check labeling task
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "check_labeling_task_and_export.py")
-        keypoints_list = ";".join(self.keypoints)
-        run_command = f"python {script_path} " \
-                      f"--label_studio_url {self.label_studio_url} " \
-                      f"--data_dir {self.data_dir} " \
-                      f"--api_key {self.user_token} " \
-                      f"--keypoints_list {keypoints_list} "
-        self.label_studio.run(
-            run_command,
-            venv_name=label_studio_venv,
-            wait_for_exit=True,
-            timer=time
-        )
+
+        if self.keypoints is not None:
+            # only check task if keypoints attribute has been populated
+            keypoints_list = ";".join(self.keypoints)
+            run_command = f"python {script_path} " \
+                          f"--label_studio_url {self.label_studio_url} " \
+                          f"--proj_dir {self.proj_dir} " \
+                          f"--api_key {self.user_token} " \
+                          f"--keypoints_list {keypoints_list} "
+            self.label_studio.run(
+                run_command,
+                venv_name=label_studio_venv,
+                wait_for_exit=True,
+                timer=timer,
+            )
 
     def create_labeling_config_xml(self, keypoints):
         self.keypoints = keypoints
         xml_str = build_xml(keypoints)
-        filename = os.path.join(self.data_dir, "label_studio_config.xml")
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
+        filename = os.path.join(self.proj_dir, "label_studio_config.xml")
+        if not os.path.exists(self.proj_dir):
+            os.makedirs(self.proj_dir)
         with open(filename, 'wt') as outfile:
             outfile.write(xml_str)
         self.label_studio_config_file = filename
 
     def run(self):
-
-        if self.count == 0:
-            self.start_label_studio()
-            self.build_labeling_task()
-
         # check for new annotations every 15 seconds
         # if updates, export the data and convert to lightning pose format
         new_time = time.time()
         if (new_time - self.time) > 15:
             self.time = new_time
-            self.check_labeling_task_and_export(time=new_time)
+            self.check_labeling_task_and_export(timer=new_time)
 
 
 def build_xml(bodypart_names: List[str]) -> str:

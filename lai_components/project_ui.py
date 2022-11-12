@@ -1,7 +1,10 @@
+import glob
 from lightning import LightningFlow
 from lightning_app.utilities.state import AppState
+import math
 import numpy as np
 import os
+from PIL import Image
 import streamlit as st
 import yaml
 
@@ -19,6 +22,7 @@ class ProjectUI(LightningFlow):
         # UI sets to True to kickoff jobs
         # Job Runner sets to False when done
         self.run_script = False
+        self.count = 0
 
         # config for project named <PROJ_NAME> will be stored as
         # <config_dir>/config_<PROJ_NAME>.yaml
@@ -40,6 +44,11 @@ class ProjectUI(LightningFlow):
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
 
+        self.proj_dir = None
+        self.initialized_projects = os.listdir(self.data_dir)
+        self.create_new_project = False
+        self.keypoints = None
+
         # output from the UI
         self.st_submits = 0
         self.st_project_name = None
@@ -50,7 +59,8 @@ class ProjectUI(LightningFlow):
         """triggered by button click in UI"""
 
         # check to see if config exists; if not, copy default config
-        self.config_file = os.path.join(self.config_dir, f"config_{self.st_project_name}.yaml")
+        self.config_file = os.path.join(
+            self.config_dir, f"model_config_{self.st_project_name}.yaml")
         if not os.path.exists(self.config_file):
             # copy default config
             config_dict = yaml.safe_load(open(self.default_config_file))
@@ -74,16 +84,49 @@ class ProjectUI(LightningFlow):
         #     "eval": new_eval_dict,
         #     ...}
         new_vals_dict = new_vals_dict or self.st_new_vals
-        for sconfig_name, sconfig_dict in new_vals_dict.items():
-            for key, val in sconfig_dict.items():
-                config_dict[sconfig_name][key] = val
+        if new_vals_dict is not None:
+            for sconfig_name, sconfig_dict in new_vals_dict.items():
+                for key, val in sconfig_dict.items():
+                    config_dict[sconfig_name][key] = val
 
-        # save out updated config file
-        if not os.path.exists(self.config_dir):
-            os.makedirs(self.config_dir)
-        yaml.dump(config_dict, open(self.config_file, "w"))
+            # save out updated config file
+            if not os.path.exists(self.config_dir):
+                os.makedirs(self.config_dir)
+            yaml.dump(config_dict, open(self.config_file, "w"))
 
-        self.run_script = False
+    def update_frame_shapes(self):
+        # load single frame from labeled data
+        img = glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png"))[0]
+        image = Image.open(img)
+        self.update_project_config({
+            "data": {
+                "image_orig_dims": {
+                    "height": image.height,
+                    "width": image.width
+                },
+                "image_resize_dims": {
+                    "height": 2 ** (math.floor(math.log(image.height, 2))),
+                    "width": 2 ** (math.floor(math.log(image.width, 2))),
+                }
+            }
+        })
+
+    def compute_labeled_frame_fraction(self):
+        try:
+            cfg_dict = yaml.safe_load(open(self.config_file))
+            data_dir = cfg_dict["data"]["data_dir"]
+            csv_file = os.path.join(data_dir, cfg_dict["data"]["csv_file"])
+            # iterating through the whole file without pandas dependency
+            n_header_rows = cfg_dict["data"]["header_rows"][-1] + 1
+            rowcount = 0
+            for _ in open(csv_file):
+                rowcount += 1
+            n_labeled_frames = rowcount - n_header_rows
+            n_total_frames = len(glob.glob(os.path.join(data_dir, "labeled-data", "*", "*.png")))
+        except FileNotFoundError:
+            n_labeled_frames = None
+            n_total_frames = None
+        return n_labeled_frames, n_total_frames
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -95,11 +138,11 @@ def get_project_defaults(config_file):
     if config_file is not None:
         # set values from config
         config_dict = yaml.safe_load(open(config_file))
-        st_n_views = len(config_dict["data"]["mirrored_column_matches"])
         st_keypoints = config_dict["data"]["keypoints"]
         st_n_keypoints = config_dict["data"]["num_keypoints"]
         st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
         st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
+        st_n_views = 1 if st_pcamv_columns is None else len(st_pcamv_columns)
     else:
         # reset values
         st_n_views = 0
@@ -131,18 +174,24 @@ def _render_streamlit_fn(state: AppState):
     st_project_name = st.text_input("Enter project name", value="")
 
     if st_project_name and st_mode == "Load existing project":
-        project_loaded = st.button(
-            "Load project",
-            disabled=True if not st_project_name != "" else False
-        )
-        if project_loaded:
-            # load config file
-            config_file = os.path.join(state.config_dir, f"config_{st_project_name}.yaml")
-            # update project manager
-            state.config_file = config_file
-            state.st_submits += 1
-            state.st_project_name = st_project_name
-            state.st_project_loaded = True
+        if st_project_name not in state.initialized_projects:
+            st.error(f"No project named {st_project_name} found; "
+                     f"available projects are {state.initialized_projects}")
+        else:
+            project_loaded = st.button(
+                "Load project",
+                disabled=True if not st_project_name != "" else False
+            )
+            if project_loaded:
+                # specify config file
+                state.config_dir = os.path.join(state.data_dir, st_project_name)
+                config_file = os.path.join(
+                    state.config_dir, f"model_config_{st_project_name}.yaml")
+                # update project manager
+                state.config_file = config_file
+                state.st_submits += 1
+                state.st_project_name = st_project_name
+                state.st_project_loaded = True
 
     st_n_views, st_keypoints, st_n_keypoints, st_pcasv_columns, st_pcamv_columns = \
         get_project_defaults(state.config_file)
@@ -150,8 +199,23 @@ def _render_streamlit_fn(state: AppState):
     if st_project_name:
         if st_mode == "Load existing project" and state.st_project_loaded:
             enter_data = True
+            # let user know they're data has been loaded
+            proceed_str = "Project loaded successfully! You may proceed to subsequent tabs."
+            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            if state.st_submits == 1:
+                # signal to lightning app that project has been loaded; this will populate other
+                # UIs with relevant project info
+                state.keypoints = st_keypoints
+                state.run_script = True
+                state.st_submits += 1
+        elif (st_mode == "Create new project") and (st_project_name in state.initialized_projects):
+            st.error(f"A project named {st_project_name} already exists; "
+                     f"choose a unique project name or select `Load existing project` above")
+            enter_data = False
         elif st_mode == "Create new project" and st_project_name != "":
             enter_data = True
+            state.create_new_project = True
         else:
             enter_data = False
     else:
@@ -284,21 +348,29 @@ def _render_streamlit_fn(state: AppState):
         st_n_bodyparts = 0
 
     # construct config file
-    pcamv_ready = True if (len(st_keypoints) > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
-        else False
+    if (len(st_keypoints) > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
+            or (len(st_keypoints) > 1 and st_n_views == 1):
+        pcamv_ready = True
+    else:
+        pcamv_ready = False
+
     if len(st_keypoints) > 1 and st_n_views > 0 and pcamv_ready:
 
         st.markdown("")
         st.markdown("")
         st.markdown("")
         st.markdown("##### Export project configuration")
-        st.markdown("""
-            Click on the button below to create a new project; you will then be able to start 
-            labeling data and train models!
-        """)
+        # give user slightly different info depending on where they are in their workflow
+        if state.st_project_loaded:
+            st.markdown("""Click on the button below to update project configuration.""")
+        else:
+            st.markdown("""
+                Click on the button below to create a new project; you will then be able to start 
+                labeling data and train models!
+            """)
 
         need_update_pcamv = False
-        if len(st_pcamv_columns) > 0:
+        if st_pcamv_columns is not None and len(st_pcamv_columns) > 0:
             if len(st_pcamv_columns.flatten()) != len(np.unique(st_pcamv_columns)):
                 need_update_pcamv = True
                 st.warning(
@@ -317,14 +389,17 @@ def _render_streamlit_fn(state: AppState):
         else:
             st_new_vals["data"]["columns_for_singleview_pca"] = None
 
-        if len(st_pcamv_columns) > 0:
+        if st_pcamv_columns is not None and len(st_pcamv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow
             st_new_vals["data"]["mirrored_column_matches"] = [
                 [int(t_) for t_ in t] for t in st_pcamv_columns]
         else:
             st_new_vals["data"]["mirrored_column_matches"] = None
 
-        st_submit_button = st.button("Create project", disabled=need_update_pcamv)
+        if state.st_project_loaded:
+            st_submit_button = st.button("Update project", disabled=need_update_pcamv)
+        else:
+            st_submit_button = st.button("Create project", disabled=need_update_pcamv)
         if state.st_submits > 0:
             proceed_str = "Please proceed to the next tab to extract frames for labeling."
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
@@ -336,6 +411,8 @@ def _render_streamlit_fn(state: AppState):
             state.st_submits += 1
 
             state.st_project_name = st_project_name
+            state.st_project_loaded = True
             state.st_new_vals = st_new_vals
+            state.keypoints = st_new_vals["data"]["keypoints"]
 
             state.run_script = True  # must the last to prevent race condition

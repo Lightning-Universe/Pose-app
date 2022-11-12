@@ -37,10 +37,8 @@ def _render_streamlit_fn(state: AppState):
         * Label data
         * Train models locally or on the cloud
         * Monitor training
-        * View predictions on labeled frames
-        * View predictions on unlabeled videos
-        * Diagnostics on labeled frames
-        * Diagnostics on unlabeled videos
+        * View predictions and diagnostics on labeled frames
+        * View predictions and diagnostics on unlabeled videos
         
         """, unsafe_allow_html=True)
 
@@ -67,10 +65,10 @@ def _render_streamlit_fn(state: AppState):
         Start a new project or load an existing project.
         """
     )
-    button_new = st.button("Launch project")
+    button_new = st.button("Launch project manager")
     if button_new:
         state.st_mode = "project"
-        state.st_action = "launch your project"
+        state.st_action = "manage your project"
         state.st_proceed_str = proceed_str.format(state.st_action)
     if state.st_mode == "project":
         st.markdown(proceed_fmt % state.st_proceed_str, unsafe_allow_html=True)

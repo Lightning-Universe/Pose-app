@@ -1,15 +1,13 @@
-import glob
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 import lightning.app as L
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
-import math
 import os
-from PIL import Image
 import shutil
 import streamlit as st
-import yaml
+import time
 from typing import Optional, Union, List
+import yaml
 
 from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.build_utils import lightning_pose_dir, tracking_diag_dir
@@ -37,7 +35,6 @@ from lai_work.bashwork import LitBashWork
 #   - advanced
 #       - reload existing project
 #       - multiple projects
-# - after labeling
 # - get file loading to work on cloud
 # - better way to upload video files
 
@@ -69,7 +66,7 @@ class LitPoseApp(L.LightningFlow):
             script_dir=lightning_pose_dir,
             script_name="scripts/extract_frames.py",
             script_args="",
-            data_dir=None,  # to be set upon project load/creation
+            proj_dir=None,  # to be set upon project load/creation
         )
 
         # training tab; this will default to the toy dataset, unless a project is created/loaded
@@ -109,18 +106,23 @@ class LitPoseApp(L.LightningFlow):
             cloud_compute=L.CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
         )
+
         # training/fiftyone
         self.my_work = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=FiftyOneBuildConfig(),
         )
+        self.work_is_done_extract_frames = False
+
         # label studio
         self.label_studio = LitLabelStudio()
+
         # streamlit labeled
         self.my_streamlit_frame = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=StreamlitBuildConfig(),
         )
+
         # streamlit video
         self.my_streamlit_video = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
@@ -166,7 +168,7 @@ class LitPoseApp(L.LightningFlow):
         for vid_file in self.extract_ui.st_video_files:
             vid_file_args += f" --video_files={vid_file}"
 
-        data_dir = os.path.join(self.extract_ui.data_dir, "labeled-data")
+        data_dir = os.path.join(self.extract_ui.proj_dir, "labeled-data")
         cmd = "python" \
               + " " + self.extract_ui.script_name \
               + vid_file_args \
@@ -182,12 +184,13 @@ class LitPoseApp(L.LightningFlow):
         )
 
         # copy videos to data directory
-        video_dir = os.path.join(self.extract_ui.data_dir, "videos")
+        video_dir = os.path.join(self.extract_ui.proj_dir, "videos")
         if not os.path.exists(video_dir):
             os.makedirs(video_dir)
         for vid_file in self.extract_ui.st_video_files:
             shutil.copyfile(vid_file, os.path.join(video_dir, os.path.basename(vid_file)))
-        self.extract_ui.run_script = False
+
+        self.work_is_done_extract_frames = True
 
     def start_tensorboard(self):
         """run tensorboard"""
@@ -268,9 +271,6 @@ class LitPoseApp(L.LightningFlow):
             self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
-        # indicate to UI
-        self.train_ui.run_script = False
-
     def start_fiftyone_dataset_creation(self):
 
         cmd = "python" \
@@ -287,9 +287,6 @@ class LitPoseApp(L.LightningFlow):
 
         # add dataset name to list for user to see
         self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)
-
-        # indicate to UI
-        self.fo_ui.run_script = False
 
     def start_labeled_video_creation(self):
 
@@ -429,40 +426,6 @@ class LitPoseApp(L.LightningFlow):
             cwd="."
         )
 
-    def _update_frame_shapes(self):
-        # load single frame from labeled data
-        img = glob.glob(os.path.join(self.extract_ui.data_dir, "labeled-data", "*", "*.png"))[0]
-        image = Image.open(img)
-        self.project_ui.update_project_config({
-            "data": {
-                "image_orig_dims": {
-                    "height": image.height,
-                    "width": image.width
-                },
-                "image_resize_dims": {
-                    "height": 2 ** (math.floor(math.log(image.height, 2))),
-                    "width": 2 ** (math.floor(math.log(image.width, 2))),
-                }
-            }
-        })
-
-    def _compute_labeled_frame_fraction(self):
-        try:
-            cfg_dict = yaml.safe_load(open(self.project_ui.config_file))
-            data_dir = cfg_dict["data"]["data_dir"]
-            csv_file = os.path.join(data_dir, cfg_dict["data"]["csv_file"])
-            # iterating through the whole file without pandas dependency
-            n_header_rows = cfg_dict["data"]["header_rows"][-1] + 1
-            rowcount = 0
-            for _ in open(csv_file):
-                rowcount += 1
-            n_labeled_frames = rowcount - n_header_rows
-            n_total_frames = len(glob.glob(os.path.join(data_dir, "labeled-data", "*", "*.png")))
-        except FileNotFoundError:
-            n_labeled_frames = None
-            n_total_frames = None
-        return n_labeled_frames, n_total_frames
-
     def run(self):
 
         # -----------------------------
@@ -477,6 +440,7 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # init background services once
         # -----------------------------
+        self.label_studio.start_label_studio()
         self.start_tensorboard()
         # self.start_fiftyone()
 
@@ -485,54 +449,62 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # update project configuration
         if self.project_ui.run_script:  # better name?
-
-            data_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
+            print("===============run proj ui script====================")
+            proj_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
 
             # update user-supplied parameters in config yaml file
-            self.project_ui.config_dir = data_dir
+            self.project_ui.config_dir = proj_dir
+            self.project_ui.proj_dir = proj_dir
             self.project_ui.update_project_config()
-
             # update paths data dir for frame extraction object
-            self.extract_ui.data_dir = data_dir
-
-            # update label studio object and create label studio xml file
-            self.label_studio.data_dir = data_dir
-            self.label_studio.create_labeling_config_xml(
-                self.project_ui.st_new_vals["data"]["keypoints"])
+            self.extract_ui.proj_dir = proj_dir
+            # update label studio object, create label studio xml file, create/load project
+            self.label_studio.proj_dir = proj_dir
             self.label_studio.project_name = self.project_ui.st_project_name
-
+            if self.project_ui.create_new_project and self.project_ui.count == 0:
+                self.label_studio.create_labeling_config_xml(self.project_ui.keypoints)
+                self.label_studio.create_new_project()
             # point training UI to config file
-            self.train_ui.config_dir = data_dir
+            self.train_ui.config_dir = proj_dir
             self.train_ui.config_name = "config_%s" % self.project_ui.st_project_name
-            self.train_ui.test_videos_dir = os.path.join(data_dir, "videos")
+            self.train_ui.test_videos_dir = os.path.join(proj_dir, "videos")
+
+            self.project_ui.run_script = False
+            self.project_ui.count += 1
 
         # extract frames for labeleding from uploaded videos
         if self.extract_ui.run_script:
             self.start_extract_frames()
-            self._update_frame_shapes()
+            self.extract_ui.run_script = False
 
-        # launch label studio after extracting frames
-        if self.label_studio.data_dir is not None \
-                and os.path.isdir(os.path.join(self.label_studio.data_dir, "labeled-data")):
+        # wait until litbashwork is done extracting frames, then update tasks
+        if self.work_is_done_extract_frames:
+            # force a run of update_tasks by using the timer; control how often it gets run by
+            # immediately setting the boolean flag that controls access to False
+            self.work_is_done_extract_frames = False
+            self.project_ui.update_frame_shapes()
+            self.label_studio.update_tasks(timer=time.time())
+
+        # check labeling task and export new labels (with timer wrapper)
+        if self.project_ui.count > 0:
             self.label_studio.run()
             # find fraction of labeled frames to return to UI
-            n_labeled_frames, n_total_frames = self._compute_labeled_frame_fraction()
+            n_labeled_frames, n_total_frames = self.project_ui.compute_labeled_frame_fraction()
             self.train_ui.n_labeled_frames = n_labeled_frames
             self.train_ui.n_total_frames = n_total_frames
 
-        # the run method for label studio will init label studio
         # train on ui button press
         if self.train_ui.run_script:
+            self.train_ui.run_script = False
             self.start_lp_train_video_predict()
 
         # initialize diagnostics on button press
         if self.fo_ui.run_script:
+            self.fo_ui.run_script = False
             self.start_fiftyone_dataset_creation()
             self.start_labeled_video_creation()
             # self.start_st_frame()
             # self.start_st_video()
-
-        # elif self.config_ui.st_mode == "project":
 
     def configure_layout(self):
 

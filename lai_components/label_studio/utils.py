@@ -43,6 +43,12 @@ def start_project(label_studio_client, title, label_config):
 
 
 @retry
+def get_project(label_studio_client, id):
+    project = label_studio_client.get_project(id=id)
+    return project
+
+
+@retry
 def create_data_source(label_studio_project, json):
     label_studio_project.make_request('POST', '/api/storages/localfiles', json=json)
 

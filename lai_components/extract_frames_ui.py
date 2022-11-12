@@ -17,7 +17,7 @@ class ExtractFramesUI(LightningFlow):
         script_dir,
         script_name,
         script_args,
-        data_dir,
+        proj_dir,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -32,7 +32,7 @@ class ExtractFramesUI(LightningFlow):
         self.script_dir = script_dir
         self.script_name = script_name
         self.script_args = script_args
-        self.data_dir = data_dir
+        self.proj_dir = proj_dir
 
         # output from the UI
         self.st_submits = 0
