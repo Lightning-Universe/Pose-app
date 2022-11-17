@@ -1,8 +1,8 @@
-"""Note: this replaces run_ui.py"""
+"""UI for training models."""
 
 from datetime import datetime
 from lightning import LightningFlow
-from lightning_app.utilities.state import AppState
+from lightning.app.utilities.state import AppState
 import streamlit as st
 import time
 

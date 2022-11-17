@@ -10,8 +10,6 @@ from typing import Optional, Union, List
 
 # dir where label studio python venv will be setup
 label_studio_venv = "venv-label-studio"
-# Lighting App Drive name to exchange dirs and files
-label_studio_drive_name = "lit://label-studio"
 # nginx conf template to remove x-frame-options
 conf_file = "nginx-8080.conf"
 new_conf_file = "nginx-new-8080.conf"
@@ -40,16 +38,17 @@ class LitLabelStudio(la.LightningFlow):
     def __init__(
         self,
         *args,
-        drive_name=label_studio_drive_name,
+        cloud_compute,
+        drive_name,
         proj_dir=None,
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
         self.label_studio = LitBashWork(
-            cloud_compute=la.CloudCompute("default"),
+            cloud_compute=cloud_compute,
             cloud_build_config=LabelStudioBuildConfig(),
+            drive_name=drive_name,
         )
-        self.drive = Drive(drive_name)
         self.count = 0
         self.label_studio_url = "http://localhost:8080"
         self.label_studio_config_file = None

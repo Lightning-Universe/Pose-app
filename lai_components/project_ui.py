@@ -1,6 +1,7 @@
 import glob
-from lightning import LightningFlow
-from lightning_app.utilities.state import AppState
+from lightning import LightningFlow, LightningWork
+from lightning.app.storage.drive import Drive
+from lightning.app.utilities.state import AppState
 import math
 import numpy as np
 import os
@@ -11,18 +12,13 @@ import yaml
 from lai_components.vsc_streamlit import StreamlitFrontend
 
 
-class ProjectUI(LightningFlow):
-    """UI to set up project."""
+class ProjectDataIO(LightningWork):
 
-    def __init__(self, *args, config_dir, data_dir, default_config_file, **kwargs):
+    def __init__(self, *args, drive_name, config_dir, data_dir, default_config_file, **kwargs):
+
         super().__init__(*args, **kwargs)
 
-        # control runners
-        # True = Run Jobs.  False = Do not Run jobs
-        # UI sets to True to kickoff jobs
-        # Job Runner sets to False when done
-        self.run_script = False
-        self.count = 0
+        self.drive = Drive(drive_name)
 
         # config for project named <PROJ_NAME> will be stored as
         # <config_dir>/config_<PROJ_NAME>.yaml
@@ -45,22 +41,18 @@ class ProjectUI(LightningFlow):
             os.makedirs(self.data_dir)
 
         self.proj_dir = None
-        self.initialized_projects = os.listdir(self.data_dir)
-        self.create_new_project = False
-        self.keypoints = None
+        self.model_dir = None
 
-        # output from the UI
-        self.st_submits = 0
-        self.st_project_name = None
-        self.st_project_loaded = False
-        self.st_new_vals = None
+    def update_paths(self, project_name):
+        self.proj_dir = os.path.join(self.data_dir, project_name)
+        self.config_dir = self.proj_dir
+        self.model_dir = os.path.join(self.data_dir, "results", project_name)
 
-    def update_project_config(self, new_vals_dict=None):
+    def update_project_config(self, project_name, new_vals_dict=None):
         """triggered by button click in UI"""
 
         # check to see if config exists; if not, copy default config
-        self.config_file = os.path.join(
-            self.config_dir, f"model_config_{self.st_project_name}.yaml")
+        self.config_file = os.path.join(self.config_dir, f"model_config_{project_name}.yaml")
         if not os.path.exists(self.config_file):
             # copy default config
             config_dict = yaml.safe_load(open(self.default_config_file))
@@ -83,7 +75,6 @@ class ProjectUI(LightningFlow):
         #     "data": new_data_dict,
         #     "eval": new_eval_dict,
         #     ...}
-        new_vals_dict = new_vals_dict or self.st_new_vals
         if new_vals_dict is not None:
             for sconfig_name, sconfig_dict in new_vals_dict.items():
                 for key, val in sconfig_dict.items():
@@ -93,6 +84,12 @@ class ProjectUI(LightningFlow):
             if not os.path.exists(self.config_dir):
                 os.makedirs(self.config_dir)
             yaml.dump(config_dict, open(self.config_file, "w"))
+
+        # push data to drive
+        # print(self.config_file)
+        # self.drive.put(self.config_file)
+        # clean up the local file
+        # os.remove(self.config_file)
 
     def update_frame_shapes(self):
         # load single frame from labeled data
@@ -127,6 +124,38 @@ class ProjectUI(LightningFlow):
             n_labeled_frames = None
             n_total_frames = None
         return n_labeled_frames, n_total_frames
+
+    def run(self):
+        pass
+
+
+class ProjectUI(LightningFlow):
+    """UI to set up project."""
+
+    def __init__(self, *args, config_dir, data_dir, default_config_file, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # control runners
+        # True = Run Jobs.  False = Do not Run jobs
+        # UI sets to True to kickoff jobs
+        # Job Runner sets to False when done
+        self.run_script = False
+        self.count = 0
+
+        self.data_dir = data_dir
+        self.config_dir = config_dir
+        self.config_file = None
+        self.default_config_file = default_config_file
+        self.initialized_projects = os.listdir(self.data_dir) if os.path.exists(self.data_dir) \
+            else []
+        self.create_new_project = False
+        self.keypoints = None
+
+        # output from the UI
+        self.st_submits = 0
+        self.st_project_name = None
+        self.st_project_loaded = False
+        self.st_new_vals = None
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -247,9 +276,9 @@ def _render_streamlit_fn(state: AppState):
     if st_n_views > 0:
         st.markdown("##### Define keypoints")
         keypoint_instructions = """
-            **Instructions**: 
+            **Instructions**:
             If your data has multiple views, make sure to create an entry for each bodypart
-            in each view below like in the following example with 2 views (top and bottom): 
+            in each view below like in the following example with 2 views (top and bottom):
             ```
             nose_top
             l_ear_top
@@ -282,8 +311,8 @@ def _render_streamlit_fn(state: AppState):
         st.markdown("##### Select subset of keypoints for Pose PCA")
         st.markdown("""
             **Instructions**:
-            The selected subset will be used for a Pose PCA loss on unlabeled videos. 
-            The subset should be keypoints that are not usually occluded (such as a tongue) 
+            The selected subset will be used for a Pose PCA loss on unlabeled videos.
+            The subset should be keypoints that are not usually occluded (such as a tongue)
             and are not static (such as the corner of a box).
         """)
         pcasv_selected = [False for _ in st_keypoints]
@@ -303,7 +332,7 @@ def _render_streamlit_fn(state: AppState):
         st.markdown("##### Select subset of body parts for Multiview PCA")
         st.markdown("""
             **Instructions**:
-            The selected subset will be used for a Multiview PCA loss on unlabeled videos. 
+            The selected subset will be used for a Multiview PCA loss on unlabeled videos.
             The subset should be keypoints that are usually visible in all camera views.
         """)
         # pcasv_selected = [False for _ in st_keypoints]
@@ -365,7 +394,7 @@ def _render_streamlit_fn(state: AppState):
             st.markdown("""Click on the button below to update project configuration.""")
         else:
             st.markdown("""
-                Click on the button below to create a new project; you will then be able to start 
+                Click on the button below to create a new project; you will then be able to start
                 labeling data and train models!
             """)
 

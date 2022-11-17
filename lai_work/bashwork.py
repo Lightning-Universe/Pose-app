@@ -98,7 +98,7 @@ class LitBashWork(L.LightningWork):
         super().__init__(*args, **kwargs)
         self.wait_seconds_after_run = wait_seconds_after_run
         self.wait_seconds_after_kill = wait_seconds_after_kill
-        self.drive_lpa = Drive(drive_name)
+        self._drive = Drive(drive_name)
 
         self.pid = None
         self.exit_code = None
@@ -140,7 +140,7 @@ class LitBashWork(L.LightningWork):
         for i in inputs:
             print(f"drive get {i}")
             try:                     # file may not be ready
-                self.drive_lpa.get(i)  # Transfer the file from this drive to the local filesystem.
+                self._drive.get(i)  # Transfer the file from this drive to the local filesystem.
             except:
                 pass
         # os.system(f"find {i} -print")
@@ -152,7 +152,7 @@ class LitBashWork(L.LightningWork):
             if os.path.isdir(o):
                 o = os.path.join(o, "")
             # os.system(f"find {o} -print")
-            self.drive_lpa.put(o)
+            self._drive.put(o)
 
     def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
         with subprocess.Popen(

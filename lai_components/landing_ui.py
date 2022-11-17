@@ -1,4 +1,4 @@
-"""Note: this replaces run_config_ui.py"""
+"""Landing page for app."""
 
 import streamlit as st
 

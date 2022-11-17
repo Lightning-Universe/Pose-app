@@ -1,4 +1,4 @@
-import lightning_app as L
+import lightning.app as L
 from typing import Optional, Union, List
 
 # sub dirs

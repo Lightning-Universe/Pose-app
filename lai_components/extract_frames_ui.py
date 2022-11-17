@@ -1,11 +1,12 @@
 from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
+from lightning.app.storage.drive import Drive
 import numpy as np
 import os
 import streamlit as st
 import yaml
 
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lai_components.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
 
 
 class ExtractFramesUI(LightningFlow):
@@ -14,6 +15,7 @@ class ExtractFramesUI(LightningFlow):
     def __init__(
         self,
         *args,
+        drive_name,
         script_dir,
         script_name,
         script_args,
@@ -21,6 +23,8 @@ class ExtractFramesUI(LightningFlow):
         **kwargs
     ):
         super().__init__(*args, **kwargs)
+
+        self.drive = Drive(drive_name)
 
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
@@ -56,8 +60,34 @@ def _render_streamlit_fn(state: AppState):
     )
 
     # upload video files
-    st_videos = st.text_input("Select video files")
-    st_videos = [st_videos]
+    # st_videos = st.text_input("Select video files")
+    # st_videos = [st_videos]
+
+    video_dir = os.path.join(state.proj_dir, "videos")
+    os.makedirs(video_dir, exist_ok=True)
+
+    # initialize the file uploader
+    uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+
+    # for each of the uploaded files
+    st_videos = []
+    for uploaded_file in uploaded_files:
+        # read it
+        bytes_data = uploaded_file.read()
+        # name it
+        filename = uploaded_file.name.replace(" ", "_")
+        # filepath = os.path.join(state.drive.root_folder, filename)
+        filepath = os.path.join(video_dir, filename)
+        st_videos.append(filepath)
+        # write the content of the file to the path
+        with open(filepath, "wb") as f:
+            f.write(bytes_data)
+        # push the data to the Drive, at this point the file has been
+        # stored in S3, and can be accessed from other components using
+        # the same lit:// path
+        # state.drive.put(filename)
+        # clean up the local file
+        # os.remove(filepath)
 
     # select number of frames to label per video
     n_frames_per_video = st.text_input("Frames to label per video", 20)

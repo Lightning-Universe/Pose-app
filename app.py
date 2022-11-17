@@ -18,7 +18,7 @@ from lai_components.build_utils import (
     StreamlitBuildConfig,
 )
 from lai_components.landing_ui import LandingUI
-from lai_components.project_ui import ProjectUI
+from lai_components.project_ui import ProjectUI, ProjectDataIO
 from lai_components.extract_frames_ui import ExtractFramesUI
 from lai_components.label_studio.component import LitLabelStudio
 from lai_components.train_ui import TrainDemoUI
@@ -32,11 +32,6 @@ from lai_work.bashwork import LitBashWork
 # TODO
 # - revisit project config page and trigger the following
 #   - get username/password
-#   - advanced
-#       - reload existing project
-#       - multiple projects
-# - get file loading to work on cloud
-# - better way to upload video files
 
 
 class LitPoseApp(L.LightningFlow):
@@ -45,7 +40,8 @@ class LitPoseApp(L.LightningFlow):
         super().__init__()
 
         # shared data for apps
-        self.drive_lpa = Drive("lit://lpa")
+        drive_name = "lit://lpa"
+        self.drive = Drive(drive_name)
 
         # -----------------------------
         # UIs
@@ -54,15 +50,24 @@ class LitPoseApp(L.LightningFlow):
         self.landing_ui = LandingUI()
 
         # project manager tab
+        config_dir = os.path.join(lightning_pose_dir, "scripts")
+        default_config_file = os.path.join(config_dir, "config_default.yaml")
+        data_dir = os.path.join(drive_name, "data")
         self.project_ui = ProjectUI(
-            config_dir=os.path.abspath(os.path.join(lightning_pose_dir, "scripts")),
-            data_dir=os.path.abspath(os.path.join(lightning_pose_dir, "data")),
-            default_config_file=os.path.abspath(os.path.join(
-                lightning_pose_dir, "scripts", "config_default.yaml")),
+            config_dir=config_dir,
+            data_dir=data_dir,
+            default_config_file=default_config_file,
+        )
+        self.project_io = ProjectDataIO(
+            drive_name=drive_name,
+            config_dir=config_dir,
+            data_dir=data_dir,
+            default_config_file=default_config_file,
         )
 
         # extract frames tab
         self.extract_ui = ExtractFramesUI(
+            drive_name=drive_name,
             script_dir=lightning_pose_dir,
             script_name="scripts/extract_frames.py",
             script_args="",
@@ -78,6 +83,7 @@ class LitPoseApp(L.LightningFlow):
             config_dir=None,  # to be set upon project load/creation
             config_name=None,  # to be set upon project load/creation
             test_videos_dir="toy_datasets/toymouseRunningData/unlabeled_videos",
+            outputs_dir=None,  # to be set upon project load/creation
             max_epochs=200,
         )
 
@@ -105,28 +111,35 @@ class LitPoseApp(L.LightningFlow):
         self.my_tb = LitBashWork(
             cloud_compute=L.CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
+            drive_name=drive_name,
         )
 
         # training/fiftyone
         self.my_work = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=FiftyOneBuildConfig(),
+            drive_name=drive_name,
         )
         self.work_is_done_extract_frames = False
 
         # label studio
-        self.label_studio = LitLabelStudio()
+        self.label_studio = LitLabelStudio(
+            cloud_compute=L.CloudCompute("default"),
+            drive_name=drive_name,
+        )
 
         # streamlit labeled
         self.my_streamlit_frame = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=StreamlitBuildConfig(),
+            drive_name=drive_name,
         )
 
         # streamlit video
         self.my_streamlit_video = LitBashWork(
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=StreamlitBuildConfig(),
+            drive_name=drive_name,
         )
 
     def init_lp_outputs_to_ui(self, search_dir=None):
@@ -183,13 +196,6 @@ class LitPoseApp(L.LightningFlow):
             # outputs=[self.extract_ui.data_dir],
         )
 
-        # copy videos to data directory
-        video_dir = os.path.join(self.extract_ui.proj_dir, "videos")
-        if not os.path.exists(video_dir):
-            os.makedirs(video_dir)
-        for vid_file in self.extract_ui.st_video_files:
-            shutil.copyfile(vid_file, os.path.join(video_dir, os.path.basename(vid_file)))
-
         self.work_is_done_extract_frames = True
 
     def start_tensorboard(self):
@@ -234,7 +240,7 @@ class LitPoseApp(L.LightningFlow):
                 venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
-                outputs=[os.path.join(self.train_ui.st_script_dir, self.train_ui.outputs_dir)],
+                outputs=[self.train_ui.outputs_dir],
             )
 
         # train semi-supervised model
@@ -248,7 +254,7 @@ class LitPoseApp(L.LightningFlow):
                 venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
-                outputs=[os.path.join(self.train_ui.st_script_dir, self.train_ui.outputs_dir)],
+                outputs=[self.train_ui.outputs_dir],
             )
 
         # have TB pull the new data
@@ -259,7 +265,7 @@ class LitPoseApp(L.LightningFlow):
             venv_name=tensorboard_venv,
             cwd=lightning_pose_dir,
             input_output_only=True,
-            inputs=[os.path.join(self.train_ui.script_dir, self.train_ui.outputs_dir)],
+            inputs=[self.train_ui.outputs_dir],
         )
 
         # set the new outputs for UIs
@@ -449,25 +455,31 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # update project configuration
         if self.project_ui.run_script:  # better name?
+
             print("===============run proj ui script====================")
-            proj_dir = os.path.join(self.project_ui.data_dir, self.project_ui.st_project_name)
 
             # update user-supplied parameters in config yaml file
-            self.project_ui.config_dir = proj_dir
-            self.project_ui.proj_dir = proj_dir
-            self.project_ui.update_project_config()
+            self.project_io.update_paths(project_name=self.project_ui.st_project_name)
+            self.project_io.update_project_config(
+                project_name=self.project_ui.st_project_name,
+                new_vals_dict=self.project_ui.st_new_vals,
+            )
+
             # update paths data dir for frame extraction object
-            self.extract_ui.proj_dir = proj_dir
+            self.extract_ui.proj_dir = self.project_io.proj_dir
+
             # update label studio object, create label studio xml file, create/load project
-            self.label_studio.proj_dir = proj_dir
+            self.label_studio.proj_dir = self.project_io.proj_dir
             self.label_studio.project_name = self.project_ui.st_project_name
             if self.project_ui.create_new_project and self.project_ui.count == 0:
                 self.label_studio.create_labeling_config_xml(self.project_ui.keypoints)
                 self.label_studio.create_new_project()
+
             # point training UI to config file
-            self.train_ui.config_dir = proj_dir
+            self.train_ui.config_dir = self.project_io.proj_dir
+            self.train_ui.outputs_dir = self.project_io.model_dir
             self.train_ui.config_name = "config_%s" % self.project_ui.st_project_name
-            self.train_ui.test_videos_dir = os.path.join(proj_dir, "videos")
+            self.train_ui.test_videos_dir = os.path.join(self.project_io.proj_dir, "videos")
 
             self.project_ui.run_script = False
             self.project_ui.count += 1
@@ -482,14 +494,14 @@ class LitPoseApp(L.LightningFlow):
             # force a run of update_tasks by using the timer; control how often it gets run by
             # immediately setting the boolean flag that controls access to False
             self.work_is_done_extract_frames = False
-            self.project_ui.update_frame_shapes()
+            self.project_io.update_frame_shapes()
             self.label_studio.update_tasks(timer=time.time())
 
         # check labeling task and export new labels (with timer wrapper)
         if self.project_ui.count > 0:
             self.label_studio.run()
             # find fraction of labeled frames to return to UI
-            n_labeled_frames, n_total_frames = self.project_ui.compute_labeled_frame_fraction()
+            n_labeled_frames, n_total_frames = self.project_io.compute_labeled_frame_fraction()
             self.train_ui.n_labeled_frames = n_labeled_frames
             self.train_ui.n_total_frames = n_total_frames
 

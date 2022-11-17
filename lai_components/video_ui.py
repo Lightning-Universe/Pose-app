@@ -1,4 +1,4 @@
-"""Note: this replaces run_ui.py"""
+"""UI for rendering labeled video."""
 
 from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
