@@ -24,8 +24,12 @@ label_studio_client = connect_to_label_studio(url=args.label_studio_url, api_key
 print("Connected to LabelStudio at %s" % args.label_studio_url)
 
 print("Creating LabelStudio project...")
-with open(args.label_config, 'r') as f:
-    label_config = f.read()
+try:
+    with open(args.label_config, 'r') as f:
+        label_config = f.read()
+except FileNotFoundError:
+    print(f"Cannot find label studio labeling config at {args.label_config}")
+    exit()
 label_studio_project = start_project(
     label_studio_client=label_studio_client,
     title=args.project_name,

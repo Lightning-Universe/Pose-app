@@ -10,8 +10,6 @@ setup(
     author_email="",
     url="https://github.com/Lightning-AI/lightning-pose-app",
     install_requires=[],
-
-
     packages=find_packages(),
     include_package_data=True,
     package_data={'': ['nginx-8080.conf']},

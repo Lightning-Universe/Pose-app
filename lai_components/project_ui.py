@@ -103,20 +103,22 @@ class ProjectDataIO(LightningWork):
 
     def update_frame_shapes(self):
         # load single frame from labeled data
-        img = glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png"))[0]
-        image = Image.open(img)
-        self.update_project_config({
-            "data": {
-                "image_orig_dims": {
-                    "height": image.height,
-                    "width": image.width
-                },
-                "image_resize_dims": {
-                    "height": 2 ** (math.floor(math.log(image.height, 2))),
-                    "width": 2 ** (math.floor(math.log(image.width, 2))),
+        imgs = glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png"))
+        if len(imgs) > 0:
+            img = imgs[0]
+            image = Image.open(img)
+            self.update_project_config({
+                "data": {
+                    "image_orig_dims": {
+                        "height": image.height,
+                        "width": image.width
+                    },
+                    "image_resize_dims": {
+                        "height": 2 ** (math.floor(math.log(image.height, 2))),
+                        "width": 2 ** (math.floor(math.log(image.width, 2))),
+                    }
                 }
-            }
-        })
+            })
 
     def compute_labeled_frame_fraction(self):
         # TODO: don't want to have metadata filename hard-coded here
@@ -268,130 +270,142 @@ def _render_streamlit_fn(state: AppState):
     # user input for data config
     # ----------------------------------------------------
 
-    # camera views
-    if enter_data:
-        st.markdown("##### Camera views")
-        n_views = st.text_input(
-            "Enter number of camera views:",
-            disabled=not enter_data,
-            value="" if not state.st_project_loaded else str(st_n_views),
-        )
-        if n_views:
-            st_n_views = int(n_views)
-        else:
-            st_n_views = 0
-        st.markdown("")
+    DEBUG = True
 
-    # keypoints
-    if st_n_views > 0:
-        st.markdown("##### Define keypoints")
-        keypoint_instructions = """
-            **Instructions**:
-            If your data has multiple views, make sure to create an entry for each bodypart
-            in each view below like in the following example with 2 views (top and bottom):
-            ```
-            nose_top
-            l_ear_top
-            r_ear_top
-            nose_bottom
-            l_ear_bottom
-            r_ear_bottom
-            corner1_top
-            ```
-            It is also possible to track keypoints that are only present in a subset of the views,
-            such as the keypoint `corner1_top` above.
-
-            The order in which you list the keypoints here determines the labeling order.
-        """
-        st.markdown(keypoint_instructions)
-        keypoints = st.text_area(
-            "Enter keypoint names (one per line):",
-            disabled=not enter_data,
-            value="" if not state.st_project_loaded else "\n".join(st_keypoints),
-        )
-        st_keypoints = keypoints.strip().split("\n")
-        if len(st_keypoints) == 1 and st_keypoints[0] == "":
-            st_keypoints = []
+    if DEBUG and enter_data:
+        st_n_views = 2
+        st_keypoints = ["nose_top", "nose_bottom"]
         st_n_keypoints = len(st_keypoints)
-        st.markdown(f"You have defined {st_n_keypoints} keypoints across {st_n_views} views")
-        st.markdown("")
+        st_pcasv_columns = [0, 1]
+        st_n_bodyparts = 1
+        st_pcamv_columns = np.array([[0], [1]], dtype=np.int)
+        pcamv_ready = True
 
-    # pca singleview
-    if len(st_keypoints) > 1:
-        st.markdown("##### Select subset of keypoints for Pose PCA")
-        st.markdown("""
-            **Instructions**:
-            The selected subset will be used for a Pose PCA loss on unlabeled videos.
-            The subset should be keypoints that are not usually occluded (such as a tongue)
-            and are not static (such as the corner of a box).
-        """)
-        pcasv_selected = [False for _ in st_keypoints]
-        for k, kp in enumerate(st_keypoints):
-            pcasv_selected[k] = st.checkbox(
-                kp,
+    else:
+        # camera views
+        if enter_data:
+            st.markdown("##### Camera views")
+            n_views = st.text_input(
+                "Enter number of camera views:",
                 disabled=not enter_data,
-                value=False if not state.st_project_loaded else (k in st_pcasv_columns),
-
+                value="" if not state.st_project_loaded else str(st_n_views),
             )
-        st_pcasv_columns = list(np.where(pcasv_selected)[0])
-        st.markdown("")
+            if n_views:
+                st_n_views = int(n_views)
+            else:
+                st_n_views = 0
+            st.markdown("")
 
-    # pca multiview
-    if len(st_keypoints) > 1 and st_n_views > 1:
+        # keypoints
+        if st_n_views > 0:
+            st.markdown("##### Define keypoints")
+            keypoint_instructions = """
+                **Instructions**:
+                If your data has multiple views, make sure to create an entry for each bodypart
+                in each view below like in the following example with 2 views (top and bottom):
+                ```
+                nose_top
+                l_ear_top
+                r_ear_top
+                nose_bottom
+                l_ear_bottom
+                r_ear_bottom
+                corner1_top
+                ```
+                It is also possible to track keypoints that are only present in a subset of the views,
+                such as the keypoint `corner1_top` above.
+    
+                The order in which you list the keypoints here determines the labeling order.
+            """
+            st.markdown(keypoint_instructions)
+            keypoints = st.text_area(
+                "Enter keypoint names (one per line):",
+                disabled=not enter_data,
+                value="" if not state.st_project_loaded else "\n".join(st_keypoints),
+            )
+            st_keypoints = keypoints.strip().split("\n")
+            if len(st_keypoints) == 1 and st_keypoints[0] == "":
+                st_keypoints = []
+            st_n_keypoints = len(st_keypoints)
+            st.markdown(f"You have defined {st_n_keypoints} keypoints across {st_n_views} views")
+            st.markdown("")
 
-        st.markdown("##### Select subset of body parts for Multiview PCA")
-        st.markdown("""
-            **Instructions**:
-            The selected subset will be used for a Multiview PCA loss on unlabeled videos.
-            The subset should be keypoints that are usually visible in all camera views.
-        """)
-        # pcasv_selected = [False for _ in st_keypoints]
-        # for k, kp in enumerate(st_keypoints):
-        #     pcasv_selected[k] = st.checkbox(kp, disabled=not enter_data)
-        # st.markdown("")
-        n_bodyparts = st.text_input(
-            "Enter number of body parts visible in all views:",
-            value="" if not state.st_project_loaded else str(len(st_pcamv_columns[0])),
-        )
-        if n_bodyparts:
-            st_n_bodyparts = int(n_bodyparts)
+        # pca singleview
+        if len(st_keypoints) > 1:
+            st.markdown("##### Select subset of keypoints for Pose PCA")
+            st.markdown("""
+                **Instructions**:
+                The selected subset will be used for a Pose PCA loss on unlabeled videos.
+                The subset should be keypoints that are not usually occluded (such as a tongue)
+                and are not static (such as the corner of a box).
+            """)
+            pcasv_selected = [False for _ in st_keypoints]
+            for k, kp in enumerate(st_keypoints):
+                pcasv_selected[k] = st.checkbox(
+                    kp,
+                    disabled=not enter_data,
+                    value=False if not state.st_project_loaded else (k in st_pcasv_columns),
+
+                )
+            st_pcasv_columns = list(np.where(pcasv_selected)[0])
+            st.markdown("")
+
+        # pca multiview
+        if len(st_keypoints) > 1 and st_n_views > 1:
+
+            st.markdown("##### Select subset of body parts for Multiview PCA")
+            st.markdown("""
+                **Instructions**:
+                The selected subset will be used for a Multiview PCA loss on unlabeled videos.
+                The subset should be keypoints that are usually visible in all camera views.
+            """)
+            # pcasv_selected = [False for _ in st_keypoints]
+            # for k, kp in enumerate(st_keypoints):
+            #     pcasv_selected[k] = st.checkbox(kp, disabled=not enter_data)
+            # st.markdown("")
+            n_bodyparts = st.text_input(
+                "Enter number of body parts visible in all views:",
+                value="" if not state.st_project_loaded else str(len(st_pcamv_columns[0])),
+            )
+            if n_bodyparts:
+                st_n_bodyparts = int(n_bodyparts)
+            else:
+                st_n_bodyparts = 0
+
+            if st_n_bodyparts > 0:
+
+                st_pcamv_columns = np.zeros((st_n_views, st_n_bodyparts), dtype=np.int)
+
+                # set column titles
+                cols_title = st.columns(st_n_views + 1)
+                for c, col in enumerate(cols_title[1:]):
+                    col.text(f"View {c}")
+                # build table
+                for r in range(st_n_bodyparts):
+                    cols = st.columns(st_n_views + 1)
+                    # set row titles
+                    cols[0].text("")
+                    cols[0].text("")
+                    cols[0].text(f"Bodypart {r}")
+                    # set bodypart dropdowns
+                    for c, col in enumerate(cols[1:]):
+                        kp = col.selectbox(
+                            f"", st_keypoints, key=f"Bodypart {r} view {c}",
+                            index=c * st_n_bodyparts + r
+                        )
+                        st_pcamv_columns[c, r] = np.where(np.array(st_keypoints) == kp)[0]
+
+                print(st_pcamv_columns)
+            st.markdown("")
         else:
             st_n_bodyparts = 0
 
-        if st_n_bodyparts > 0:
-
-            st_pcamv_columns = np.zeros((st_n_views, st_n_bodyparts), dtype=np.int)
-
-            # set column titles
-            cols_title = st.columns(st_n_views + 1)
-            for c, col in enumerate(cols_title[1:]):
-                col.text(f"View {c}")
-            # build table
-            for r in range(st_n_bodyparts):
-                cols = st.columns(st_n_views + 1)
-                # set row titles
-                cols[0].text("")
-                cols[0].text("")
-                cols[0].text(f"Bodypart {r}")
-                # set bodypart dropdowns
-                for c, col in enumerate(cols[1:]):
-                    kp = col.selectbox(
-                        f"", st_keypoints, key=f"Bodypart {r} view {c}",
-                        index=c * st_n_bodyparts + r
-                    )
-                    st_pcamv_columns[c, r] = np.where(np.array(st_keypoints) == kp)[0]
-
-            print(st_pcamv_columns)
-        st.markdown("")
-    else:
-        st_n_bodyparts = 0
-
-    # construct config file
-    if (len(st_keypoints) > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
-            or (len(st_keypoints) > 1 and st_n_views == 1):
-        pcamv_ready = True
-    else:
-        pcamv_ready = False
+        # construct config file
+        if (len(st_keypoints) > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
+                or (len(st_keypoints) > 1 and st_n_views == 1):
+            pcamv_ready = True
+        else:
+            pcamv_ready = False
 
     if len(st_keypoints) > 1 and st_n_views > 0 and pcamv_ready:
 

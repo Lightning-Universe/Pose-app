@@ -28,7 +28,8 @@ class LabelStudioBuildConfig(la.BuildConfig):
             "sudo chown -R `whoami` /var/lib/nginx/",
             "sudo chown `whoami` /run/nginx.pid",
             f"virtualenv ~/{label_studio_venv}",
-            f". ~/{label_studio_venv}/bin/activate; which python; "
+            f". ~/{label_studio_venv}/bin/activate; which python; ",
+            f"python -m pip install -e .; ",
             f"python -m pip install label-studio label-studio-sdk; deactivate",
         ]
 

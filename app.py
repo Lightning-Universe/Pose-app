@@ -88,18 +88,18 @@ class LitPoseApp(L.LightningFlow):
         )
 
         # fiftyone tab (images only for now)
-        self.fo_ui = FoRunUI(
-            script_dir=lightning_pose_dir,
-            script_name="scripts/create_fiftyone_dataset.py",
-            script_env="HYDRA_FULL_ERROR=1",
-            script_args="""
-                eval.fiftyone.dataset_name=test1 
-                eval.fiftyone.model_display_names=["test1"]
-                eval.fiftyone.dataset_to_create="images"
-                eval.fiftyone.build_speed="fast" 
-                eval.fiftyone.launch_app_from_script=False 
-            """
-        )
+        # self.fo_ui = FoRunUI(
+        #     script_dir=lightning_pose_dir,
+        #     script_name="scripts/create_fiftyone_dataset.py",
+        #     script_env="HYDRA_FULL_ERROR=1",
+        #     script_args="""
+        #         eval.fiftyone.dataset_name=test1
+        #         eval.fiftyone.model_display_names=["test1"]
+        #         eval.fiftyone.dataset_to_create="images"
+        #         eval.fiftyone.build_speed="fast"
+        #         eval.fiftyone.launch_app_from_script=False
+        #     """
+        # )
 
         # video tab
         self.video_ui = VideoUI(video_file=None)
@@ -156,7 +156,7 @@ class LitPoseApp(L.LightningFlow):
             self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
-    # TODO: where is the fiftyone db stored; is it on the Drive?
+    # TODO: where is the fiftyone db stored?
     def init_fiftyone_outputs_to_ui(self):
         # get existing fiftyone datasets
         cmd = "fiftyone datasets list"
@@ -242,7 +242,7 @@ class LitPoseApp(L.LightningFlow):
                 venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
-                outputs=[self.train_ui.outputs_dir],
+                # outputs=[self.train_ui.outputs_dir],  # Exception: The component name needs to be known to put a path to the Drive.
             )
 
         # train semi-supervised model
@@ -256,7 +256,7 @@ class LitPoseApp(L.LightningFlow):
                 venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
-                outputs=[self.train_ui.outputs_dir],
+                # outputs=[self.train_ui.outputs_dir],  # Exception: The component name needs to be known to put a path to the Drive.
             )
 
         # have TB pull the new data
@@ -276,7 +276,7 @@ class LitPoseApp(L.LightningFlow):
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
             self.train_ui.set_hydra_outputs(outputs)
-            self.fo_ui.set_hydra_outputs(outputs)
+            # self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
     def start_fiftyone_dataset_creation(self):
@@ -454,6 +454,10 @@ class LitPoseApp(L.LightningFlow):
             self.start_tensorboard(logdir=self.project_io.model_dir)
         # self.start_fiftyone()
 
+        self.landing_ui.run()
+        self.project_ui.run()
+        self.extract_ui.run()
+
         # -----------------------------
         # run work
         # -----------------------------
@@ -495,6 +499,7 @@ class LitPoseApp(L.LightningFlow):
             # force a run of update_tasks by using the timer; control how often it gets run by
             # immediately setting the boolean flag that controls access to False
             self.work_is_done_extract_frames = False
+            # TODO: cloud app is accessing this before frame extraction is complete - why??
             self.project_io.update_frame_shapes()
             self.label_studio.update_tasks(timer=time.time())
 
@@ -512,12 +517,12 @@ class LitPoseApp(L.LightningFlow):
             self.start_lp_train_video_predict()
 
         # initialize diagnostics on button press
-        if self.fo_ui.run_script:
-            self.fo_ui.run_script = False
-            self.start_fiftyone_dataset_creation()
-            self.start_labeled_video_creation()
-            # self.start_st_frame()
-            # self.start_st_video()
+        # if self.fo_ui.run_script:
+        #     self.fo_ui.run_script = False
+        #     self.start_fiftyone_dataset_creation()
+        #     self.start_labeled_video_creation()
+        #     # self.start_st_frame()
+        #     # self.start_st_video()
 
     def configure_layout(self):
 
@@ -532,7 +537,7 @@ class LitPoseApp(L.LightningFlow):
         train_diag_tab = {"name": "Train Status", "content": self.my_tb}
 
         # diagnostics tabs
-        fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
+        # fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
         fo_tab = {"name": "Labeled Preds", "content": self.my_work}
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
         video_tab = {"name": "Video Preds", "content": self.video_ui}
@@ -543,7 +548,7 @@ class LitPoseApp(L.LightningFlow):
                 landing_tab,
                 train_demo_tab,
                 train_diag_tab,
-                fo_prep_tab,
+                # fo_prep_tab,
                 fo_tab,
                 # st_frame_tab,
                 video_tab,

@@ -17,33 +17,33 @@ from lai_components.args_utils import args_to_dict
 
 
 def add_to_system_env(env_key='env', **kwargs) -> dict:
-  """add env to the current system env"""
-  new_env = None
-  if env_key in kwargs: 
-    env = kwargs[env_key]
-    if isinstance(env,str):
-      env = args_to_dict(env)  
-    if not(env is None) and not(env == {}):
-      new_env = os.environ.copy()
-      new_env.update(env)
-  return(new_env)
+    """add env to the current system env"""
+    new_env = None
+    if env_key in kwargs:
+        env = kwargs[env_key]
+        if isinstance(env,str):
+            env = args_to_dict(env)
+        if not(env is None) and not(env == {}):
+            new_env = os.environ.copy()
+            new_env.update(env)
+    return new_env
 
 
-def is_port_in_use(host:str, port: int) -> bool:
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  try:
-      s.bind((host, port))
-      in_use = False
-  except socket.error as e:
-      in_use = True
-      if e.errno == errno.EADDRINUSE:
-          print("Port is already in use")
-      else:
-          # something else raised the socket.error exception
-          print(e)
+def is_port_in_use(host: str, port: int) -> bool:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind((host, port))
+        in_use = False
+    except socket.error as e:
+        in_use = True
+        if e.errno == errno.EADDRINUSE:
+            print("Port is already in use")
+        else:
+            # something else raised the socket.error exception
+            print(e)
 
-  s.close()
-  return(in_use)
+    s.close()
+    return in_use
 
 
 def work_calls_len(lwork: L.LightningWork):
@@ -53,33 +53,35 @@ def work_calls_len(lwork: L.LightningWork):
 
 
 def work_is_free(lwork: L.LightningWork):
-  """work is free to accept new calls.
-  this is expensive when a lot of calls accumulate over time
-  work is when there is there is no pending and running calls at the moment
-  pending status is verified by examining each call history looking for anything call that is pending history
-  status.stage is not reliable indicator as there is delay registering new calls
-  status.stage shows SUCCEEDED even after 3 more calls are accepted in parallel mode
-  """
-  status = lwork.status
-  state = lwork.state
-  # more than one work can started this way
-  # there is work assignment and status update
-  # multiple works are queued but
-  # count run that are in pending state
-  if (status.stage==LUE.WorkStageStatus.NOT_STARTED or
-    status.stage==LUE.WorkStageStatus.SUCCEEDED or
-    status.stage==LUE.WorkStageStatus.FAILED):
-    # do not run if jobs are in pending state
-    # not counting to reduce CPU load as looping thru all of the calls can get expensive
-    pending_count = 0
-    for c in state["calls"]:
-      if c == 'latest_call_hash': continue
-      if len(state["calls"][c]['statuses']) == 1:
-        return(False)
-    return(True)
-  # must in pending or running or stopped.
-  else:
-    return False
+    """work is free to accept new calls.
+    this is expensive when a lot of calls accumulate over time
+    work is when there is there is no pending and running calls at the moment
+    pending status is verified by examining each call history looking for anything call that is pending history
+    status.stage is not reliable indicator as there is delay registering new calls
+    status.stage shows SUCCEEDED even after 3 more calls are accepted in parallel mode
+    """
+    status = lwork.status
+    state = lwork.state
+    # more than one work can started this way
+    # there is work assignment and status update
+    # multiple works are queued but
+    # count run that are in pending state
+    if (
+            status.stage == LUE.WorkStageStatus.NOT_STARTED or
+            status.stage == LUE.WorkStageStatus.SUCCEEDED or
+            status.stage == LUE.WorkStageStatus.FAILED
+    ):
+        # do not run if jobs are in pending state
+        # not counting to reduce CPU load as looping thru all of the calls can get expensive
+        for c in state["calls"]:
+            if c == 'latest_call_hash':
+                continue
+            if len(state["calls"][c]['statuses']) == 1:
+                return False
+        return True
+    # must in pending or running or stopped.
+    else:
+        return False
 
 
 class LitBashWork(L.LightningWork):
