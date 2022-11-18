@@ -12,9 +12,9 @@ from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.vsc_streamlit import StreamlitFrontend
 
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning_app.components.python import TracerPythonScript
-from lightning_app.utilities.state import AppState
-from lightning_app.storage.path import Path
+from lightning.app.components.python import TracerPythonScript
+from lightning.app.utilities.state import AppState
+from lightning.app.storage.path import Path
 
 
 class FoRunUI(LightningFlow):
@@ -22,16 +22,18 @@ class FoRunUI(LightningFlow):
   Input and output variables with streamlit must be pre decleared
   """
 
-  def __init__(self, 
+  def __init__(
+      self,
       *args, 
       script_dir, 
       script_name, 
-      config_dir = "./", 
-      config_name = "config.yaml", 
-      script_args, 
-      script_env, 
-      outputs_dir = "outputs", 
-      **kwargs):
+      config_dir="./",
+      config_name="config.yaml",
+      script_args=None,
+      script_env=None,
+      outputs_dir="outputs",
+      **kwargs
+):
     super().__init__(*args, **kwargs)
     # control runners
     # True = Run Jobs.  False = Do not Run jobs

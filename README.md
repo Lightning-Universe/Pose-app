@@ -83,7 +83,8 @@ cd ~
 git clone https://github.com/PyTorchLightning/lightning-pose-app
 cd lightning-pose-app
 python -m pip install -r requirements.txt 
-git clone https://github.com/danbider/lightning-pose 
+git clone https://github.com/danbider/lightning-pose
+git clone https://github.com/paninski-lab/tracking-diagnostics 
 ```
 
 - setup local environment to mirror cloud
@@ -98,10 +99,13 @@ source ~/venv-label-studio/bin/activate; cd label-studio; which python; python -
 # on laptop without GPU
 virtualenv ~/venv-lightning-pose
 source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -e .; cd ..; deactivate
+source ~/venv-lightning-pose/bin/activate; cd tracking-diagnostics; which python; python -m pip install -r requirements.txt; python -m pip install -e .; cd ..; deactivate
 
 # on grid session with GPU
 virtualenv ~/venv-lightning-pose
-source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -r requirements.txt; cd ..; deactivate
+source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; git checkout develop; python -m pip install -r requirements.txt; cd ..; deactivate
+source ~/venv-lightning-pose/bin/activate; cd tracking-diagnostics; which python; python -m pip install -r requirements.txt; python -m pip install -e .; cd ..; deactivate
+
 ```
 - test tensorboard 
 ```bash
@@ -112,7 +116,9 @@ source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
 source ~/venv-label-studio/bin/activate; cd label-studio; python label_studio/manage.py migrate; python label_studio/manage.py runserver; cd ..; deactivate
 ```
 - test fiftyone
+```
 source ~/venv-lightning-pose/bin/activate; cd lightning-pose; fiftyone app launch; cd ..; deactivate
+```
 
 ### Locally
 
