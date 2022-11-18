@@ -145,7 +145,7 @@ class LitBashWork(L.LightningWork):
                 pass
         # os.system(f"find {i} -print")
 
-    def put_to_drive(self,outputs):
+    def put_to_drive(self, outputs):
         for o in outputs:
             print(f"drive put {o}")
             # make sure dir end with / so that put works correctly

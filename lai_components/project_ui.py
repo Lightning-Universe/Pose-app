@@ -25,6 +25,7 @@ class ProjectDataIO(LightningWork):
         self.config_dir = config_dir
         if not os.path.exists(self.config_dir):
             os.makedirs(self.config_dir)
+        self.config_name = None
         self.config_file = None
 
         # save default config file for initializing new projects
@@ -42,18 +43,22 @@ class ProjectDataIO(LightningWork):
 
         self.proj_dir = None
         self.model_dir = None
+        self.test_videos_dir = None
 
     def update_paths(self, project_name):
         self.proj_dir = os.path.join(self.data_dir, project_name)
         self.config_dir = self.proj_dir
-        self.model_dir = os.path.join(self.data_dir, "results", project_name)
+        self.config_name = f"model_config_{project_name}.yaml"
+        self.config_file = os.path.join(self.config_dir, self.config_name)
+        self.model_dir = os.path.join(self.proj_dir, "models")
+        self.test_videos_dir = os.path.join(self.proj_dir, "videos")
 
-    def update_project_config(self, project_name, new_vals_dict=None):
+    def update_project_config(self, new_vals_dict=None):
         """triggered by button click in UI"""
 
         # check to see if config exists; if not, copy default config
-        self.config_file = os.path.join(self.config_dir, f"model_config_{project_name}.yaml")
-        if not os.path.exists(self.config_file):
+
+        if (self.config_file is None) or (not os.path.exists(self.config_file)):
             # copy default config
             config_dict = yaml.safe_load(open(self.default_config_file))
             # empty out project-specific entries
@@ -78,7 +83,12 @@ class ProjectDataIO(LightningWork):
         if new_vals_dict is not None:
             for sconfig_name, sconfig_dict in new_vals_dict.items():
                 for key, val in sconfig_dict.items():
-                    config_dict[sconfig_name][key] = val
+                    if isinstance(val, dict):
+                        # update config file up to depth 2
+                        for key1, val1 in val.items():
+                            config_dict[sconfig_name][key][key1] = val1
+                    else:
+                        config_dict[sconfig_name][key] = val
 
             # save out updated config file
             if not os.path.exists(self.config_dir):
@@ -109,18 +119,18 @@ class ProjectDataIO(LightningWork):
         })
 
     def compute_labeled_frame_fraction(self):
+        # TODO: don't want to have metadata filename hard-coded here
         try:
-            cfg_dict = yaml.safe_load(open(self.config_file))
-            data_dir = cfg_dict["data"]["data_dir"]
-            csv_file = os.path.join(data_dir, cfg_dict["data"]["csv_file"])
-            # iterating through the whole file without pandas dependency
-            n_header_rows = cfg_dict["data"]["header_rows"][-1] + 1
-            rowcount = 0
-            for _ in open(csv_file):
-                rowcount += 1
-            n_labeled_frames = rowcount - n_header_rows
-            n_total_frames = len(glob.glob(os.path.join(data_dir, "labeled-data", "*", "*.png")))
+            metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
+            proj_details = yaml.safe_load(open(metadata_file, "r"))
+            n_labeled_frames = proj_details["n_labeled_tasks"]
+            n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
+            print(f"could not find {metadata_file}")
+            n_labeled_frames = None
+            n_total_frames = None
+        except Exception as e:
+            print(e)
             n_labeled_frames = None
             n_total_frames = None
         return n_labeled_frames, n_total_frames
@@ -405,12 +415,20 @@ def _render_streamlit_fn(state: AppState):
                 st.warning(
                     "Duplicate entries in PCA Multiview selections; each entry should be unique")
 
-        st_new_vals = {"data": {}}
+        # store dataset-specific values in order to update config.yaml file later
+        # TODO: some of this is updated in ProjectDataIO.update_config also, should unify
+        st_new_vals = {"data": {}, "hydra": {"run": {}, "sweep": {}}}
         st_new_vals["data"]["data_dir"] = os.path.join(state.data_dir, st_project_name)
         st_new_vals["data"]["video_dir"] = os.path.join(st_new_vals["data"]["data_dir"], "videos")
         st_new_vals["data"]["csv_file"] = "CollectedData.csv"
         st_new_vals["data"]["num_keypoints"] = st_n_keypoints
         st_new_vals["data"]["keypoints"] = st_keypoints
+        st_new_vals["hydra"]["run"]["dir"] = os.path.join(
+            st_new_vals["data"]["data_dir"], "models",
+            "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
+        st_new_vals["hydra"]["sweep"]["dir"] = os.path.join(
+            st_new_vals["data"]["data_dir"], "models", "multirun",
+            "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
 
         if len(st_pcasv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow

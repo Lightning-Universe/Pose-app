@@ -45,10 +45,17 @@ if len(exported_tasks) > 0:
         keypoint_names=args.keypoints_list.split(";"),
     )
     df = processor()
-    print(df)
+    # print(df)
     # save to csv for lightning pose models
-    print("Saving to csv file")
+    # print("Saving to csv file")
     df.to_csv(os.path.join(args.proj_dir, "CollectedData.csv"))
     # save to pickle for resuming projects
     print("Saving tasks to pickle file")
     pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, "label_studio_tasks.pkl"), "wb"))
+
+# update metadata so app has access to labeling project info
+metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
+proj_details = yaml.safe_load(open(metadata_file, "r"))
+proj_details["n_labeled_tasks"] = len(exported_tasks)
+proj_details["n_total_tasks"] = len(label_studio_project.get_tasks())
+yaml.safe_dump(proj_details, open(metadata_file, "w"))

@@ -39,6 +39,8 @@ proj_details = {
     "id": label_studio_project.id,
     "created_at": str(datetime.datetime.now()),
     "api_key": args.api_key,
+    "n_labeled_tasks": 0,
+    "n_total_tasks": 0,
 }
 metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
 if not os.path.exists(args.proj_dir):

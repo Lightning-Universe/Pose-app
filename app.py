@@ -129,18 +129,18 @@ class LitPoseApp(L.LightningFlow):
         )
 
         # streamlit labeled
-        self.my_streamlit_frame = LitBashWork(
-            cloud_compute=L.CloudCompute("gpu"),
-            cloud_build_config=StreamlitBuildConfig(),
-            drive_name=drive_name,
-        )
+        # self.my_streamlit_frame = LitBashWork(
+        #     cloud_compute=L.CloudCompute("gpu"),
+        #     cloud_build_config=StreamlitBuildConfig(),
+        #     drive_name=drive_name,
+        # )
 
         # streamlit video
-        self.my_streamlit_video = LitBashWork(
-            cloud_compute=L.CloudCompute("gpu"),
-            cloud_build_config=StreamlitBuildConfig(),
-            drive_name=drive_name,
-        )
+        # self.my_streamlit_video = LitBashWork(
+        #     cloud_compute=L.CloudCompute("gpu"),
+        #     cloud_build_config=StreamlitBuildConfig(),
+        #     drive_name=drive_name,
+        # )
 
     def init_lp_outputs_to_ui(self, search_dir=None):
 
@@ -156,6 +156,7 @@ class LitPoseApp(L.LightningFlow):
             self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
+    # TODO: where is the fiftyone db stored; is it on the Drive?
     def init_fiftyone_outputs_to_ui(self):
         # get existing fiftyone datasets
         cmd = "fiftyone datasets list"
@@ -193,14 +194,15 @@ class LitPoseApp(L.LightningFlow):
             cmd,
             venv_name=lightning_pose_venv,
             cwd=self.train_ui.st_script_dir,
-            # outputs=[self.extract_ui.data_dir],
+            # inputs=[self.extract_ui.data_dir],
+            # outputs=[self.extract_ui.proj_dir],
         )
 
         self.work_is_done_extract_frames = True
 
-    def start_tensorboard(self):
+    def start_tensorboard(self, logdir):
         """run tensorboard"""
-        cmd = "tensorboard --logdir outputs --host $host --port $port"
+        cmd = f"tensorboard --logdir {logdir} --host $host --port $port"
         self.my_tb.run(
             cmd,
             venv_name=tensorboard_venv,
@@ -447,7 +449,9 @@ class LitPoseApp(L.LightningFlow):
         # init background services once
         # -----------------------------
         self.label_studio.start_label_studio()
-        self.start_tensorboard()
+        if self.project_io.model_dir is not None:
+            # only launch once we know which project we're working on
+            self.start_tensorboard(logdir=self.project_io.model_dir)
         # self.start_fiftyone()
 
         # -----------------------------
@@ -456,14 +460,11 @@ class LitPoseApp(L.LightningFlow):
         # update project configuration
         if self.project_ui.run_script:  # better name?
 
-            print("===============run proj ui script====================")
+            print("=============== run proj ui script ====================")
 
             # update user-supplied parameters in config yaml file
             self.project_io.update_paths(project_name=self.project_ui.st_project_name)
-            self.project_io.update_project_config(
-                project_name=self.project_ui.st_project_name,
-                new_vals_dict=self.project_ui.st_new_vals,
-            )
+            self.project_io.update_project_config(new_vals_dict=self.project_ui.st_new_vals)
 
             # update paths data dir for frame extraction object
             self.extract_ui.proj_dir = self.project_io.proj_dir
@@ -478,8 +479,8 @@ class LitPoseApp(L.LightningFlow):
             # point training UI to config file
             self.train_ui.config_dir = self.project_io.proj_dir
             self.train_ui.outputs_dir = self.project_io.model_dir
-            self.train_ui.config_name = "config_%s" % self.project_ui.st_project_name
-            self.train_ui.test_videos_dir = os.path.join(self.project_io.proj_dir, "videos")
+            self.train_ui.config_name = self.project_io.config_name
+            self.train_ui.test_videos_dir = self.project_io.test_videos_dir
 
             self.project_ui.run_script = False
             self.project_ui.count += 1
@@ -533,9 +534,9 @@ class LitPoseApp(L.LightningFlow):
         # diagnostics tabs
         fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
         fo_tab = {"name": "Labeled Preds", "content": self.my_work}
-        st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
+        # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
         video_tab = {"name": "Video Preds", "content": self.video_ui}
-        st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
+        # st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 
         if self.landing_ui.st_mode == "demo":
             return [
