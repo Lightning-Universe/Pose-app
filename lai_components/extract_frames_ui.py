@@ -80,15 +80,14 @@ def _render_streamlit_fn(state: AppState):
         filepath = os.path.join(video_dir, filename)
         st_videos.append(filepath)
         # write the content of the file to the path
-        print(f"========= saving video to {filepath} ===========")
         with open(filepath, "wb") as f:
             f.write(bytes_data)
-        # # push the data to the Drive, at this point the file has been
-        # # stored in S3, and can be accessed from other components using
-        # # the same lit:// path
-        # state.drive.put(filename)
-        # # clean up the local file
-        # os.remove(filepath)
+        # push the data to the Drive, at this point the file has been
+        # stored in S3, and can be accessed from other components using
+        # the same lit:// path
+        state.drive.put(filepath)
+        # clean up the local file
+        os.remove(filepath)
 
     # select number of frames to label per video
     n_frames_per_video = st.text_input("Frames to label per video", 20)

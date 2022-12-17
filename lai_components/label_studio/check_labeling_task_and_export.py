@@ -43,7 +43,7 @@ if len(exported_tasks) > 0:
         label_studio_json_export=exported_tasks,
         data_dir=args.proj_dir,
         relative_image_dir="",
-        keypoint_names=args.keypoints_list.split(";"),
+        keypoint_names=args.keypoints_list.split("/"),
     )
     df = processor()
     # print(df)

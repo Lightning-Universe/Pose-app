@@ -49,6 +49,7 @@ class LitLabelStudio(la.LightningFlow):
             cloud_compute=cloud_compute,
             cloud_build_config=LabelStudioBuildConfig(),
             drive_name=drive_name,
+            component_name="label_studio",
         )
         self.count = 0
         self.label_studio_url = "http://localhost:8080"
@@ -100,52 +101,99 @@ class LitLabelStudio(la.LightningFlow):
         self.count += 1
 
     def create_new_project(self):
+
+        # build script command
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "create_new_project.py")
+        proj_dir = os.path.join(os.getcwd(), self.proj_dir)
+        label_studio_config_file = os.path.join(os.getcwd(), self.label_studio_config_file)
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.proj_dir} " \
+                        f"--proj_dir {proj_dir} " \
                         f"--api_key {self.user_token} " \
                         f"--project_name {self.project_name} " \
-                        f"--label_config {self.label_studio_config_file} "
+                        f"--label_config {label_studio_config_file} "
+
+        # specify inputs to get from drive
+        inputs = [
+            self.label_studio_config_file,
+            os.path.join(self.proj_dir, "labeled-data")
+        ]
+
+        # specify outputs to put to drive
+        outputs = [os.path.join(self.proj_dir, "label_studio_metadata.yaml")]
+
+        # run command to create new label studio project
         self.label_studio.run(
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
+            inputs=inputs,
+            outputs=outputs,
         )
 
-    def update_tasks(self, timer):
+    def update_tasks(self, videos=[]):
+
+        # build script command
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "update_tasks.py")
+        proj_dir = os.path.join(os.getcwd(), self.proj_dir)
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.proj_dir} " \
+                        f"--proj_dir {proj_dir} " \
                         f"--api_key {self.user_token} "
+
+        # specify inputs to get from drive
+        inputs = [os.path.join(self.proj_dir, "labeled-data")]
+
+        # specify outputs to put to drive
+        outputs = []
+
+        # run command to update label studio tasks
         self.label_studio.run(
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
-            timer=timer,
+            timer=videos,
+            inputs=inputs,
+            outputs=outputs,
         )
 
     def check_labeling_task_and_export(self, timer):
-        # check labeling task
+
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "check_labeling_task_and_export.py")
 
         if self.keypoints is not None:
             # only check task if keypoints attribute has been populated
-            keypoints_list = ";".join(self.keypoints)
+
+            # build script command
+            keypoints_list = "/".join(self.keypoints)
+            proj_dir = os.path.join(os.getcwd(), self.proj_dir)
             run_command = f"python {script_path} " \
                           f"--label_studio_url {self.label_studio_url} " \
-                          f"--proj_dir {self.proj_dir} " \
+                          f"--proj_dir {proj_dir} " \
                           f"--api_key {self.user_token} " \
-                          f"--keypoints_list {keypoints_list} "
+                          f"--keypoints_list '{keypoints_list}' "
+
+            # specify inputs to get from drive
+            inputs = [os.path.join(self.proj_dir, "labeled-data")]
+
+            # specify outputs to put to drive
+            outputs = [
+                os.path.join(self.proj_dir, "CollectedData.csv"),
+                os.path.join(self.proj_dir, "label_studio_tasks.pkl"),
+                os.path.join(self.proj_dir, "label_studio_metadata.yaml"),
+            ]
+
+            # run command to check labeling task
             self.label_studio.run(
                 run_command,
                 venv_name=label_studio_venv,
                 wait_for_exit=True,
                 timer=timer,
+                inputs=inputs,
+                outputs=outputs,
             )
 
     def create_labeling_config_xml(self, keypoints):
@@ -158,13 +206,32 @@ class LitLabelStudio(la.LightningFlow):
             outfile.write(xml_str)
         self.label_studio_config_file = filename
 
-    def run(self):
-        # check for new annotations every 15 seconds
-        # if updates, export the data and convert to lightning pose format
-        new_time = time.time()
-        if (new_time - self.time) > 15:
-            self.time = new_time
-            self.check_labeling_task_and_export(timer=new_time)
+        # put xml file on drive
+        self.label_studio.run(
+            args="",
+            input_output_only=True,
+            inputs=[],
+            outputs=[filename]
+        )
+
+    def run(self, action=None, **kwargs):
+
+        if action == "start_label_studio":
+            self.start_label_studio()
+        elif action == "create_labeling_config_xml":
+            self.create_labeling_config_xml(**kwargs)
+        elif action == "create_new_project":
+            self.create_new_project()
+        elif action == "update_tasks":
+            self.update_tasks(**kwargs)
+        elif action == "check_labeling_task_and_export":
+            # check for new annotations every n seconds
+            # if updates, export the data and convert to lightning pose format
+            n = 15
+            new_time = kwargs["timer"]
+            if (new_time - self.time) > n:
+                self.time = new_time
+                self.check_labeling_task_and_export(timer=new_time)
 
 
 def build_xml(bodypart_names: List[str]) -> str:

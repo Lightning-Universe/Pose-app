@@ -41,6 +41,7 @@ else:
 print("Importing tasks...")
 basedir = os.path.relpath(args.proj_dir, os.getcwd())
 rel_images = get_rel_image_paths_from_idx_files(args.proj_dir)
+print("relative image paths: {}".format(rel_images))
 label_studio_prefix = f"data/local-files?d={basedir}/"
 # loop over files and add them as dicts to the list, using label studio path format
 # ignore files that are already registered as tasks

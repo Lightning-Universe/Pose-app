@@ -1,3 +1,4 @@
+import copy
 import glob
 from lightning import LightningFlow, LightningWork
 from lightning.app.storage.drive import Drive
@@ -5,6 +6,7 @@ from lightning.app.utilities.state import AppState
 import math
 import numpy as np
 import os
+import shutil
 from PIL import Image
 import streamlit as st
 import yaml
@@ -14,7 +16,7 @@ from lai_components.vsc_streamlit import StreamlitFrontend
 
 class ProjectDataIO(LightningWork):
 
-    def __init__(self, *args, drive_name, config_dir, data_dir, default_config_file, **kwargs):
+    def __init__(self, *args, drive_name, config_dir, data_dir, default_config_dict, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -23,14 +25,13 @@ class ProjectDataIO(LightningWork):
         # config for project named <PROJ_NAME> will be stored as
         # <config_dir>/config_<PROJ_NAME>.yaml
         self.config_dir = config_dir
-        if not os.path.exists(self.config_dir):
-            os.makedirs(self.config_dir)
+        # if not os.path.exists(self.config_dir):
+        #     os.makedirs(self.config_dir)
         self.config_name = None
         self.config_file = None
 
-        # save default config file for initializing new projects
-        assert default_config_file.endswith("yaml")
-        self.default_config_file = default_config_file
+        # save default config info for initializing new projects
+        self.default_config_dict = default_config_dict
 
         # data for project named <PROJ_NAME> will be stored as
         # <data_dir>/<PROJ_NAME>
@@ -38,14 +39,34 @@ class ProjectDataIO(LightningWork):
         #   ├── videos/
         #   └── CollectedData.csv
         self.data_dir = data_dir
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
+        # if not os.path.exists(self.data_dir):
+        #     os.makedirs(self.data_dir)
 
         self.proj_dir = None
         self.model_dir = None
         self.test_videos_dir = None
+        self.n_labeled_frames = 0
+        self.n_total_frames = 0
+        self.time = 0.0
 
-    def update_paths(self, project_name):
+    def _get_from_drive_if_not_local(self, file):
+        if not os.path.exists(file):
+            try:
+                print(f"{file} does not exist; getting from drive")
+                self.drive.get(file)
+            except Exception:
+                print(f"could not find {file} in drive")
+
+    def _put_to_drive_remove_local(self, file_or_dir):
+        print(f"putting {file_or_dir} to drive")
+        self.drive.put(file_or_dir)
+        # # clean up the local object
+        # if os.path.isfile(file_or_dir):
+        #     os.remove(file_or_dir)
+        # else:
+        #     shutil.rmtree(file_or_dir)
+
+    def update_paths(self, project_name, **kwargs):
         self.proj_dir = os.path.join(self.data_dir, project_name)
         self.config_dir = self.proj_dir
         self.config_name = f"model_config_{project_name}.yaml"
@@ -53,14 +74,16 @@ class ProjectDataIO(LightningWork):
         self.model_dir = os.path.join(self.proj_dir, "models")
         self.test_videos_dir = os.path.join(self.proj_dir, "videos")
 
-    def update_project_config(self, new_vals_dict=None):
+    def update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""
 
-        # check to see if config exists; if not, copy default config
+        # check to see if config exists locally; if not, try pulling from drive
+        self._get_from_drive_if_not_local(self.config_file)
 
+        # check to see if config exists; copy default config
         if (self.config_file is None) or (not os.path.exists(self.config_file)):
             # copy default config
-            config_dict = yaml.safe_load(open(self.default_config_file))
+            config_dict = copy.deepcopy(self.default_config_dict)
             # empty out project-specific entries
             config_dict["data"]["image_orig_dims"]["width"] = None
             config_dict["data"]["image_orig_dims"]["height"] = None
@@ -90,18 +113,21 @@ class ProjectDataIO(LightningWork):
                     else:
                         config_dict[sconfig_name][key] = val
 
-            # save out updated config file
+            # save out updated config file locally
             if not os.path.exists(self.config_dir):
                 os.makedirs(self.config_dir)
             yaml.dump(config_dict, open(self.config_file, "w"))
 
-        # push data to drive
-        # print(self.config_file)
-        # self.drive.put(self.config_file)
-        # clean up the local file
-        # os.remove(self.config_file)
+        # push data to drive and clean up local file
+        self._put_to_drive_remove_local(self.config_file)
 
     def update_frame_shapes(self):
+
+        # get labeled data from drive
+        labeled_data_dir = os.path.join(self.proj_dir, "labeled-data")
+        # check to see if config exists locally; if not, try pulling from drive
+        self._get_from_drive_if_not_local(labeled_data_dir)
+
         # load single frame from labeled data
         imgs = glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png"))
         if len(imgs) > 0:
@@ -120,10 +146,16 @@ class ProjectDataIO(LightningWork):
                 }
             })
 
-    def compute_labeled_frame_fraction(self):
+        # remove local files
+        shutil.rmtree(labeled_data_dir)
+
+    def compute_labeled_frame_fraction(self, timer=0.):
         # TODO: don't want to have metadata filename hard-coded here
+
+        metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
+        self._get_from_drive_if_not_local(metadata_file)
+
         try:
-            metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
             proj_details = yaml.safe_load(open(metadata_file, "r"))
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
@@ -137,14 +169,26 @@ class ProjectDataIO(LightningWork):
             n_total_frames = None
         return n_labeled_frames, n_total_frames
 
-    def run(self):
-        pass
+    def run(self, action, **kwargs):
+
+        if action == "update_paths":
+            self.update_paths(**kwargs)
+        elif action == "update_project_config":
+            self.update_project_config(**kwargs)
+        elif action == "update_frame_shapes":
+            self.update_frame_shapes()
+        elif action == "compute_labeled_frame_fraction":
+            n = 15
+            new_time = kwargs["timer"]
+            if (new_time - self.time) > n:
+                self.n_labeled_frames, self.n_total_frames = self.compute_labeled_frame_fraction(
+                    timer=new_time)
 
 
 class ProjectUI(LightningFlow):
     """UI to set up project."""
 
-    def __init__(self, *args, config_dir, data_dir, default_config_file, **kwargs):
+    def __init__(self, *args, config_dir, data_dir, **kwargs):
         super().__init__(*args, **kwargs)
 
         # control runners
@@ -157,7 +201,6 @@ class ProjectUI(LightningFlow):
         self.data_dir = data_dir
         self.config_dir = config_dir
         self.config_file = None
-        self.default_config_file = default_config_file
         self.initialized_projects = os.listdir(self.data_dir) if os.path.exists(self.data_dir) \
             else []
         self.create_new_project = False

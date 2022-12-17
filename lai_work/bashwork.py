@@ -21,7 +21,7 @@ def add_to_system_env(env_key='env', **kwargs) -> dict:
     new_env = None
     if env_key in kwargs:
         env = kwargs[env_key]
-        if isinstance(env,str):
+        if isinstance(env, str):
             env = args_to_dict(env)
         if not(env is None) and not(env == {}):
             new_env = os.environ.copy()
@@ -91,6 +91,7 @@ class LitBashWork(L.LightningWork):
         wait_seconds_after_run=10,
         wait_seconds_after_kill=10,
         drive_name="lit://lpa",
+        component_name=None,
         **kwargs
     ):
 
@@ -100,7 +101,7 @@ class LitBashWork(L.LightningWork):
         super().__init__(*args, **kwargs)
         self.wait_seconds_after_run = wait_seconds_after_run
         self.wait_seconds_after_kill = wait_seconds_after_kill
-        self._drive = Drive(drive_name)
+        self._drive = Drive(drive_name, component_name=component_name)
 
         self.pid = None
         self.exit_code = None
@@ -141,11 +142,13 @@ class LitBashWork(L.LightningWork):
     def get_from_drive(self, inputs):
         for i in inputs:
             print(f"drive get {i}")
-            try:                     # file may not be ready
-                self._drive.get(i)  # Transfer the file from this drive to the local filesystem.
-            except:
+            try:  # file may not be ready
+                self._drive.get(i, overwrite=True)
+                print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
+            except Exception as E:
+                print(E)
+                print(f"did not load {i} from drive")
                 pass
-        # os.system(f"find {i} -print")
 
     def put_to_drive(self, outputs):
         for o in outputs:
@@ -153,7 +156,17 @@ class LitBashWork(L.LightningWork):
             # make sure dir end with / so that put works correctly
             if os.path.isdir(o):
                 o = os.path.join(o, "")
-            # os.system(f"find {o} -print")
+            # check to make sure file exists locally
+            if not os.path.exists(o):
+                continue
+            # delete file if it exists so we can overwrite
+            # try:
+            #     self._drive.delete(o)
+            #     print(f"deleting {o}")
+            # except Exception:
+            #     print(f"could not delete {o}")
+            #     # file doesn't exist yet
+            #     pass
             self._drive.put(o)
 
     def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
@@ -271,7 +284,7 @@ class LitBashWork(L.LightningWork):
 
             # start a new process
             self.subprocess_call(
-                cmd=args, venv_name = venv_name, save_stdout=save_stdout,
+                cmd=args, venv_name=venv_name, save_stdout=save_stdout,
                 wait_for_exit=wait_for_exit, **kwargs)
 
         # Hack to get info after the run that can be passed to Flow

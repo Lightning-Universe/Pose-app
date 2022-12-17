@@ -1,7 +1,14 @@
+"""Main loop for lightning pose app
+
+To run from the command line (inside the conda environment named "lai" here:
+(lai) user@machine: lightning run app app.py
+
+"""
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 import lightning.app as L
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
+from lightning.app.storage import Path
 import os
 import shutil
 import streamlit as st
@@ -41,7 +48,15 @@ class LitPoseApp(L.LightningFlow):
 
         # shared data for apps
         drive_name = "lit://lpa"
-        self.drive = Drive(drive_name)
+
+        # -----------------------------
+        # paths
+        # -----------------------------
+        config_dir = os.path.join(lightning_pose_dir, "scripts")
+        data_dir = "data"  # relative to self.drive
+
+        # load default config and pass to project manager
+        default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
         # UIs
@@ -50,19 +65,15 @@ class LitPoseApp(L.LightningFlow):
         self.landing_ui = LandingUI()
 
         # project manager tab
-        config_dir = os.path.join(lightning_pose_dir, "scripts")
-        default_config_file = os.path.join(config_dir, "config_default.yaml")
-        data_dir = os.path.join(drive_name, "data")
         self.project_ui = ProjectUI(
             config_dir=config_dir,
             data_dir=data_dir,
-            default_config_file=default_config_file,
         )
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
             config_dir=config_dir,
             data_dir=data_dir,
-            default_config_file=default_config_file,
+            default_config_dict=default_config_dict,
         )
 
         # extract frames tab
@@ -112,6 +123,7 @@ class LitPoseApp(L.LightningFlow):
             cloud_compute=L.CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
             drive_name=drive_name,
+            component_name="tensorboard",
         )
 
         # training/fiftyone
@@ -119,6 +131,7 @@ class LitPoseApp(L.LightningFlow):
             cloud_compute=L.CloudCompute("gpu"),
             cloud_build_config=FiftyOneBuildConfig(),
             drive_name=drive_name,
+            component_name="my_work",
         )
         self.work_is_done_extract_frames = False
 
@@ -153,7 +166,7 @@ class LitPoseApp(L.LightningFlow):
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
             self.train_ui.set_hydra_outputs(outputs)
-            self.fo_ui.set_hydra_outputs(outputs)
+            # self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
     # TODO: where is the fiftyone db stored?
@@ -180,9 +193,12 @@ class LitPoseApp(L.LightningFlow):
         # set videos to select frames from
         vid_file_args = ""
         for vid_file in self.extract_ui.st_video_files:
-            vid_file_args += f" --video_files={vid_file}"
+            vid_file_ = os.path.join(os.getcwd(), vid_file)
+            vid_file_args += f" --video_files={vid_file_}"
 
-        data_dir = os.path.join(self.extract_ui.proj_dir, "labeled-data")
+        # TODO: how to get rid of this os.getcwd() command and make more general?
+        data_dir = os.path.join(os.getcwd(), self.extract_ui.proj_dir, "labeled-data")
+
         cmd = "python" \
               + " " + self.extract_ui.script_name \
               + vid_file_args \
@@ -192,12 +208,12 @@ class LitPoseApp(L.LightningFlow):
               + f" --export_idxs_as_csv"
         self.my_work.run(
             cmd,
+            wait_for_exit=True,
             venv_name=lightning_pose_venv,
-            cwd=self.train_ui.st_script_dir,
-            # inputs=[self.extract_ui.data_dir],
-            # outputs=[self.extract_ui.proj_dir],
+            cwd=lightning_pose_dir,
+            inputs=self.extract_ui.st_video_files,
+            outputs=[os.path.join(self.extract_ui.proj_dir, "labeled-data")],
         )
-
         self.work_is_done_extract_frames = True
 
     def start_tensorboard(self, logdir):
@@ -440,7 +456,7 @@ class LitPoseApp(L.LightningFlow):
         # init UIs (find prev artifacts)
         # -----------------------------
         # find previously trained models, expose to training UI
-        # self.init_lp_outputs_to_ui()
+        self.init_lp_outputs_to_ui()
 
         # find previously constructed fiftyone datasets, expose to fiftyone UI
         # self.init_fiftyone_outputs_to_ui()
@@ -448,7 +464,7 @@ class LitPoseApp(L.LightningFlow):
         # -----------------------------
         # init background services once
         # -----------------------------
-        self.label_studio.start_label_studio()
+        self.label_studio.run(action="start_label_studio")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
@@ -467,8 +483,10 @@ class LitPoseApp(L.LightningFlow):
             print("=============== run proj ui script ====================")
 
             # update user-supplied parameters in config yaml file
-            self.project_io.update_paths(project_name=self.project_ui.st_project_name)
-            self.project_io.update_project_config(new_vals_dict=self.project_ui.st_new_vals)
+            self.project_io.run(
+                action="update_paths", project_name=self.project_ui.st_project_name)
+            self.project_io.run(
+                action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
 
             # update paths data dir for frame extraction object
             self.extract_ui.proj_dir = self.project_io.proj_dir
@@ -477,8 +495,9 @@ class LitPoseApp(L.LightningFlow):
             self.label_studio.proj_dir = self.project_io.proj_dir
             self.label_studio.project_name = self.project_ui.st_project_name
             if self.project_ui.create_new_project and self.project_ui.count == 0:
-                self.label_studio.create_labeling_config_xml(self.project_ui.keypoints)
-                self.label_studio.create_new_project()
+                self.label_studio.run(
+                    action="create_labeling_config_xml", keypoints=self.project_ui.keypoints)
+                self.label_studio.run(action="create_new_project")
 
             # point training UI to config file
             self.train_ui.config_dir = self.project_io.proj_dir
@@ -498,18 +517,17 @@ class LitPoseApp(L.LightningFlow):
         if self.work_is_done_extract_frames:
             # force a run of update_tasks by using the timer; control how often it gets run by
             # immediately setting the boolean flag that controls access to False
+            self.project_io.run(action="update_frame_shapes")
+            self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
             self.work_is_done_extract_frames = False
-            # TODO: cloud app is accessing this before frame extraction is complete - why??
-            self.project_io.update_frame_shapes()
-            self.label_studio.update_tasks(timer=time.time())
 
         # check labeling task and export new labels (with timer wrapper)
         if self.project_ui.count > 0:
-            self.label_studio.run()
+            self.label_studio.run(action="check_labeling_task_and_export", timer=time.time())
             # find fraction of labeled frames to return to UI
-            n_labeled_frames, n_total_frames = self.project_io.compute_labeled_frame_fraction()
-            self.train_ui.n_labeled_frames = n_labeled_frames
-            self.train_ui.n_total_frames = n_total_frames
+            self.project_io.run(action="compute_labeled_frame_fraction", timer=time.time())
+            self.train_ui.n_labeled_frames = self.project_io.n_labeled_frames
+            self.train_ui.n_total_frames = self.project_io.n_total_frames
 
         # train on ui button press
         if self.train_ui.run_script:
@@ -558,7 +576,10 @@ class LitPoseApp(L.LightningFlow):
         elif self.landing_ui.st_mode == "project":
             if not self.project_ui.st_project_name:
                 # need to create/load new project before moving on to other tabs
-                return [landing_tab, project_tab]
+                return [
+                    landing_tab,
+                    project_tab,
+                ]
             else:
                 # show all tabs
                 return [

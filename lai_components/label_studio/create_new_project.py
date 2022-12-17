@@ -33,7 +33,7 @@ except FileNotFoundError:
 label_studio_project = start_project(
     label_studio_client=label_studio_client,
     title=args.project_name,
-    label_config=label_config
+    label_config=label_config,
 )
 print("LabelStudio project created.")
 

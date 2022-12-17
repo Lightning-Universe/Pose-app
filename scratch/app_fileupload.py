@@ -67,6 +67,7 @@ def render_fn(state: AppState):
 
     # initialize the file uploader
     uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True)
+    st.text(f"{len(uploaded_files)}")
 
     # for each of the uploaded files
     for uploaded_file in uploaded_files:
@@ -76,7 +77,7 @@ def render_fn(state: AppState):
         # to the Drive, while uploaded_file is just a file-like object
         filename = uploaded_file.name.replace(" ", "_")
         filepath = os.path.join(state.drive.root_folder, filename)
-        print(f"====== writing to {filepath} ========")
+        st.text(f"====== writing to {filepath} ========")
         # write the content of the file to the path
         with open(filepath, "wb") as f:
             f.write(bytes_data)
