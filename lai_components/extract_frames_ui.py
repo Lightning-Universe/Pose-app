@@ -6,7 +6,8 @@ import os
 import streamlit as st
 import yaml
 
-from lai_components.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
+# from lai_components.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
+from lai_components.vsc_streamlit import StreamlitFrontend
 
 
 class ExtractFramesUI(LightningFlow):
@@ -19,7 +20,6 @@ class ExtractFramesUI(LightningFlow):
         script_dir,
         script_name,
         script_args,
-        proj_dir,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -36,7 +36,7 @@ class ExtractFramesUI(LightningFlow):
         self.script_dir = script_dir
         self.script_name = script_name
         self.script_args = script_args
-        self.proj_dir = proj_dir
+        self.proj_dir = None
 
         # output from the UI
         self.st_submits = 0
@@ -60,9 +60,6 @@ def _render_streamlit_fn(state: AppState):
     )
 
     # upload video files
-    # st_videos = st.text_input("Select video files")
-    # st_videos = [st_videos]
-
     video_dir = os.path.join(state.proj_dir, "videos")
     os.makedirs(video_dir, exist_ok=True)
 
@@ -87,7 +84,7 @@ def _render_streamlit_fn(state: AppState):
         # the same lit:// path
         state.drive.put(filepath)
         # clean up the local file
-        os.remove(filepath)
+        # os.remove(filepath)
 
     # select number of frames to label per video
     n_frames_per_video = st.text_input("Frames to label per video", 20)
@@ -97,6 +94,10 @@ def _render_streamlit_fn(state: AppState):
         "Extract frames",
         disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script
     )
+    st.text(uploaded_files)
+    st.text(st_n_frames_per_video)
+    st.text(st_videos)
+    st.text(st_submit_button)
     if state.run_script:
         st.warning(f"waiting for existing extraction to finish")
 

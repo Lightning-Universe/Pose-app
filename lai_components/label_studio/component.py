@@ -59,6 +59,15 @@ class LitLabelStudio(la.LightningFlow):
         self.password = "whiteway123"
         self.user_token = "whitenoise1"
         self.time = time.time()
+        self.check_labels = False
+
+        # paths to relevant data; set when putting/getting from Drive
+        self.filenames = {
+            "label_studio_config": "",
+            "label_studio_metadata": "",
+            "labeled_data_dir": "",
+            "collected_data": "",
+        }
 
         # these attributes get set by external app
         self.proj_dir = proj_dir
@@ -115,21 +124,25 @@ class LitLabelStudio(la.LightningFlow):
                         f"--label_config {label_studio_config_file} "
 
         # specify inputs to get from drive
-        inputs = [
-            self.label_studio_config_file,
-            os.path.join(self.proj_dir, "labeled-data")
-        ]
+        self.filenames["label_studio_config"] = self.label_studio_config_file
+        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, "labeled-data")
 
         # specify outputs to put to drive
-        outputs = [os.path.join(self.proj_dir, "label_studio_metadata.yaml")]
+        self.filenames["label_studio_metadata"] = os.path.join(
+            self.proj_dir, "label_studio_metadata.yaml")
 
         # run command to create new label studio project
         self.label_studio.run(
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
-            inputs=inputs,
-            outputs=outputs,
+            inputs=[
+                self.filenames["label_studio_config"],
+                self.filenames["labeled_data_dir"],
+            ],
+            outputs=[
+                self.filenames["label_studio_metadata"],
+            ],
         )
 
     def update_tasks(self, videos=[]):
@@ -143,20 +156,14 @@ class LitLabelStudio(la.LightningFlow):
                         f"--proj_dir {proj_dir} " \
                         f"--api_key {self.user_token} "
 
-        # specify inputs to get from drive
-        inputs = [os.path.join(self.proj_dir, "labeled-data")]
-
-        # specify outputs to put to drive
-        outputs = []
-
         # run command to update label studio tasks
         self.label_studio.run(
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
             timer=videos,
-            inputs=inputs,
-            outputs=outputs,
+            inputs=[self.filenames["labeled_data_dir"]],
+            outputs=[],
         )
 
     def check_labeling_task_and_export(self, timer):
@@ -176,15 +183,10 @@ class LitLabelStudio(la.LightningFlow):
                           f"--api_key {self.user_token} " \
                           f"--keypoints_list '{keypoints_list}' "
 
-            # specify inputs to get from drive
-            inputs = [os.path.join(self.proj_dir, "labeled-data")]
-
-            # specify outputs to put to drive
-            outputs = [
-                os.path.join(self.proj_dir, "CollectedData.csv"),
-                os.path.join(self.proj_dir, "label_studio_tasks.pkl"),
-                os.path.join(self.proj_dir, "label_studio_metadata.yaml"),
-            ]
+            self.filenames["collected_data"] = os.path.join(
+                self.proj_dir, "CollectedData.csv")
+            self.filenames["label_studio_tasks"] = os.path.join(
+                self.proj_dir, "label_studio_tasks.pkl")
 
             # run command to check labeling task
             self.label_studio.run(
@@ -192,9 +194,17 @@ class LitLabelStudio(la.LightningFlow):
                 venv_name=label_studio_venv,
                 wait_for_exit=True,
                 timer=timer,
-                inputs=inputs,
-                outputs=outputs,
+                inputs=[
+                    self.filenames["labeled_data_dir"]
+                ],
+                outputs=[
+                    self.filenames["collected_data"],
+                    self.filenames["label_studio_tasks"],
+                    self.filenames["label_studio_metadata"],
+                ],
             )
+
+        self.check_labels = True
 
     def create_labeling_config_xml(self, keypoints):
         self.keypoints = keypoints
@@ -225,13 +235,7 @@ class LitLabelStudio(la.LightningFlow):
         elif action == "update_tasks":
             self.update_tasks(**kwargs)
         elif action == "check_labeling_task_and_export":
-            # check for new annotations every n seconds
-            # if updates, export the data and convert to lightning pose format
-            n = 15
-            new_time = kwargs["timer"]
-            if (new_time - self.time) > n:
-                self.time = new_time
-                self.check_labeling_task_and_export(timer=new_time)
+            self.check_labeling_task_and_export(timer=kwargs["timer"])
 
 
 def build_xml(bodypart_names: List[str]) -> str:

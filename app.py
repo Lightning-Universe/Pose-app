@@ -4,8 +4,8 @@ To run from the command line (inside the conda environment named "lai" here:
 (lai) user@machine: lightning run app app.py
 
 """
+
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-import lightning.app as L
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
 from lightning.app.storage import Path
@@ -30,7 +30,6 @@ from lai_components.extract_frames_ui import ExtractFramesUI
 from lai_components.label_studio.component import LitLabelStudio
 from lai_components.train_ui import TrainDemoUI
 from lai_components.fo_ui import FoRunUI
-from lai_components.video_ui import VideoUI
 from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
 from lai_work.bashwork import LitBashWork
@@ -40,8 +39,15 @@ from lai_work.bashwork import LitBashWork
 # - revisit project config page and trigger the following
 #   - get username/password
 
+# NOTES
+# 2023-01-24
+# - when using ENABLE_STATE_WEBSOCKET=1, video upload tab does not work
 
-class LitPoseApp(L.LightningFlow):
+
+ON_CLOUD = False
+
+
+class LitPoseApp(LightningFlow):
 
     def __init__(self):
         super().__init__()
@@ -65,13 +71,9 @@ class LitPoseApp(L.LightningFlow):
         self.landing_ui = LandingUI()
 
         # project manager tab
-        self.project_ui = ProjectUI(
-            config_dir=config_dir,
-            data_dir=data_dir,
-        )
+        self.project_ui = ProjectUI(data_dir=data_dir)
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
-            config_dir=config_dir,
             data_dir=data_dir,
             default_config_dict=default_config_dict,
         )
@@ -82,7 +84,6 @@ class LitPoseApp(L.LightningFlow):
             script_dir=lightning_pose_dir,
             script_name="scripts/extract_frames.py",
             script_args="",
-            proj_dir=None,  # to be set upon project load/creation
         )
 
         # training tab; this will default to the toy dataset, unless a project is created/loaded
@@ -91,10 +92,6 @@ class LitPoseApp(L.LightningFlow):
             script_name="scripts/train_hydra.py",
             script_args="",
             script_env="HYDRA_FULL_ERROR=1",
-            config_dir=None,  # to be set upon project load/creation
-            config_name=None,  # to be set upon project load/creation
-            test_videos_dir="toy_datasets/toymouseRunningData/unlabeled_videos",
-            outputs_dir=None,  # to be set upon project load/creation
             max_epochs=200,
         )
 
@@ -112,15 +109,12 @@ class LitPoseApp(L.LightningFlow):
         #     """
         # )
 
-        # video tab
-        self.video_ui = VideoUI(video_file=None)
-
         # -----------------------------
         # workers
         # -----------------------------
         # tensorboard
         self.my_tb = LitBashWork(
-            cloud_compute=L.CloudCompute("default"),
+            cloud_compute=CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
             drive_name=drive_name,
             component_name="tensorboard",
@@ -128,7 +122,7 @@ class LitPoseApp(L.LightningFlow):
 
         # training/fiftyone
         self.my_work = LitBashWork(
-            cloud_compute=L.CloudCompute("gpu"),
+            cloud_compute=CloudCompute("gpu"),
             cloud_build_config=FiftyOneBuildConfig(),
             drive_name=drive_name,
             component_name="my_work",
@@ -137,20 +131,20 @@ class LitPoseApp(L.LightningFlow):
 
         # label studio
         self.label_studio = LitLabelStudio(
-            cloud_compute=L.CloudCompute("default"),
+            cloud_compute=CloudCompute("default"),
             drive_name=drive_name,
         )
 
         # streamlit labeled
         # self.my_streamlit_frame = LitBashWork(
-        #     cloud_compute=L.CloudCompute("gpu"),
+        #     cloud_compute=CloudCompute("gpu"),
         #     cloud_build_config=StreamlitBuildConfig(),
         #     drive_name=drive_name,
         # )
 
         # streamlit video
         # self.my_streamlit_video = LitBashWork(
-        #     cloud_compute=L.CloudCompute("gpu"),
+        #     cloud_compute=CloudCompute("gpu"),
         #     cloud_build_config=StreamlitBuildConfig(),
         #     drive_name=drive_name,
         # )
@@ -159,13 +153,14 @@ class LitPoseApp(L.LightningFlow):
 
         # get existing model directories that contain test*.csv
         if not search_dir:
-            search_dir = self.train_ui.outputs_dir
+            search_dir = self.project_io.model_dir
 
         cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
-        self.my_work.run(cmd, cwd=lightning_pose_dir, save_stdout=True)
+        self.my_work.run(cmd, cwd=os.getcwd(), save_stdout=True)
         if self.my_work.last_args() == cmd:
             outputs = output_with_video_prediction(self.my_work.last_stdout())
-            self.train_ui.set_hydra_outputs(outputs)
+            if outputs:
+                self.train_ui.set_hydra_outputs(outputs)
             # self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
@@ -218,12 +213,12 @@ class LitPoseApp(L.LightningFlow):
 
     def start_tensorboard(self, logdir):
         """run tensorboard"""
-        cmd = f"tensorboard --logdir {logdir} --host $host --port $port"
+        cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.my_tb.run(
             cmd,
             venv_name=tensorboard_venv,
             wait_for_exit=False,
-            cwd=lightning_pose_dir,
+            cwd=os.getcwd(),
         )
 
     def start_fiftyone(self):
@@ -241,38 +236,65 @@ class LitPoseApp(L.LightningFlow):
     def start_lp_train_video_predict(self):
 
         # check to see if we're in demo mode or not
-        if self.train_ui.config_name is not None:
-            config_cmd = " --config-path=%s --config-name=%s" % (
-                self.train_ui.config_dir, self.train_ui.config_name)
+        base_dir = os.path.join(os.getcwd(), self.project_io.proj_dir)
+        if self.project_io.config_name is not None:
+            config_cmd = f" --config-path={base_dir}" \
+                         f" --config-name={self.project_io.config_name}" \
+                         f" data.data_dir={base_dir}" \
+                         f" data.video_dir={os.path.join(base_dir, 'videos')}" \
+                         f" eval.test_videos_directory={os.path.join(base_dir, 'videos')}"
         else:
-            config_cmd = ""
+            config_cmd = \
+                " eval.test_videos_directory=toy_datasets/toymouseRunningData/unlabeled_videos"
+
+        # list files needed from Drive
+        inputs = [
+            os.path.join(self.project_io.proj_dir, self.project_io.config_name),
+            os.path.join(self.project_io.proj_dir, "labeled-data"),
+            os.path.join(self.project_io.proj_dir, "CollectedData.csv"),
+        ]
+        outputs = [os.path.join(self.project_io.proj_dir, "models")]
 
         # train supervised model
         if self.train_ui.st_train_super:
+            hydra_srun = os.path.join(
+                base_dir, "models", self.train_ui.st_datetimes["super"])
+            hydra_mrun = os.path.join(
+                base_dir, "models/multirun", self.train_ui.st_datetimes["super"])
             cmd = "python" \
                   + " " + self.train_ui.st_script_name \
                   + config_cmd \
-                  + " " + self.train_ui.st_script_args["super"]
+                  + " " + self.train_ui.st_script_args["super"] \
+                  + f" hydra.run.dir={hydra_srun}" \
+                  + f" hydra.sweep.dir={hydra_mrun}"
             self.my_work.run(
                 cmd,
                 venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
-                # outputs=[self.train_ui.outputs_dir],  # Exception: The component name needs to be known to put a path to the Drive.
+                inputs=inputs,
+                outputs=outputs,
             )
 
         # train semi-supervised model
         if self.train_ui.st_train_semisuper:
+            hydra_srun = os.path.join(
+                base_dir, "models", self.train_ui.st_datetimes["semisuper"])
+            hydra_mrun = os.path.join(
+                base_dir, "models/multirun", self.train_ui.st_datetimes["semisuper"])
             cmd = "python" \
                   + " " + self.train_ui.st_script_name \
                   + config_cmd \
-                  + " " + self.train_ui.st_script_args["semisuper"]
+                  + " " + self.train_ui.st_script_args["semisuper"] \
+                  + f" hydra.run.dir={hydra_srun}" \
+                  + f" hydra.sweep.dir={hydra_mrun}"
             self.my_work.run(
                 cmd,
                 venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
-                # outputs=[self.train_ui.outputs_dir],  # Exception: The component name needs to be known to put a path to the Drive.
+                inputs=inputs,
+                outputs=outputs,
             )
 
         # have TB pull the new data
@@ -281,17 +303,18 @@ class LitPoseApp(L.LightningFlow):
         self.my_tb.run(
             cmd,
             venv_name=tensorboard_venv,
-            cwd=lightning_pose_dir,
+            cwd=os.getcwd(),
             input_output_only=True,
-            inputs=[self.train_ui.outputs_dir],
+            inputs=outputs,
         )
 
         # set the new outputs for UIs
-        cmd = f"find {self.train_ui.outputs_dir} -maxdepth 4 -type f -name predictions.csv"
-        self.my_work.run(cmd, cwd=lightning_pose_dir, save_stdout=True)
+        cmd = f"find {outputs[0]} -maxdepth 4 -type f -name predictions.csv"
+        self.my_work.run(cmd, cwd=os.getcwd(), save_stdout=True)
         if self.my_work.last_args() == cmd:
-            outputs = output_with_video_prediction(self.my_work.last_stdout())
-            self.train_ui.set_hydra_outputs(outputs)
+            outputs_ = output_with_video_prediction(self.my_work.last_stdout())
+            if outputs_:
+                self.train_ui.set_hydra_outputs(outputs_)
             # self.fo_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
@@ -311,49 +334,6 @@ class LitPoseApp(L.LightningFlow):
 
         # add dataset name to list for user to see
         self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)
-
-    def start_labeled_video_creation(self):
-
-        # set prediction files (hard code some paths for now)
-        # select random video
-        prediction_file_args = ""
-        video_file = "test_vid.csv"  # TODO: find random vid in predictions directory
-        for model_dir in self.fo_ui.st_model_dirs:
-            abs_file = os.path.abspath(os.path.join(
-                lightning_pose_dir, self.fo_ui.outputs_dir, model_dir, "video_preds", video_file))
-            prediction_file_args += f" --prediction_files={abs_file}"
-
-        # set model names
-        model_name_args = ""
-        for name in self.fo_ui.st_model_display_names:
-            model_name_args += f" --model_names={name}"
-
-        # get absolute path of video file
-        video_file_abs = os.path.abspath(os.path.join(
-            lightning_pose_dir, self.train_ui.test_videos_dir, video_file.replace(".csv", ".mp4")))
-
-        # set absolute path of labeled video file
-        save_file_abs = video_file_abs.replace(".mp4", f"_{self.fo_ui.st_dataset_name}.mp4")
-
-        # set reasonable defaults for video creation
-        cmd = "python ./tracking-diagnostics/scripts/create_labeled_video.py" \
-              + f" " + prediction_file_args \
-              + f" " + model_name_args \
-              + f" --video_file={video_file_abs}" \
-              + f" --save_file={save_file_abs}" \
-              + f" --likelihood_thresh=0.9" \
-              + f" --max_frames=100" \
-              + f" --markersize=6" \
-              + f" --framerate=20" \
-              + f" --height=4"
-        self.my_work.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            outputs=[save_file_abs],
-            cwd="."
-        )
-
-        self.video_ui.video_file = save_file_abs
 
     def start_st_frame(self):
         """run streamlit for labeled frames"""
@@ -467,7 +447,7 @@ class LitPoseApp(L.LightningFlow):
         self.label_studio.run(action="start_label_studio")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
-            self.start_tensorboard(logdir=self.project_io.model_dir)
+            self.start_tensorboard(logdir=os.path.join(os.getcwd(), self.project_io.model_dir))
         # self.start_fiftyone()
 
         self.landing_ui.run()
@@ -478,7 +458,8 @@ class LitPoseApp(L.LightningFlow):
         # run work
         # -----------------------------
         # update project configuration
-        if self.project_ui.run_script:  # better name?
+        if self.project_ui.run_script \
+                and (not self.train_ui.run_script and not ON_CLOUD):  # don't interfere /w train
 
             print("=============== run proj ui script ====================")
 
@@ -499,56 +480,59 @@ class LitPoseApp(L.LightningFlow):
                     action="create_labeling_config_xml", keypoints=self.project_ui.keypoints)
                 self.label_studio.run(action="create_new_project")
 
-            # point training UI to config file
-            self.train_ui.config_dir = self.project_io.proj_dir
-            self.train_ui.outputs_dir = self.project_io.model_dir
-            self.train_ui.config_name = self.project_io.config_name
-            self.train_ui.test_videos_dir = self.project_io.test_videos_dir
-
-            self.project_ui.run_script = False
             self.project_ui.count += 1
+            self.project_ui.run_script = False
 
         # extract frames for labeleding from uploaded videos
-        if self.extract_ui.run_script:
+        if self.extract_ui.proj_dir and self.extract_ui.run_script \
+                and (not self.train_ui.run_script and not ON_CLOUD):  # don't interfere /w train
             self.start_extract_frames()
-            self.extract_ui.run_script = False
+            # wait until litbashwork is done extracting frames, then update tasks
+            if self.work_is_done_extract_frames:
+                # force a run of update_tasks by using the timer; control how often it gets run by
+                # immediately setting the boolean flag that controls access to False
+                self.project_io.run(action="update_frame_shapes")
+                self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
+                self.work_is_done_extract_frames = False
+                self.extract_ui.run_script = False
 
-        # wait until litbashwork is done extracting frames, then update tasks
-        if self.work_is_done_extract_frames:
-            # force a run of update_tasks by using the timer; control how often it gets run by
-            # immediately setting the boolean flag that controls access to False
-            self.project_io.run(action="update_frame_shapes")
-            self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
-            self.work_is_done_extract_frames = False
-
-        # check labeling task and export new labels (with timer wrapper)
-        if self.project_ui.count > 0:
-            self.label_studio.run(action="check_labeling_task_and_export", timer=time.time())
-            # find fraction of labeled frames to return to UI
-            self.project_io.run(action="compute_labeled_frame_fraction", timer=time.time())
-            self.train_ui.n_labeled_frames = self.project_io.n_labeled_frames
-            self.train_ui.n_total_frames = self.project_io.n_total_frames
+        # check labeling task and export new labels
+        if self.project_ui.count > 0 \
+                and (not self.train_ui.run_script and not ON_CLOUD):  # don't interfere /w train
+            t_elapsed = 15  # seconds
+            t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
+            if self.schedule(f"* * * * * {t_elapsed_list}"):
+                # only true for a single flow execution every n seconds; capture event in state var
+                self.label_studio.check_labels = True
+                self.label_studio.time = time.time()
+            if self.label_studio.check_labels:
+                self.label_studio.run(
+                    action="check_labeling_task_and_export", timer=self.label_studio.time)
+                self.project_io.run(
+                    action="compute_labeled_frame_fraction", timer=self.label_studio.time)
+                self.train_ui.n_labeled_frames = self.project_io.n_labeled_frames
+                self.train_ui.n_total_frames = self.project_io.n_total_frames
+                self.label_studio.check_labels = False
 
         # train on ui button press
         if self.train_ui.run_script:
-            self.train_ui.run_script = False
             self.start_lp_train_video_predict()
+            self.train_ui.run_script = False
 
         # initialize diagnostics on button press
         # if self.fo_ui.run_script:
         #     self.fo_ui.run_script = False
         #     self.start_fiftyone_dataset_creation()
-        #     self.start_labeled_video_creation()
         #     # self.start_st_frame()
         #     # self.start_st_video()
 
     def configure_layout(self):
 
         # init tabs
-        landing_tab = {"name": "Lightning Pose", "content": self.landing_ui}
+        landing_tab = {"name": "Home", "content": self.landing_ui}
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        annotate_tab = {"name": "Annotate Frames", "content": self.label_studio.label_studio}
+        annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
 
         # training tabs
         train_demo_tab = {"name": "Train", "content": self.train_ui}
@@ -558,7 +542,6 @@ class LitPoseApp(L.LightningFlow):
         # fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
         fo_tab = {"name": "Labeled Preds", "content": self.my_work}
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
-        video_tab = {"name": "Video Preds", "content": self.video_ui}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 
         if self.landing_ui.st_mode == "demo":
@@ -569,12 +552,11 @@ class LitPoseApp(L.LightningFlow):
                 # fo_prep_tab,
                 fo_tab,
                 # st_frame_tab,
-                video_tab,
                 # st_video_tab,
             ]
 
         elif self.landing_ui.st_mode == "project":
-            if not self.project_ui.st_project_name:
+            if not self.extract_ui.proj_dir:  # self.project_ui.st_project_name:
                 # need to create/load new project before moving on to other tabs
                 return [
                     landing_tab,
@@ -591,11 +573,10 @@ class LitPoseApp(L.LightningFlow):
                     train_diag_tab,
                     # fo_prep_tab,
                     # fo_tab,
-                    # video_tab,
                 ]
 
         else:
             return [landing_tab]
 
 
-app = L.LightningApp(LitPoseApp())
+app = LightningApp(LitPoseApp())

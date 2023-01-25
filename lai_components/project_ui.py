@@ -9,6 +9,7 @@ import os
 import shutil
 from PIL import Image
 import streamlit as st
+import time
 import yaml
 
 from lai_components.vsc_streamlit import StreamlitFrontend
@@ -16,38 +17,30 @@ from lai_components.vsc_streamlit import StreamlitFrontend
 
 class ProjectDataIO(LightningWork):
 
-    def __init__(self, *args, drive_name, config_dir, data_dir, default_config_dict, **kwargs):
+    def __init__(self, *args, drive_name, data_dir, default_config_dict, **kwargs):
 
         super().__init__(*args, **kwargs)
 
         self.drive = Drive(drive_name)
 
-        # config for project named <PROJ_NAME> will be stored as
-        # <config_dir>/config_<PROJ_NAME>.yaml
-        self.config_dir = config_dir
-        # if not os.path.exists(self.config_dir):
-        #     os.makedirs(self.config_dir)
-        self.config_name = None
-        self.config_file = None
-
         # save default config info for initializing new projects
         self.default_config_dict = default_config_dict
 
         # data for project named <PROJ_NAME> will be stored as
-        # <data_dir>/<PROJ_NAME>
+        # <data_dir>/<PROJ_NAME> (aka self.project_dir)
         #   ├── labeled-data/
         #   ├── videos/
+        #   ├── models/
+        #   ├── config.yaml
         #   └── CollectedData.csv
         self.data_dir = data_dir
-        # if not os.path.exists(self.data_dir):
-        #     os.makedirs(self.data_dir)
 
         self.proj_dir = None
+        self.config_name = None
+        self.config_file = None
         self.model_dir = None
-        self.test_videos_dir = None
         self.n_labeled_frames = 0
         self.n_total_frames = 0
-        self.time = 0.0
 
     def _get_from_drive_if_not_local(self, file):
         if not os.path.exists(file):
@@ -68,11 +61,9 @@ class ProjectDataIO(LightningWork):
 
     def update_paths(self, project_name, **kwargs):
         self.proj_dir = os.path.join(self.data_dir, project_name)
-        self.config_dir = self.proj_dir
         self.config_name = f"model_config_{project_name}.yaml"
-        self.config_file = os.path.join(self.config_dir, self.config_name)
-        self.model_dir = os.path.join(self.proj_dir, "models")
-        self.test_videos_dir = os.path.join(self.proj_dir, "videos")
+        self.config_file = os.path.join(self.proj_dir, self.config_name)
+        self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_ui.py
 
     def update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""
@@ -114,8 +105,8 @@ class ProjectDataIO(LightningWork):
                         config_dict[sconfig_name][key] = val
 
             # save out updated config file locally
-            if not os.path.exists(self.config_dir):
-                os.makedirs(self.config_dir)
+            if not os.path.exists(self.proj_dir):
+                os.makedirs(self.proj_dir)
             yaml.dump(config_dict, open(self.config_file, "w"))
 
         # push data to drive and clean up local file
@@ -149,7 +140,7 @@ class ProjectDataIO(LightningWork):
         # remove local files
         shutil.rmtree(labeled_data_dir)
 
-    def compute_labeled_frame_fraction(self, timer=0.):
+    def compute_labeled_frame_fraction(self, timer=0.0):
         # TODO: don't want to have metadata filename hard-coded here
 
         metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
@@ -178,17 +169,14 @@ class ProjectDataIO(LightningWork):
         elif action == "update_frame_shapes":
             self.update_frame_shapes()
         elif action == "compute_labeled_frame_fraction":
-            n = 15
-            new_time = kwargs["timer"]
-            if (new_time - self.time) > n:
-                self.n_labeled_frames, self.n_total_frames = self.compute_labeled_frame_fraction(
-                    timer=new_time)
+            self.n_labeled_frames, self.n_total_frames = self.compute_labeled_frame_fraction(
+                timer=kwargs["timer"])
 
 
 class ProjectUI(LightningFlow):
     """UI to set up project."""
 
-    def __init__(self, *args, config_dir, data_dir, **kwargs):
+    def __init__(self, *args, data_dir, **kwargs):
         super().__init__(*args, **kwargs)
 
         # control runners
@@ -199,7 +187,6 @@ class ProjectUI(LightningFlow):
         self.count = 0
 
         self.data_dir = data_dir
-        self.config_dir = config_dir
         self.config_file = None
         self.initialized_projects = os.listdir(self.data_dir) if os.path.exists(self.data_dir) \
             else []
@@ -268,9 +255,8 @@ def _render_streamlit_fn(state: AppState):
             )
             if project_loaded:
                 # specify config file
-                state.config_dir = os.path.join(state.data_dir, st_project_name)
                 config_file = os.path.join(
-                    state.config_dir, f"model_config_{st_project_name}.yaml")
+                    state.data_dir, st_project_name, f"model_config_{st_project_name}.yaml")
                 # update project manager
                 state.config_file = config_file
                 state.st_submits += 1
@@ -321,7 +307,7 @@ def _render_streamlit_fn(state: AppState):
         st_n_keypoints = len(st_keypoints)
         st_pcasv_columns = [0, 1]
         st_n_bodyparts = 1
-        st_pcamv_columns = np.array([[0], [1]], dtype=np.int)
+        st_pcamv_columns = np.array([[0], [1]], dtype=np.int32)
         pcamv_ready = True
 
     else:
