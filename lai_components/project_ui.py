@@ -161,7 +161,8 @@ class ProjectDataIO(LightningWork):
             print("did not find labeled data directory in Drive")
 
         # remove local files
-        shutil.rmtree(labeled_data_dir)
+        if os.path.isdir(labeled_data_dir):
+            shutil.rmtree(labeled_data_dir)
 
     def compute_labeled_frame_fraction(self, timer=0.0):
         # TODO: don't want to have metadata filename hard-coded here

@@ -62,6 +62,7 @@ class TrainDemoUI(LightningFlow):
         self.st_script_args = None
         self.st_semi_losses = None
         self.st_datetimes = None
+        self.st_train_complete_flag = None
 
         # copy over for now, we can add these to the UI later if we want
         self.st_script_dir = script_dir
@@ -193,11 +194,12 @@ def _render_streamlit_fn(state: AppState):
                 # semi-supervised model
                 st_script_args["semisuper"] = tmp + f" 'model.losses_to_use={semi_losses}'"
                 st_datetimes["semisuper"] = dtime
-            st.text(str(st_datetimes))
 
         # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
         state.st_script_args = st_script_args
         state.st_datetimes = st_datetimes
+        state.st_train_complete_flag = {"super": False, "semisuper": False}
+        st.text("Model training launched!")
         state.run_script = True  # must the last to prevent race condition
 
         # TODO: show training progress

@@ -5,6 +5,7 @@ To run from the command line (inside the conda environment named "lai" here:
 
 """
 
+from datetime import datetime
 from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
@@ -38,8 +39,6 @@ from lai_work.bashwork import LitBashWork
 # TODO
 # - revisit project config page and trigger the following
 #   - get username/password
-# - local
-#   - models keep training
 # - cloud
 #   - labeled frame counter shows 0/0 on train tab
 #   - tensorboard has bad logdir? only points to tb_logs of a single model
@@ -160,6 +159,14 @@ class LitPoseApp(LightningFlow):
         #     drive_name=drive_name,
         # )
 
+    @property
+    def ready(self) -> bool:
+        """Return true once all works have an assigned url"""
+        return all([
+            self.my_work.url != "",
+            self.my_tb.url != "",
+            self.label_studio.label_studio.url != ""])
+
     def init_lp_outputs_to_ui(self, search_dir=None):
 
         # get existing model directories that contain test*.csv
@@ -267,7 +274,8 @@ class LitPoseApp(LightningFlow):
         outputs = [os.path.join(self.project_io.proj_dir, "models")]
 
         # train supervised model
-        if self.train_ui.st_train_super:
+        if self.train_ui.st_train_super \
+                and not self.train_ui.st_train_complete_flag["super"]:
             hydra_srun = os.path.join(
                 base_dir, "models", self.train_ui.st_datetimes["super"])
             hydra_mrun = os.path.join(
@@ -286,9 +294,11 @@ class LitPoseApp(LightningFlow):
                 inputs=inputs,
                 outputs=outputs,
             )
+            self.train_ui.st_train_complete_flag["super"] = True
 
         # train semi-supervised model
-        if self.train_ui.st_train_semisuper:
+        if self.train_ui.st_train_semisuper \
+                and not self.train_ui.st_train_complete_flag["semisuper"]:
             hydra_srun = os.path.join(
                 base_dir, "models", self.train_ui.st_datetimes["semisuper"])
             hydra_mrun = os.path.join(
@@ -307,6 +317,7 @@ class LitPoseApp(LightningFlow):
                 inputs=inputs,
                 outputs=outputs,
             )
+            self.train_ui.st_train_complete_flag["semisuper"] = True
 
         # have TB pull the new data
         # input_output_only=True means that we'll pull inputs from drive, but not run commands
@@ -477,7 +488,7 @@ class LitPoseApp(LightningFlow):
         # update project configuration
         if self.project_ui.run_script and run_while_training:
 
-            print("=============== run proj ui script ====================")
+            # print("=============== run proj ui script ====================")
 
             # update user-supplied parameters in config yaml file
             self.project_io.run(
