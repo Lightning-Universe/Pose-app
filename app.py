@@ -40,11 +40,10 @@ from lai_work.bashwork import LitBashWork
 # - revisit project config page and trigger the following
 #   - get username/password
 # - cloud
-#   - labeled frame counter shows 0/0 on train tab
 #   - tensorboard has bad logdir? only points to tb_logs of a single model
 
 
-ON_CLOUD = False  # set False when debugging locally, weird things can happen w/ shared filesystem
+ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
 
 
 class LitPoseApp(LightningFlow):
@@ -130,20 +129,11 @@ class LitPoseApp(LightningFlow):
         )
         self.work_is_done_extract_frames = False
 
-        # label studio
+        # label studio/fiftyone
         self.label_studio = LitLabelStudio(
             cloud_compute=CloudCompute("default"),
             drive_name=drive_name,
         )
-
-        # fiftyone (TODO)
-        # self.my_work = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=FiftyOneBuildConfig(),
-        #     drive_name=drive_name,
-        #     component_name="fiftyone",
-        #     wait_seconds_after_run=1,
-        # )
 
         # streamlit labeled
         # self.my_streamlit_frame = LitBashWork(
@@ -159,13 +149,13 @@ class LitPoseApp(LightningFlow):
         #     drive_name=drive_name,
         # )
 
-    @property
-    def ready(self) -> bool:
-        """Return true once all works have an assigned url"""
-        return all([
-            self.my_work.url != "",
-            self.my_tb.url != "",
-            self.label_studio.label_studio.url != ""])
+    # @property
+    # def ready(self) -> bool:
+    #     """Return true once all works have an assigned url"""
+    #     return all([
+    #         self.my_tb.url != "",
+    #         self.my_work.url != "",
+    #         self.label_studio.label_studio.url != ""])
 
     def init_lp_outputs_to_ui(self, search_dir=None):
 
@@ -488,8 +478,6 @@ class LitPoseApp(LightningFlow):
         # update project configuration
         if self.project_ui.run_script and run_while_training:
 
-            # print("=============== run proj ui script ====================")
-
             # update user-supplied parameters in config yaml file
             self.project_io.run(
                 action="update_paths", project_name=self.project_ui.st_project_name)
@@ -582,7 +570,6 @@ class LitPoseApp(LightningFlow):
 
         elif self.landing_ui.st_mode == "project":
             if not self.extract_ui.proj_dir:
-            # if not self.project_ui.st_project_name:
                 # need to create/load new project before moving on to other tabs
                 return [
                     landing_tab,

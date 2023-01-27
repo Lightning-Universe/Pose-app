@@ -8,6 +8,7 @@ import math
 import numpy as np
 import os
 import shutil
+from streamlit_autorefresh import st_autorefresh
 from PIL import Image
 import streamlit as st
 import time
@@ -52,7 +53,6 @@ class ProjectDataIO(LightningWork):
                     # need to loop over dirs (presumably inside of labeled-data) because for some
                     # reason Drive.get() will remove a single intermediate directory
                     dirs = self.drive.list(file_or_dir)
-                    print(dirs)
                     for dir_ in dirs:
                         print(f"drive try get {dir_}")
                         self.drive.get(dir_, overwrite=True)
@@ -64,6 +64,8 @@ class ProjectDataIO(LightningWork):
             except Exception as e:
                 print(e)
                 print(f"could not find {file_or_dir} in drive")
+        else:
+            print(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir):
         print(f"putting {file_or_dir} to drive")
@@ -88,8 +90,8 @@ class ProjectDataIO(LightningWork):
 
         # check to see if config exists; copy default config if not
         if (self.config_file is None) or (not os.path.exists(self.config_file)):
-            print(f'no config file at {self.config_file}')
-            print('loading default config')
+            print(f"no config file at {self.config_file}")
+            print("loading default config")
             # copy default config
             config_dict = copy.deepcopy(self.default_config_dict)
             # empty out project-specific entries
@@ -103,7 +105,7 @@ class ProjectDataIO(LightningWork):
             config_dict["data"]["columns_for_singleview_pca"] = None
             config_dict["data"]["mirrored_column_matches"] = None
         else:
-            print('loading existing config')
+            print("loading existing config")
             # load existing config
             config_dict = yaml.safe_load(open(self.config_file))
 
@@ -126,8 +128,6 @@ class ProjectDataIO(LightningWork):
             if not os.path.exists(self.proj_dir):
                 os.makedirs(self.proj_dir)
             yaml.dump(config_dict, open(self.config_file, "w"))
-
-        print(config_dict)
 
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
@@ -160,7 +160,7 @@ class ProjectDataIO(LightningWork):
             print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*")))
             print("did not find labeled data directory in Drive")
 
-        # remove local files
+        # remove local files so that Work is forced to load updated versions from Drive
         if os.path.isdir(labeled_data_dir):
             shutil.rmtree(labeled_data_dir)
 
@@ -182,6 +182,11 @@ class ProjectDataIO(LightningWork):
             print(e)
             n_labeled_frames = None
             n_total_frames = None
+
+        # remove local file so that Work is forced to load updated versions from Drive
+        if os.path.exists(metadata_file):
+            os.remove(metadata_file)
+
         return n_labeled_frames, n_total_frames
 
     def run(self, action, **kwargs):
@@ -528,5 +533,6 @@ def _render_streamlit_fn(state: AppState):
             state.st_project_loaded = True
             state.st_new_vals = st_new_vals
             state.keypoints = st_new_vals["data"]["keypoints"]
-
+            st.text("Request submitted!")
             state.run_script = True  # must the last to prevent race condition
+            st_autorefresh(interval=2000, key="refresh_project_ui")

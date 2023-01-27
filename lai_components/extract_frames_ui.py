@@ -78,9 +78,7 @@ def _render_streamlit_fn(state: AppState):
         # write the content of the file to the path
         with open(filepath, "wb") as f:
             f.write(bytes_data)
-        # push the data to the Drive, at this point the file has been
-        # stored in S3, and can be accessed from other components using
-        # the same lit:// path
+        # push the data to the Drive
         state.drive.put(filepath)
         # clean up the local file
         # os.remove(filepath)
@@ -93,10 +91,7 @@ def _render_streamlit_fn(state: AppState):
         "Extract frames",
         disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script
     )
-    # st.text(uploaded_files)
-    # st.text(st_n_frames_per_video)
-    # st.text(st_videos)
-    # st.text(st_submit_button)
+
     if state.run_script:
         st.warning(f"waiting for existing extraction to finish")
 
@@ -112,5 +107,5 @@ def _render_streamlit_fn(state: AppState):
 
         state.st_video_files = st_videos
         state.st_n_frames_per_video = st_n_frames_per_video
-
+        st.text("Request submitted!")
         state.run_script = True  # must the last to prevent race condition

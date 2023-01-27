@@ -98,16 +98,13 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    st_autorefresh(interval=2000, key="refresh_train_ui")
+    # st_autorefresh(interval=2000, key="refresh_train_ui")
 
     # TODO: update with st_radial
-    st.text(
-        "Note: you have labeled %s / %s frames" % (state.n_labeled_frames, state.n_total_frames))
+    st.text(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
 
     st.selectbox(
-        "Existing Models",
-        [k for k, v in sorted(state.hydra_outputs.items(), reverse=True)]
-    )
+        "Existing Models", [k for k, v in sorted(state.hydra_outputs.items(), reverse=True)])
 
     st.markdown(
         """
@@ -184,7 +181,7 @@ def _render_streamlit_fn(state: AppState):
             tmp += f" training.train_frames={st_train_frames}"
             tmp += f" training.profiler=null"
             tmp += f" eval.predict_vids_after_training=true"
-            dtime = datetime.today().strftime('%Y-%m-%d/%H-%M-%S')
+            dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
             if i == 0:
                 # supervised model
                 st_script_args["super"] = tmp + " 'model.losses_to_use=[]'"
@@ -201,5 +198,6 @@ def _render_streamlit_fn(state: AppState):
         state.st_train_complete_flag = {"super": False, "semisuper": False}
         st.text("Model training launched!")
         state.run_script = True  # must the last to prevent race condition
+        st_autorefresh(interval=2000, key="refresh_train_ui")
 
         # TODO: show training progress
