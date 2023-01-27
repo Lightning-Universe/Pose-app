@@ -37,10 +37,9 @@ from lai_work.bashwork import LitBashWork
 
 
 # TODO
-# - revisit project config page and trigger the following
-#   - get username/password
-# - cloud
-#   - tensorboard has bad logdir? only points to tb_logs of a single model
+# - get username/password in project config page
+# - load label studio database from drive
+# - cloud: getting files recursively doesn't work
 
 
 ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
@@ -321,14 +320,7 @@ class LitPoseApp(LightningFlow):
         )
 
         # set the new outputs for UIs
-        cmd = f"find {outputs[0]} -maxdepth 4 -type f -name predictions.csv"
-        self.my_work.run(cmd, cwd=os.getcwd(), save_stdout=True)
-        if self.my_work.last_args() == cmd:
-            outputs_ = output_with_video_prediction(self.my_work.last_stdout())
-            if outputs_:
-                self.train_ui.set_hydra_outputs(outputs_)
-            # self.fo_ui.set_hydra_outputs(outputs)
-            self.my_work.reset_last_args()
+        self.init_lp_outputs_to_ui(search_dir=outputs[0])
 
     def start_fiftyone_dataset_creation(self):
 
@@ -448,8 +440,7 @@ class LitPoseApp(LightningFlow):
         # init UIs (find prev artifacts)
         # -----------------------------
         # find previously trained models, expose to training UI
-        # TODO: THIS TAKES FOREVER ON CLOUD! why?
-        # self.init_lp_outputs_to_ui(search_dir=self.project_io.proj_dir)
+        self.init_lp_outputs_to_ui(search_dir=self.project_io.model_dir)
         # find previously constructed fiftyone datasets, expose to fiftyone UI
         # self.init_fiftyone_outputs_to_ui()
 
@@ -459,7 +450,7 @@ class LitPoseApp(LightningFlow):
         self.label_studio.run(action="start_label_studio")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
-            self.start_tensorboard(logdir=os.path.join(os.getcwd(), self.project_io.model_dir))
+            self.start_tensorboard(logdir=self.project_io.model_dir)
         # self.start_fiftyone()
 
         self.landing_ui.run()
