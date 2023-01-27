@@ -25,7 +25,7 @@ metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
 try:
     metadata = yaml.safe_load(open(metadata_file, "r"))
 except FileNotFoundError:
-    print(f"Cannot find label studio files in {args.proj_dir}")
+    print(f"Cannot find {metadata_file} in {args.proj_dir}")
     exit()
 label_studio_project = get_project(label_studio_client=label_studio_client, id=metadata["id"])
 print("Fetched Project ID: %s, Project Title: %s" % (

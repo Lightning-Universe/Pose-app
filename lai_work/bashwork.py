@@ -152,7 +152,7 @@ class LitBashWork(L.LightningWork):
 
     def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"drive put {o}")
+            print(f"drive try put {o}")
             # make sure dir end with / so that put works correctly
             if os.path.isdir(o):
                 o = os.path.join(o, "")
@@ -168,6 +168,7 @@ class LitBashWork(L.LightningWork):
             #     # file doesn't exist yet
             #     pass
             self._drive.put(o)
+            print(f"drive success put {o}")
 
     def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
         with subprocess.Popen(

@@ -22,7 +22,7 @@ class TensorboardBuildConfig(L.BuildConfig):
         ]
 
 
-class FiftyOneBuildConfig(L.BuildConfig):
+class LitPoseBuildConfig(L.BuildConfig):
 
     @staticmethod
     def build_commands() -> List[str]:

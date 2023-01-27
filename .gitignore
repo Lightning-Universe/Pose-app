@@ -2,6 +2,7 @@ lightining-pose/*
 label-studio/*
 tracking-diagnostics/*
 scratch/*
+app_*
 
 
 # Byte-compiled / optimized / DLL files

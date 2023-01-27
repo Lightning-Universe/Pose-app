@@ -1,12 +1,10 @@
-import lightning.app as la
-from lightning.app.storage.drive import Drive
+from lightning import LightningFlow
+from lightning.app import BuildConfig
+import os
+from typing import List
+
 from lai_work.bashwork import LitBashWork
 
-from pathlib import Path
-from string import Template
-import time
-import os
-from typing import Optional, Union, List
 
 # dir where label studio python venv will be setup
 label_studio_venv = "venv-label-studio"
@@ -15,7 +13,7 @@ conf_file = "nginx-8080.conf"
 new_conf_file = "nginx-new-8080.conf"
 
 
-class LabelStudioBuildConfig(la.BuildConfig):
+class LabelStudioBuildConfig(BuildConfig):
 
     @staticmethod
     def build_commands() -> List[str]:
@@ -34,7 +32,7 @@ class LabelStudioBuildConfig(la.BuildConfig):
         ]
 
 
-class LitLabelStudio(la.LightningFlow):
+class LitLabelStudio(LightningFlow):
 
     def __init__(
         self,
@@ -53,13 +51,12 @@ class LitLabelStudio(la.LightningFlow):
         )
         self.count = 0
         self.label_studio_url = "http://localhost:8080"
-        self.label_studio_config_file = None
         self.project_name = None
         self.username = "matt@columbia.edu"
         self.password = "whiteway123"
         self.user_token = "whitenoise1"
-        self.time = time.time()
         self.check_labels = False
+        self.time = 0.0
 
         # paths to relevant data; set when putting/getting from Drive
         self.filenames = {
@@ -72,6 +69,10 @@ class LitLabelStudio(la.LightningFlow):
         # these attributes get set by external app
         self.proj_dir = proj_dir
         self.keypoints = None
+
+    @property
+    def proj_dir_local(self):
+        return os.path.join(os.getcwd(), self.proj_dir)
 
     def start_label_studio(self):
 
@@ -109,23 +110,22 @@ class LitLabelStudio(la.LightningFlow):
 
         self.count += 1
 
-    def create_new_project(self):
+    def create_new_project(self, labeled_data_dir):
 
         # build script command
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "create_new_project.py")
-        proj_dir = os.path.join(os.getcwd(), self.proj_dir)
-        label_studio_config_file = os.path.join(os.getcwd(), self.label_studio_config_file)
+        label_studio_config_file = os.path.join(os.getcwd(), self.filenames["label_studio_config"])
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {proj_dir} " \
+                        f"--proj_dir {self.proj_dir_local} " \
                         f"--api_key {self.user_token} " \
                         f"--project_name {self.project_name} " \
                         f"--label_config {label_studio_config_file} "
 
-        # specify inputs to get from drive
-        self.filenames["label_studio_config"] = self.label_studio_config_file
-        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, "labeled-data")
+        # cannot use: os.path.join(self.proj_dir, "labeled-data")
+        # component cannot find this data. need Path here?
+        self.filenames["labeled_data_dir"] = labeled_data_dir
 
         # specify outputs to put to drive
         self.filenames["label_studio_metadata"] = os.path.join(
@@ -150,10 +150,9 @@ class LitLabelStudio(la.LightningFlow):
         # build script command
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "update_tasks.py")
-        proj_dir = os.path.join(os.getcwd(), self.proj_dir)
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {proj_dir} " \
+                        f"--proj_dir {self.proj_dir_local} " \
                         f"--api_key {self.user_token} "
 
         # run command to update label studio tasks
@@ -162,7 +161,10 @@ class LitLabelStudio(la.LightningFlow):
             venv_name=label_studio_venv,
             wait_for_exit=True,
             timer=videos,
-            inputs=[self.filenames["labeled_data_dir"]],
+            inputs=[
+                self.filenames["labeled_data_dir"],
+                self.filenames["label_studio_metadata"],
+            ],
             outputs=[],
         )
 
@@ -176,10 +178,9 @@ class LitLabelStudio(la.LightningFlow):
 
             # build script command
             keypoints_list = "/".join(self.keypoints)
-            proj_dir = os.path.join(os.getcwd(), self.proj_dir)
             run_command = f"python {script_path} " \
                           f"--label_studio_url {self.label_studio_url} " \
-                          f"--proj_dir {proj_dir} " \
+                          f"--proj_dir {self.proj_dir_local} " \
                           f"--api_key {self.user_token} " \
                           f"--keypoints_list '{keypoints_list}' "
 
@@ -195,7 +196,8 @@ class LitLabelStudio(la.LightningFlow):
                 wait_for_exit=True,
                 timer=timer,
                 inputs=[
-                    self.filenames["labeled_data_dir"]
+                    self.filenames["labeled_data_dir"],
+                    self.filenames["label_studio_metadata"],
                 ],
                 outputs=[
                     self.filenames["collected_data"],
@@ -207,21 +209,32 @@ class LitLabelStudio(la.LightningFlow):
         self.check_labels = True
 
     def create_labeling_config_xml(self, keypoints):
-        self.keypoints = keypoints
-        xml_str = build_xml(keypoints)
-        filename = os.path.join(self.proj_dir, "label_studio_config.xml")
-        if not os.path.exists(self.proj_dir):
-            os.makedirs(self.proj_dir)
-        with open(filename, 'wt') as outfile:
-            outfile.write(xml_str)
-        self.label_studio_config_file = filename
 
-        # put xml file on drive
+        self.keypoints = keypoints
+
+        filename = "label_studio_config.xml"
+        self.filenames["label_studio_config"] = os.path.join(self.proj_dir, filename)
+
+        # build script command
+        keypoints_list = "/".join(keypoints)
+        script_path = os.path.join(
+            os.getcwd(), "lai_components", "label_studio", "create_labeling_config.py")
+        build_command = f"python {script_path} " \
+                        f"--proj_dir {self.proj_dir_local} " \
+                        f"--filename {filename} " \
+                        f"--keypoints_list {keypoints_list} "
+
+        # run command to save out xml
+        # NOTE: we cannot just save out the xml from this function, since we are inside a Flow. We
+        # need a Work to save the xml so that the Work has local access to that file; the Work can
+        # then put that file to a Drive
         self.label_studio.run(
-            args="",
-            input_output_only=True,
+            build_command,
+            # venv_name=label_studio_venv,
+            wait_for_exit=True,
+            timer=keypoints,
             inputs=[],
-            outputs=[filename]
+            outputs=[self.filenames["label_studio_config"]],
         )
 
     def run(self, action=None, **kwargs):
@@ -231,34 +244,8 @@ class LitLabelStudio(la.LightningFlow):
         elif action == "create_labeling_config_xml":
             self.create_labeling_config_xml(**kwargs)
         elif action == "create_new_project":
-            self.create_new_project()
+            self.create_new_project(**kwargs)
         elif action == "update_tasks":
             self.update_tasks(**kwargs)
         elif action == "check_labeling_task_and_export":
             self.check_labeling_task_and_export(timer=kwargs["timer"])
-
-
-def build_xml(bodypart_names: List[str]) -> str:
-    """Builds the XML file for Label Studio"""
-    # 25 colors
-    colors = ["red", "blue", "green", "yellow", "orange", "purple", "brown", "pink", "gray",
-              "black", "white", "cyan", "magenta", "lime", "maroon", "olive", "navy", "teal",
-              "aqua", "fuchsia", "silver", "gold", "indigo", "violet", "coral"]
-    # replicate just to be safe
-    colors = colors + colors + colors + colors
-    colors_to_use = colors[:len(bodypart_names)]  # practically ignoring colors
-    view_str = "<!--Basic keypoint image labeling configuration for multiple regions-->"
-    view_str += "\n<View>"
-    view_str += "\n<Header value=\"Select keypoint name with the cursor/number button, " \
-                "then click on the image.\"/>"
-    view_str += "\n<Text name=\"text1\" value=\"Important: Click Submit after you have labeled " \
-                "all visible keypoints in this image.\"/>"
-    view_str += "\n<Text name=\"text2\" value=\"Also useful: Press H for hand tool, " \
-                "CTRL+ to zoom in and CTRL- to zoom out\"/>"
-    view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\" strokeWidth=\"3\">"  # indent 2
-    for keypoint, color in zip(bodypart_names, colors_to_use):
-        view_str += f"\n    <Label value=\"{keypoint}\" />"  # indent 4
-    view_str += "\n  </KeyPointLabels>"  # indent 2
-    view_str += "\n  <Image name=\"img-1\" value=\"$img\" />"  # indent 2
-    view_str += "\n</View>"  # indent 0
-    return view_str

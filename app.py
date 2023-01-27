@@ -20,9 +20,9 @@ from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.build_utils import lightning_pose_dir, tracking_diag_dir
 from lai_components.build_utils import lightning_pose_venv, tensorboard_venv
 from lai_components.build_utils import (
-    TensorboardBuildConfig,
-    FiftyOneBuildConfig,
+    LitPoseBuildConfig,
     StreamlitBuildConfig,
+    TensorboardBuildConfig,
 )
 from lai_components.landing_ui import LandingUI
 from lai_components.project_ui import ProjectUI, ProjectDataIO
@@ -44,7 +44,7 @@ from lai_work.bashwork import LitBashWork
 # - when using ENABLE_STATE_WEBSOCKET=1, video upload tab does not work
 
 
-ON_CLOUD = False
+ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
 
 
 class LitPoseApp(LightningFlow):
@@ -58,7 +58,7 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # paths
         # -----------------------------
-        config_dir = os.path.join(lightning_pose_dir, "scripts")
+        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
         data_dir = "data"  # relative to self.drive
 
         # load default config and pass to project manager
@@ -120,12 +120,13 @@ class LitPoseApp(LightningFlow):
             component_name="tensorboard",
         )
 
-        # training/fiftyone
+        # frame extraction/training
         self.my_work = LitBashWork(
             cloud_compute=CloudCompute("gpu"),
-            cloud_build_config=FiftyOneBuildConfig(),
+            cloud_build_config=LitPoseBuildConfig(),  # this is where Lightning Pose is installed
             drive_name=drive_name,
             component_name="my_work",
+            wait_seconds_after_run=1,
         )
         self.work_is_done_extract_frames = False
 
@@ -134,6 +135,15 @@ class LitPoseApp(LightningFlow):
             cloud_compute=CloudCompute("default"),
             drive_name=drive_name,
         )
+
+        # fiftyone (TODO)
+        # self.my_work = LitBashWork(
+        #     cloud_compute=CloudCompute("default"),
+        #     cloud_build_config=FiftyOneBuildConfig(),
+        #     drive_name=drive_name,
+        #     component_name="fiftyone",
+        #     wait_seconds_after_run=1,
+        # )
 
         # streamlit labeled
         # self.my_streamlit_frame = LitBashWork(
@@ -436,8 +446,8 @@ class LitPoseApp(LightningFlow):
         # init UIs (find prev artifacts)
         # -----------------------------
         # find previously trained models, expose to training UI
-        self.init_lp_outputs_to_ui()
-
+        # TODO: THIS TAKES FOREVER ON CLOUD! why?
+        # self.init_lp_outputs_to_ui(search_dir=self.project_io.proj_dir)
         # find previously constructed fiftyone datasets, expose to fiftyone UI
         # self.init_fiftyone_outputs_to_ui()
 
@@ -454,12 +464,17 @@ class LitPoseApp(LightningFlow):
         self.project_ui.run()
         self.extract_ui.run()
 
+        # don't interfere /w train; since all Works use the same filesystem when running locally,
+        # one Work updating the filesystem used by the trainer can corrupt data, etc.
+        run_while_training = True
+        if not ON_CLOUD and self.train_ui.run_script:
+            run_while_training = False
+
         # -----------------------------
         # run work
         # -----------------------------
         # update project configuration
-        if self.project_ui.run_script \
-                and (not self.train_ui.run_script and not ON_CLOUD):  # don't interfere /w train
+        if self.project_ui.run_script and run_while_training:
 
             print("=============== run proj ui script ====================")
 
@@ -478,27 +493,25 @@ class LitPoseApp(LightningFlow):
             if self.project_ui.create_new_project and self.project_ui.count == 0:
                 self.label_studio.run(
                     action="create_labeling_config_xml", keypoints=self.project_ui.keypoints)
-                self.label_studio.run(action="create_new_project")
+                self.label_studio.run(
+                    action="create_new_project",
+                    labeled_data_dir=os.path.join(self.project_io.proj_dir, "labeled-data"))
 
             self.project_ui.count += 1
             self.project_ui.run_script = False
 
         # extract frames for labeleding from uploaded videos
-        if self.extract_ui.proj_dir and self.extract_ui.run_script \
-                and (not self.train_ui.run_script and not ON_CLOUD):  # don't interfere /w train
+        if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
             self.start_extract_frames()
             # wait until litbashwork is done extracting frames, then update tasks
             if self.work_is_done_extract_frames:
-                # force a run of update_tasks by using the timer; control how often it gets run by
-                # immediately setting the boolean flag that controls access to False
                 self.project_io.run(action="update_frame_shapes")
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.work_is_done_extract_frames = False
                 self.extract_ui.run_script = False
 
         # check labeling task and export new labels
-        if self.project_ui.count > 0 \
-                and (not self.train_ui.run_script and not ON_CLOUD):  # don't interfere /w train
+        if self.project_ui.count > 0 and run_while_training:
             t_elapsed = 15  # seconds
             t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
             if self.schedule(f"* * * * * {t_elapsed_list}"):
@@ -556,7 +569,8 @@ class LitPoseApp(LightningFlow):
             ]
 
         elif self.landing_ui.st_mode == "project":
-            if not self.extract_ui.proj_dir:  # self.project_ui.st_project_name:
+            if not self.extract_ui.proj_dir:
+            # if not self.project_ui.st_project_name:
                 # need to create/load new project before moving on to other tabs
                 return [
                     landing_tab,

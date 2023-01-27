@@ -1,6 +1,7 @@
 import copy
 import glob
 from lightning import LightningFlow, LightningWork
+from lightning.app.storage import Path
 from lightning.app.storage.drive import Drive
 from lightning.app.utilities.state import AppState
 import math
@@ -42,22 +43,22 @@ class ProjectDataIO(LightningWork):
         self.n_labeled_frames = 0
         self.n_total_frames = 0
 
-    def _get_from_drive_if_not_local(self, file):
-        if not os.path.exists(file):
+    def _get_from_drive_if_not_local(self, file_or_dir):
+        if not os.path.exists(file_or_dir):
             try:
-                print(f"{file} does not exist; getting from drive")
-                self.drive.get(file)
+                print(f"{file_or_dir} does not exist; getting from drive")
+                self.drive.get(file_or_dir)
             except Exception:
-                print(f"could not find {file} in drive")
+                print(f"could not find {file_or_dir} in drive")
 
     def _put_to_drive_remove_local(self, file_or_dir):
         print(f"putting {file_or_dir} to drive")
         self.drive.put(file_or_dir)
-        # # clean up the local object
-        # if os.path.isfile(file_or_dir):
-        #     os.remove(file_or_dir)
-        # else:
-        #     shutil.rmtree(file_or_dir)
+        # clean up the local object
+        if os.path.isfile(file_or_dir):
+            os.remove(file_or_dir)
+        else:
+            shutil.rmtree(file_or_dir)
 
     def update_paths(self, project_name, **kwargs):
         self.proj_dir = os.path.join(self.data_dir, project_name)
@@ -71,8 +72,10 @@ class ProjectDataIO(LightningWork):
         # check to see if config exists locally; if not, try pulling from drive
         self._get_from_drive_if_not_local(self.config_file)
 
-        # check to see if config exists; copy default config
+        # check to see if config exists; copy default config if not
         if (self.config_file is None) or (not os.path.exists(self.config_file)):
+            print(f'no config file at {self.config_file}')
+            print('loading default config')
             # copy default config
             config_dict = copy.deepcopy(self.default_config_dict)
             # empty out project-specific entries
@@ -86,6 +89,7 @@ class ProjectDataIO(LightningWork):
             config_dict["data"]["columns_for_singleview_pca"] = None
             config_dict["data"]["mirrored_column_matches"] = None
         else:
+            print('loading existing config')
             # load existing config
             config_dict = yaml.safe_load(open(self.config_file))
 
@@ -108,6 +112,8 @@ class ProjectDataIO(LightningWork):
             if not os.path.exists(self.proj_dir):
                 os.makedirs(self.proj_dir)
             yaml.dump(config_dict, open(self.config_file, "w"))
+
+        print(config_dict)
 
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
@@ -136,6 +142,13 @@ class ProjectDataIO(LightningWork):
                     }
                 }
             })
+        else:
+            print("did not find labeled data directory in Drive")
+            print(os.listdir(self.proj_dir))
+            print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*")))
+            print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png")))
+            print(glob.glob(os.path.join(os.getcwd(), self.proj_dir, "labeled-data", "*")))
+            print(glob.glob(os.path.join(os.getcwd(), self.proj_dir, "labeled-data", "*", "*.png")))
 
         # remove local files
         shutil.rmtree(labeled_data_dir)

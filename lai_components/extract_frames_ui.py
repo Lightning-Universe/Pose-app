@@ -4,6 +4,7 @@ from lightning.app.storage.drive import Drive
 import numpy as np
 import os
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 import yaml
 
 # from lai_components.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
@@ -49,15 +50,13 @@ class ExtractFramesUI(LightningFlow):
 
 def _render_streamlit_fn(state: AppState):
 
-    # ----------------------------------------------------
-    # landing
-    # ----------------------------------------------------
-
     st.markdown(
         """
         ## Extract frames for labeling
         """
     )
+
+    st_autorefresh(interval=2000, key="refresh_extract_frames_ui")
 
     # upload video files
     video_dir = os.path.join(state.proj_dir, "videos")
@@ -94,10 +93,10 @@ def _render_streamlit_fn(state: AppState):
         "Extract frames",
         disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script
     )
-    st.text(uploaded_files)
-    st.text(st_n_frames_per_video)
-    st.text(st_videos)
-    st.text(st_submit_button)
+    # st.text(uploaded_files)
+    # st.text(st_n_frames_per_video)
+    # st.text(st_videos)
+    # st.text(st_submit_button)
     if state.run_script:
         st.warning(f"waiting for existing extraction to finish")
 
