@@ -47,8 +47,22 @@ class ProjectDataIO(LightningWork):
         if not os.path.exists(file_or_dir):
             try:
                 print(f"{file_or_dir} does not exist; getting from drive")
-                self.drive.get(file_or_dir)
-            except Exception:
+                # hacky way to see if we're dealing with a directory
+                if not file_or_dir.endswith(".yaml"):
+                    # need to loop over dirs (presumably inside of labeled-data) because for some
+                    # reason Drive.get() will remove a single intermediate directory
+                    dirs = self.drive.list(file_or_dir)
+                    print(dirs)
+                    for dir_ in dirs:
+                        print(f"drive try get {dir_}")
+                        self.drive.get(dir_, overwrite=True)
+                        print(f"drive success get {dir_}")
+                else:
+                    print(f"drive try get {file_or_dir}")
+                    self.drive.get(file_or_dir, overwrite=True)
+                    print(f"drive success get {file_or_dir}")
+            except Exception as e:
+                print(e)
                 print(f"could not find {file_or_dir} in drive")
 
     def _put_to_drive_remove_local(self, file_or_dir):
@@ -143,12 +157,8 @@ class ProjectDataIO(LightningWork):
                 }
             })
         else:
-            print("did not find labeled data directory in Drive")
-            print(os.listdir(self.proj_dir))
             print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*")))
-            print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png")))
-            print(glob.glob(os.path.join(os.getcwd(), self.proj_dir, "labeled-data", "*")))
-            print(glob.glob(os.path.join(os.getcwd(), self.proj_dir, "labeled-data", "*", "*.png")))
+            print("did not find labeled data directory in Drive")
 
         # remove local files
         shutil.rmtree(labeled_data_dir)

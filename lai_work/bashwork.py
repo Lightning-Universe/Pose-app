@@ -145,8 +145,8 @@ class LitBashWork(L.LightningWork):
             try:  # file may not be ready
                 self._drive.get(i, overwrite=True)
                 print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
-            except Exception as E:
-                print(E)
+            except Exception as e:
+                print(e)
                 print(f"did not load {i} from drive")
                 pass
 

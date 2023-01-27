@@ -38,13 +38,14 @@ from lai_work.bashwork import LitBashWork
 # TODO
 # - revisit project config page and trigger the following
 #   - get username/password
+# - local
+#   - models keep training
+# - cloud
+#   - labeled frame counter shows 0/0 on train tab
+#   - tensorboard has bad logdir? only points to tb_logs of a single model
 
-# NOTES
-# 2023-01-24
-# - when using ENABLE_STATE_WEBSOCKET=1, video upload tab does not work
 
-
-ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
+ON_CLOUD = False  # set False when debugging locally, weird things can happen w/ shared filesystem
 
 
 class LitPoseApp(LightningFlow):
