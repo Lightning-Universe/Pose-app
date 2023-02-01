@@ -135,14 +135,14 @@ class LitPoseApp(LightningFlow):
 
         # streamlit labeled
         # self.my_streamlit_frame = LitBashWork(
-        #     cloud_compute=CloudCompute("gpu"),
+        #     cloud_compute=CloudCompute("default"),
         #     cloud_build_config=StreamlitBuildConfig(),
         #     drive_name=drive_name,
         # )
 
         # streamlit video
         # self.my_streamlit_video = LitBashWork(
-        #     cloud_compute=CloudCompute("gpu"),
+        #     cloud_compute=CloudCompute("default"),
         #     cloud_build_config=StreamlitBuildConfig(),
         #     drive_name=drive_name,
         # )
