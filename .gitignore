@@ -1,5 +1,8 @@
 lightining-pose/*
 label-studio/*
+tracking-diagnostics/*
+scratch/*
+app_*
 
 
 # Byte-compiled / optimized / DLL files
@@ -144,3 +147,4 @@ wandb
 *lightning-quick-start-quick_start_train*
 flagged
 lightning-pose/
+images_to_label/

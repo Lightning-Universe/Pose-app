@@ -1,11 +1,12 @@
-label-studio/*
 lightning_logs/*
 outputs/*
 static/*
+data/*
 .shared
 *.ckpt
 *.shared*
 *.git*
+*.idea*
 *MNIST*
 *artifacts*
 *egg-info/*
