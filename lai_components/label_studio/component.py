@@ -39,6 +39,7 @@ class LitLabelStudio(LightningFlow):
         *args,
         cloud_compute,
         drive_name,
+        database_dir="data",
         proj_dir=None,
         **kwargs
     ) -> None:
@@ -51,12 +52,14 @@ class LitLabelStudio(LightningFlow):
         )
         self.count = 0
         self.label_studio_url = "http://localhost:8080"
-        self.project_name = None
-        self.username = "matt@columbia.edu"
-        self.password = "whiteway123"
-        self.user_token = "whitenoise1"
+        self.username = "user@localhost"
+        self.password = "pw"
+        self.user_token = "whitenoise"
         self.check_labels = False
         self.time = 0.0
+
+        # location of label studio sqlite database relative to current working directory
+        self.database_dir = database_dir
 
         # paths to relevant data; set when putting/getting from Drive
         self.filenames = {
@@ -64,15 +67,29 @@ class LitLabelStudio(LightningFlow):
             "label_studio_metadata": "",
             "labeled_data_dir": "",
             "collected_data": "",
+            "label_studio_tasks": "",
         }
 
         # these attributes get set by external app
         self.proj_dir = proj_dir
+        self.proj_name = None
         self.keypoints = None
 
     @property
     def proj_dir_local(self):
         return os.path.join(os.getcwd(), self.proj_dir)
+
+    def import_database(self):
+        # pull database from Drive if it exists
+        # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
+        self.label_studio.run(
+            "null command",
+            venv_name=label_studio_venv,
+            cwd=os.getcwd(),
+            input_output_only=True,
+            inputs=[self.database_dir],
+            wait_for_exit=True,
+        )
 
     def start_label_studio(self):
 
@@ -98,19 +115,38 @@ class LitLabelStudio(LightningFlow):
             venv_name=label_studio_venv,
             wait_for_exit=False,
             env={
-                'LABEL_STUDIO_USERNAME': self.username,
-                'LABEL_STUDIO_PASSWORD': self.password,
-                'LABEL_STUDIO_USER_TOKEN': self.user_token,
-                'USE_ENFORCE_CSRF_CHECKS': 'false',
-                'LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED': 'true',
-                'LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT': os.path.abspath(os.getcwd()),
-                'LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK': 'true',
+                "LABEL_STUDIO_USERNAME": self.username,
+                "LABEL_STUDIO_PASSWORD": self.password,
+                "LABEL_STUDIO_USER_TOKEN": self.user_token,
+                "USE_ENFORCE_CSRF_CHECKS": 'false',
+                "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
+                "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
+                "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
+                "LABEL_STUDIO_BASE_DATA_DIR": os.path.join(os.getcwd(), self.database_dir),
             },
         )
 
         self.count += 1
 
-    def create_new_project(self, labeled_data_dir):
+    def update_paths(self, proj_dir, proj_name):
+
+        self.proj_dir = proj_dir
+        self.proj_name = proj_name
+
+        self.filenames["label_studio_config"] = os.path.join(
+            self.proj_dir, "label_studio_config.xml")
+
+        self.filenames["label_studio_metadata"] = os.path.join(
+            self.proj_dir, "label_studio_metadata.yaml")
+
+        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, "labeled-data")
+
+        self.filenames["collected_data"] = os.path.join(self.proj_dir, "CollectedData.csv")
+
+        self.filenames["label_studio_tasks"] = os.path.join(
+            self.proj_dir, "label_studio_tasks.pkl")
+
+    def create_new_project(self):
 
         # build script command
         script_path = os.path.join(
@@ -120,16 +156,8 @@ class LitLabelStudio(LightningFlow):
                         f"--label_studio_url {self.label_studio_url} " \
                         f"--proj_dir {self.proj_dir_local} " \
                         f"--api_key {self.user_token} " \
-                        f"--project_name {self.project_name} " \
+                        f"--project_name {self.proj_name} " \
                         f"--label_config {label_studio_config_file} "
-
-        # cannot use: os.path.join(self.proj_dir, "labeled-data")
-        # component cannot find this data. need Path here?
-        self.filenames["labeled_data_dir"] = labeled_data_dir
-
-        # specify outputs to put to drive
-        self.filenames["label_studio_metadata"] = os.path.join(
-            self.proj_dir, "label_studio_metadata.yaml")
 
         # run command to create new label studio project
         self.label_studio.run(
@@ -146,6 +174,7 @@ class LitLabelStudio(LightningFlow):
         )
 
     def update_tasks(self, videos=[]):
+        """Update tasks after new video frames have been extracted."""
 
         # build script command
         script_path = os.path.join(
@@ -169,6 +198,7 @@ class LitLabelStudio(LightningFlow):
         )
 
     def check_labeling_task_and_export(self, timer):
+        """Check for new labels, export to lightning pose format, export database to Drive"""
 
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "check_labeling_task_and_export.py")
@@ -184,11 +214,6 @@ class LitLabelStudio(LightningFlow):
                           f"--api_key {self.user_token} " \
                           f"--keypoints_list '{keypoints_list}' "
 
-            self.filenames["collected_data"] = os.path.join(
-                self.proj_dir, "CollectedData.csv")
-            self.filenames["label_studio_tasks"] = os.path.join(
-                self.proj_dir, "label_studio_tasks.pkl")
-
             # run command to check labeling task
             self.label_studio.run(
                 run_command,
@@ -203,6 +228,7 @@ class LitLabelStudio(LightningFlow):
                     self.filenames["collected_data"],
                     self.filenames["label_studio_tasks"],
                     self.filenames["label_studio_metadata"],
+                    self.database_dir,  # sqlite database
                 ],
             )
 
@@ -212,16 +238,13 @@ class LitLabelStudio(LightningFlow):
 
         self.keypoints = keypoints
 
-        filename = "label_studio_config.xml"
-        self.filenames["label_studio_config"] = os.path.join(self.proj_dir, filename)
-
         # build script command
         keypoints_list = "/".join(keypoints)
         script_path = os.path.join(
             os.getcwd(), "lai_components", "label_studio", "create_labeling_config.py")
         build_command = f"python {script_path} " \
                         f"--proj_dir {self.proj_dir_local} " \
-                        f"--filename {filename} " \
+                        f"--filename {os.path.basename(self.filenames['label_studio_config'])} " \
                         f"--keypoints_list {keypoints_list} "
 
         # run command to save out xml
@@ -239,13 +262,17 @@ class LitLabelStudio(LightningFlow):
 
     def run(self, action=None, **kwargs):
 
-        if action == "start_label_studio":
+        if action == "import_database":
+            self.import_database()
+        elif action == "start_label_studio":
             self.start_label_studio()
         elif action == "create_labeling_config_xml":
             self.create_labeling_config_xml(**kwargs)
         elif action == "create_new_project":
-            self.create_new_project(**kwargs)
+            self.create_new_project()
         elif action == "update_tasks":
             self.update_tasks(**kwargs)
         elif action == "check_labeling_task_and_export":
             self.check_labeling_task_and_export(timer=kwargs["timer"])
+        elif action == "update_paths":
+            self.update_paths(**kwargs)

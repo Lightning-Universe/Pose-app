@@ -37,10 +37,8 @@ from lai_work.bashwork import LitBashWork
 
 
 # TODO
-# - get username/password in project config page
-# - load label studio database from drive
-# - cloud: getting files recursively doesn't work
-
+# - cloud: getting files recursively doesn't work [sent to @tchaton]
+# - upload new vid: issue with duplicates
 
 ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
 
@@ -69,12 +67,12 @@ class LitPoseApp(LightningFlow):
         self.landing_ui = LandingUI()
 
         # project manager tab
-        self.project_ui = ProjectUI(data_dir=data_dir)
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
             data_dir=data_dir,
             default_config_dict=default_config_dict,
         )
+        self.project_ui = ProjectUI(data_dir=data_dir)
 
         # extract frames tab
         self.extract_ui = ExtractFramesUI(
@@ -128,10 +126,11 @@ class LitPoseApp(LightningFlow):
         )
         self.work_is_done_extract_frames = False
 
-        # label studio/fiftyone
+        # label studio
         self.label_studio = LitLabelStudio(
             cloud_compute=CloudCompute("default"),
             drive_name=drive_name,
+            database_dir=os.path.join(data_dir, "labelstudio_db"),
         )
 
         # streamlit labeled
@@ -198,7 +197,6 @@ class LitPoseApp(LightningFlow):
             vid_file_ = os.path.join(os.getcwd(), vid_file)
             vid_file_args += f" --video_files={vid_file_}"
 
-        # TODO: how to get rid of this os.getcwd() command and make more general?
         data_dir = os.path.join(os.getcwd(), self.extract_ui.proj_dir, "labeled-data")
 
         cmd = "python" \
@@ -436,9 +434,18 @@ class LitPoseApp(LightningFlow):
 
     def run(self):
 
+        # don't interfere /w train; since all Works use the same filesystem when running locally,
+        # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
+        run_while_training = True
+        if not ON_CLOUD and self.train_ui.run_script:
+            run_while_training = False
+
         # -----------------------------
         # init UIs (find prev artifacts)
         # -----------------------------
+        # find previously initialized projects, expose to project UI
+        self.project_io.run(action="find_initialized_projects")
+        self.project_ui.initialized_projects = self.project_io.initialized_projects
         # find previously trained models, expose to training UI
         self.init_lp_outputs_to_ui(search_dir=self.project_io.model_dir)
         # find previously constructed fiftyone datasets, expose to fiftyone UI
@@ -448,50 +455,51 @@ class LitPoseApp(LightningFlow):
         # init background services once
         # -----------------------------
         self.label_studio.run(action="start_label_studio")
+        self.label_studio.run(action="import_database")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
         # self.start_fiftyone()
 
-        self.landing_ui.run()
-        self.project_ui.run()
-        self.extract_ui.run()
-
-        # don't interfere /w train; since all Works use the same filesystem when running locally,
-        # one Work updating the filesystem used by the trainer can corrupt data, etc.
-        run_while_training = True
-        if not ON_CLOUD and self.train_ui.run_script:
-            run_while_training = False
-
         # -----------------------------
         # run work
         # -----------------------------
-        # update project configuration
-        if self.project_ui.run_script and run_while_training:
+        # update paths if we know which project we're working with
+        self.project_io.run(
+            action="update_paths", project_name=self.project_ui.st_project_name)
+        # load project configuration from defaults
+        self.project_io.run(
+            action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
+        # copy project defaults into UI
+        for key, val in self.project_io.proj_defaults.items():
+            setattr(self.project_ui, key, val)
 
+        # update project configuration when user clicks button in project UI
+        if self.project_ui.run_script and run_while_training:
             # update user-supplied parameters in config yaml file
-            self.project_io.run(
-                action="update_paths", project_name=self.project_ui.st_project_name)
             self.project_io.run(
                 action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
 
-            # update paths data dir for frame extraction object
+            # update data dir for frame extraction object
             self.extract_ui.proj_dir = self.project_io.proj_dir
+            # update label studio object paths
+            self.label_studio.run(
+                action="update_paths",
+                proj_dir=self.project_io.proj_dir, proj_name=self.project_ui.st_project_name)
 
-            # update label studio object, create label studio xml file, create/load project
-            self.label_studio.proj_dir = self.project_io.proj_dir
-            self.label_studio.project_name = self.project_ui.st_project_name
+            # create label studio xml file, create/load project
             if self.project_ui.create_new_project and self.project_ui.count == 0:
                 self.label_studio.run(
                     action="create_labeling_config_xml", keypoints=self.project_ui.keypoints)
-                self.label_studio.run(
-                    action="create_new_project",
-                    labeled_data_dir=os.path.join(self.project_io.proj_dir, "labeled-data"))
+                self.label_studio.run(action="create_new_project")
+            else:
+                # project already created; update label studio object
+                self.label_studio.keypoints = self.project_ui.keypoints
 
             self.project_ui.count += 1
             self.project_ui.run_script = False
 
-        # extract frames for labeleding from uploaded videos
+        # extract frames for labeling from uploaded videos
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
             self.start_extract_frames()
             # wait until litbashwork is done extracting frames, then update tasks

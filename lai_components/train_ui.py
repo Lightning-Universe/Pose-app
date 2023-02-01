@@ -98,7 +98,9 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    # st_autorefresh(interval=2000, key="refresh_train_ui")
+    # constantly refresh so that labeled frames are updated
+    if state.n_labeled_frames != state.n_total_frames:
+        st_autorefresh(interval=2000, key="refresh_train_ui")
 
     # TODO: update with st_radial
     st.text(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
@@ -198,6 +200,6 @@ def _render_streamlit_fn(state: AppState):
         state.st_train_complete_flag = {"super": False, "semisuper": False}
         st.text("Model training launched!")
         state.run_script = True  # must the last to prevent race condition
+        # force rerun
         st_autorefresh(interval=2000, key="refresh_train_ui")
-
         # TODO: show training progress

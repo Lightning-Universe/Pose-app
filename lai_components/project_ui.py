@@ -37,6 +37,9 @@ class ProjectDataIO(LightningWork):
         #   └── CollectedData.csv
         self.data_dir = data_dir
 
+        self.initialized_projects = []
+        self.proj_defaults = {}
+
         self.proj_dir = None
         self.config_name = None
         self.config_file = None
@@ -45,6 +48,7 @@ class ProjectDataIO(LightningWork):
         self.n_total_frames = 0
 
     def _get_from_drive_if_not_local(self, file_or_dir):
+
         if not os.path.exists(file_or_dir):
             try:
                 print(f"{file_or_dir} does not exist; getting from drive")
@@ -58,11 +62,15 @@ class ProjectDataIO(LightningWork):
                         self.drive.get(dir_, overwrite=True)
                         print(f"drive success get {dir_}")
                 else:
+                    # NOTE: making directories is required, otherwise get fails
+                    os.makedirs(os.path.dirname(file_or_dir), exist_ok=True)
                     print(f"drive try get {file_or_dir}")
                     self.drive.get(file_or_dir, overwrite=True)
                     print(f"drive success get {file_or_dir}")
             except Exception as e:
                 print(e)
+                print(self.drive.root)
+                print(os.path.exists(os.path.join(self.drive.root, file_or_dir)))
                 print(f"could not find {file_or_dir} in drive")
         else:
             print(f"loading local version of {file_or_dir}")
@@ -76,17 +84,26 @@ class ProjectDataIO(LightningWork):
         else:
             shutil.rmtree(file_or_dir)
 
+    def find_initialized_projects(self):
+        # for some reason adding "component_name" arg isn't working
+        projects = self.drive.list(self.data_dir)
+        # strip leading dirs
+        projects = [os.path.basename(p) for p in projects if not p.endswith("labelstudio_db")]
+        self.initialized_projects = list(np.unique(projects))
+
     def update_paths(self, project_name, **kwargs):
-        self.proj_dir = os.path.join(self.data_dir, project_name)
-        self.config_name = f"model_config_{project_name}.yaml"
-        self.config_file = os.path.join(self.proj_dir, self.config_name)
-        self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_ui.py
+        if project_name:
+            self.proj_dir = os.path.join(self.data_dir, project_name)
+            self.config_name = f"model_config_{project_name}.yaml"
+            self.config_file = os.path.join(self.proj_dir, self.config_name)
+            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_ui.py
 
     def update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""
 
         # check to see if config exists locally; if not, try pulling from drive
-        self._get_from_drive_if_not_local(self.config_file)
+        if self.config_file:
+            self._get_from_drive_if_not_local(self.config_file)
 
         # check to see if config exists; copy default config if not
         if (self.config_file is None) or (not os.path.exists(self.config_file)):
@@ -187,19 +204,54 @@ class ProjectDataIO(LightningWork):
         if os.path.exists(metadata_file):
             os.remove(metadata_file)
 
-        return n_labeled_frames, n_total_frames
+        self.n_labeled_frames = n_labeled_frames
+        self.n_total_frames = n_total_frames
+
+    def load_project_defaults(self, **kwargs):
+
+        # check to see if config exists locally; if not, try pulling from drive
+        if self.config_file:
+            self._get_from_drive_if_not_local(self.config_file)
+
+        # check to see if config exists; set default values if not
+        if (self.config_file is None) or (not os.path.exists(self.config_file)):
+            # reset values
+            st_n_views = 0
+            st_keypoints = []
+            st_n_keypoints = 0
+            st_pcasv_columns = []
+            st_pcamv_columns = []
+        else:
+            # set values from config
+            config_dict = yaml.safe_load(open(self.config_file))
+            st_keypoints = config_dict["data"]["keypoints"]
+            st_n_keypoints = config_dict["data"]["num_keypoints"]
+            st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
+            st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
+            st_n_views = 1 if st_pcamv_columns is None else len(st_pcamv_columns)
+
+        self.proj_defaults = {
+            "st_n_views": st_n_views,
+            "st_keypoints": st_keypoints,
+            "st_n_keypoints": st_n_keypoints,
+            "st_pcasv_columns": st_pcasv_columns,
+            "st_pcamv_columns": st_pcamv_columns,
+        }
 
     def run(self, action, **kwargs):
 
-        if action == "update_paths":
+        if action == "find_initialized_projects":
+            self.find_initialized_projects()
+        elif action == "update_paths":
             self.update_paths(**kwargs)
         elif action == "update_project_config":
             self.update_project_config(**kwargs)
         elif action == "update_frame_shapes":
             self.update_frame_shapes()
         elif action == "compute_labeled_frame_fraction":
-            self.n_labeled_frames, self.n_total_frames = self.compute_labeled_frame_fraction(
-                timer=kwargs["timer"])
+            self.compute_labeled_frame_fraction(**kwargs)
+        elif action == "load_project_defaults":
+            self.load_project_defaults(**kwargs)
 
 
 class ProjectUI(LightningFlow):
@@ -217,10 +269,16 @@ class ProjectUI(LightningFlow):
 
         self.data_dir = data_dir
         self.config_file = None
-        self.initialized_projects = os.listdir(self.data_dir) if os.path.exists(self.data_dir) \
-            else []
         self.create_new_project = False
+        self.initialized_projects = []
         self.keypoints = None
+
+        # input from ProjectIO
+        self.st_n_views = 0
+        self.st_keypoints = []
+        self.st_n_keypoints = 0
+        self.st_pcasv_columns = []
+        self.st_pcamv_columns = []
 
         # output from the UI
         self.st_submits = 0
@@ -230,28 +288,6 @@ class ProjectUI(LightningFlow):
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-
-@st.cache
-def get_project_defaults(config_file):
-
-    if config_file is not None:
-        # set values from config
-        config_dict = yaml.safe_load(open(config_file))
-        st_keypoints = config_dict["data"]["keypoints"]
-        st_n_keypoints = config_dict["data"]["num_keypoints"]
-        st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
-        st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
-        st_n_views = 1 if st_pcamv_columns is None else len(st_pcamv_columns)
-    else:
-        # reset values
-        st_n_views = 0
-        st_keypoints = []
-        st_n_keypoints = 0
-        st_pcasv_columns = []
-        st_pcamv_columns = np.array([])
-
-    return st_n_views, st_keypoints, st_n_keypoints, st_pcasv_columns, st_pcamv_columns
 
 
 def _render_streamlit_fn(state: AppState):
@@ -270,6 +306,8 @@ def _render_streamlit_fn(state: AppState):
         "Create new project or load existing?",
         options=["Create new project", "Load existing project"]
     )
+
+    st.text(f"Available projects: {state.initialized_projects}")
 
     st_project_name = st.text_input("Enter project name", value="")
 
@@ -292,8 +330,13 @@ def _render_streamlit_fn(state: AppState):
                 state.st_project_name = st_project_name
                 state.st_project_loaded = True
 
-    st_n_views, st_keypoints, st_n_keypoints, st_pcasv_columns, st_pcamv_columns = \
-        get_project_defaults(state.config_file)
+    # set defaults; these are automatically updated in the main Flow from ProjectDataIO once the
+    # config file is specified
+    st_n_views = state.st_n_views
+    st_keypoints = state.st_keypoints
+    st_n_keypoints = state.st_n_keypoints
+    st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
+    st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
 
     if st_project_name:
         if st_mode == "Load existing project" and state.st_project_loaded:
@@ -495,12 +538,11 @@ def _render_streamlit_fn(state: AppState):
         st_new_vals["data"]["csv_file"] = "CollectedData.csv"
         st_new_vals["data"]["num_keypoints"] = st_n_keypoints
         st_new_vals["data"]["keypoints"] = st_keypoints
+        data_dir = st_new_vals["data"]["data_dir"]
         st_new_vals["hydra"]["run"]["dir"] = os.path.join(
-            st_new_vals["data"]["data_dir"], "models",
-            "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
+            data_dir, "models", "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
         st_new_vals["hydra"]["sweep"]["dir"] = os.path.join(
-            st_new_vals["data"]["data_dir"], "models", "multirun",
-            "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
+            data_dir, "models", "multirun", "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
 
         if len(st_pcasv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow
@@ -510,8 +552,8 @@ def _render_streamlit_fn(state: AppState):
 
         if st_pcamv_columns is not None and len(st_pcamv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow
-            st_new_vals["data"]["mirrored_column_matches"] = [
-                [int(t_) for t_ in t] for t in st_pcamv_columns]
+            st_new_vals["data"]["mirrored_column_matches"] = st_pcamv_columns.tolist()
+            # [[int(t_) for t_ in t] for t in st_pcamv_columns]
         else:
             st_new_vals["data"]["mirrored_column_matches"] = None
 
@@ -520,7 +562,13 @@ def _render_streamlit_fn(state: AppState):
         else:
             st_submit_button = st.button("Create project", disabled=need_update_pcamv)
         if state.st_submits > 0:
-            proceed_str = "Please proceed to the next tab to extract frames for labeling."
+            proceed_str = """
+                Please proceed to the next tab to extract frames for labeling.<br />
+                Use the following login information:<br />
+                username: user@localhost<br />
+                password: pw
+            """
+
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
