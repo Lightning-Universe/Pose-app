@@ -31,21 +31,9 @@ GRID_SESSION_NAME from VSC.
 First, create a conda environment:
 ```bash
 $ cd ~
-$ conda create --yes --name lai python=3.8
+$ conda create --yes --name lai python=3.9
 $ conda activate lai
 ```
-
-Next, install `lightning` in the conda environment. 
-As of Feb 1 2023, there is a bug fix that has not been pushed to the main branch, 
-and so you will need to install from github and switch branches:
-```bash
-(lai) $ git clone https://github.com/Lightning-AI/lightning
-(lai) $ cd lightning
-(lai) $ python -m pip install -r requirements.txt
-(lai) $ python -m pip install -e .
-(lai) $ git checkout resolve_bug
-```
-(Note the use of `python -m pip` rather than just `pip`, this is important!)
 
 Next, install the `Pose-app` repo:
 ```bash
@@ -55,6 +43,7 @@ Next, install the `Pose-app` repo:
 (lai) $ python -m pip install -r requirements.txt
 (lai) $ python -m pip install -e .
 ```
+(Note the use of `python -m pip` rather than just `pip`, this is important!)
 
 Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
 ```bash
