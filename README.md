@@ -79,7 +79,7 @@ Install:
 ```
 Test:
 ```bash
-source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
+(lai) $ source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
 ```
 
 #### LabelStudio
@@ -90,7 +90,7 @@ Install:
 ```
 Test:
 ```bash
-source ~/venv-label-studio/bin/activate; label-studio version; deactivate
+(lai) $ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
 
 #### Lightning Pose
