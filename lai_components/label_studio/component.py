@@ -20,14 +20,15 @@ class LabelStudioBuildConfig(BuildConfig):
         # added an install for label-studio-sdk to automatically launch the label studio server.
         return [
             "sudo apt-get update",
-            "sudo apt-get install nginx",
-            "sudo touch /run/nginx.pid",
-            "sudo chown -R `whoami` /etc/nginx/ /var/log/nginx/",
-            "sudo chown -R `whoami` /var/lib/nginx/",
-            "sudo chown `whoami` /run/nginx.pid",
+            #"sudo apt-get install nginx",
+            #"sudo touch /run/nginx.pid",
+            #"sudo chown -R `whoami` /etc/nginx/ /var/log/nginx/",
+            #"sudo chown -R `whoami` /var/lib/nginx/",
+            #"sudo chown `whoami` /run/nginx.pid",
             f"virtualenv ~/{label_studio_venv}",
             f". ~/{label_studio_venv}/bin/activate; which python; ",
             f"python -m pip install -e .; ",
+            f"sudo apt install libpq-dev; ",
             f"python -m pip install label-studio label-studio-sdk; deactivate",
         ]
 
@@ -96,18 +97,18 @@ class LitLabelStudio(LightningFlow):
         if self.count > 0:
             return
 
-        # create config file
-        self.label_studio.run(
-            f"sed -e s/__port__/{self.label_studio.port}/g -e s/__host__/{self.label_studio.host}/"
-            f" nginx-8080.conf > ~/{new_conf_file}",
-            wait_for_exit=True,
-        )
-
-        # run reverse proxy on external port and remove x-frame-options
-        self.label_studio.run(
-            f"nginx -c ~/{new_conf_file}",
-            wait_for_exit=True,
-        )
+        # # create config file
+        # self.label_studio.run(
+        #     f"sed -e s/__port__/{self.label_studio.port}/g -e s/__host__/{self.label_studio.host}/"
+        #     f" nginx-8080.conf > ~/{new_conf_file}",
+        #     wait_for_exit=True,
+        # )
+        #
+        # # run reverse proxy on external port and remove x-frame-options
+        # self.label_studio.run(
+        #     f"nginx -c ~/{new_conf_file}",
+        #     wait_for_exit=True,
+        # )
 
         # start label-studio on the default port 8080
         self.label_studio.run(
@@ -118,11 +119,15 @@ class LitLabelStudio(LightningFlow):
                 "LABEL_STUDIO_USERNAME": self.username,
                 "LABEL_STUDIO_PASSWORD": self.password,
                 "LABEL_STUDIO_USER_TOKEN": self.user_token,
-                "USE_ENFORCE_CSRF_CHECKS": 'false',
+                # "USE_ENFORCE_CSRF_CHECKS": 'false',
                 "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
                 "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
                 "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
                 "LABEL_STUDIO_BASE_DATA_DIR": os.path.join(os.getcwd(), self.database_dir),
+                "SESSION_COOKIE_SAMESITE": None,
+                "CSRF_COOKIE_SAMESITE": None,
+                "SESSION_COOKIE_SECURE": 1,
+                "USE_ENFORCE_CSRF_CHECKS": 0,
             },
         )
 
