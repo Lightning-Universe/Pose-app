@@ -18,7 +18,7 @@ from typing import Optional, Union, List
 import yaml
 
 from lai_components.args_utils import args_to_dict, dict_to_args
-from lai_components.build_utils import lightning_pose_dir, tracking_diag_dir
+from lai_components.build_utils import lightning_pose_dir
 from lai_components.build_utils import lightning_pose_venv, tensorboard_venv
 from lai_components.build_utils import (
     LitPoseBuildConfig,
@@ -136,14 +136,14 @@ class LitPoseApp(LightningFlow):
         # streamlit labeled
         # self.my_streamlit_frame = LitBashWork(
         #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),
+        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
         #     drive_name=drive_name,
         # )
 
         # streamlit video
         # self.my_streamlit_video = LitBashWork(
         #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),
+        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
         #     drive_name=drive_name,
         # )
 

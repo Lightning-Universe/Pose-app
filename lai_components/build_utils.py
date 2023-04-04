@@ -3,7 +3,6 @@ from typing import Optional, Union, List
 
 # sub dirs
 lightning_pose_dir = "lightning-pose"
-tracking_diag_dir = "tracking-diagnostics"
 
 # virtualenv names located in ~
 lightning_pose_venv = "venv-lightning-pose"
@@ -42,7 +41,6 @@ class StreamlitBuildConfig(L.BuildConfig):
         return [
             f"virtualenv ~/{lightning_pose_venv}",
             f". ~/{lightning_pose_venv}/bin/activate; ",
-            f"cd tracking-diagnostics; ",
             f"which python; ",
             f"python -m pip install -e .; ",
             f"deactivate",
