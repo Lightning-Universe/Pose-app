@@ -434,6 +434,10 @@ class LitPoseApp(LightningFlow):
 
     def run(self):
 
+        # for unit testing purposes
+        if os.environ.get("TESTING_LAI"):
+            print("⚡ Lightning Pose App! ⚡")
+
         # don't interfere /w train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
