@@ -87,6 +87,8 @@ Install:
 ```bash
 (lai) $ virtualenv ~/venv-label-studio 
 (lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
+(lai) $ source ~/venv-label-studio/bin/activate; python -m pip install -e .; deactivate
+
 ```
 Test:
 ```bash

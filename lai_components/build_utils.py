@@ -30,7 +30,7 @@ class LitPoseBuildConfig(L.BuildConfig):
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
             f"virtualenv ~/{lightning_pose_venv}",
-            f". ~/{lightning_pose_venv}/bin/activate; python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda102; deactivate",
+            f". ~/{lightning_pose_venv}/bin/activate; python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120; deactivate",
             f". ~/{lightning_pose_venv}/bin/activate; python -m pip install -e {lightning_pose_dir}; deactivate",
         ]
 
