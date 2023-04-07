@@ -12,14 +12,14 @@ import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.litpose import LitPose, lightning_pose_dir
+from lightning_pose_app.diagnostics import DiagnosticsUI
+from lightning_pose_app.litpose import LitPose
 from lightning_pose_app.label_studio.component import LitLabelStudio
-from lightning_pose_app.ui.diagnostics import DiagnosticsUI
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
-from lightning_pose_app.ui.train import TrainDemoUI
-from lightning_pose_app.utils.build_configs import TensorboardBuildConfig
+from lightning_pose_app.ui.train import TrainUI
+from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
 
 class LitPoseApp(LightningFlow):
@@ -40,12 +40,12 @@ class LitPoseApp(LightningFlow):
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
-        # UIs
+        # flows and works
         # -----------------------------
-        # landing tab
+        # landing tab (flow)
         self.landing_ui = LandingUI()
 
-        # project manager tab
+        # project manager (work) and tab (flow)
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
             data_dir=data_dir,
@@ -53,7 +53,7 @@ class LitPoseApp(LightningFlow):
         )
         self.project_ui = ProjectUI(data_dir=data_dir)
 
-        # extract frames tab
+        # extract frames tab (flow)
         self.extract_ui = ExtractFramesUI(
             drive_name=drive_name,
             script_dir=lightning_pose_dir,
@@ -61,32 +61,29 @@ class LitPoseApp(LightningFlow):
             script_args="",
         )
 
-        # training tab; this will default to the toy dataset, unless a project is created/loaded
-        self.train_ui = TrainDemoUI(
+        # training tab (flow)
+        self.train_ui = TrainUI(
             script_dir=lightning_pose_dir,
             script_name="scripts/train_hydra.py",
             script_args="",
             max_epochs=200,
         )
 
-        # diagnostics tab
-        # self.diagnostics_ui = DiagnosticsUI(
-        #     script_dir=lightning_pose_dir,
-        #     script_name="scripts/create_fiftyone_dataset.py",
-        #     script_env="HYDRA_FULL_ERROR=1",
-        #     script_args="""
-        #         eval.fiftyone.dataset_name=test1
-        #         eval.fiftyone.model_display_names=["test1"]
-        #         eval.fiftyone.dataset_to_create="images"
-        #         eval.fiftyone.build_speed="fast"
-        #         eval.fiftyone.launch_app_from_script=False
-        #     """
-        # )
+        # diagnostics tab (flow + work)
+        self.diagnostics_ui = DiagnosticsUI(
+            drive_name=drive_name,
+            fiftyone_kwargs=dict(
+                script_dir=lightning_pose_dir,
+                script_name="scripts/create_fiftyone_dataset.py",
+                script_args="""
+                    eval.fiftyone.dataset_to_create="images"
+                    eval.fiftyone.build_speed="fast"
+                    eval.fiftyone.remote=false
+                """
+            )
+        )
 
-        # -----------------------------
-        # workers
-        # -----------------------------
-        # tensorboard
+        # tensorboard tab (work)
         self.tensorboard = LitBashWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
@@ -94,32 +91,18 @@ class LitPoseApp(LightningFlow):
             component_name="tensorboard",
         )
 
-        # lightning pose: frame extraction and model training
+        # lightning pose: work for frame extraction and model training
         self.litpose = LitPose(
             cloud_compute=CloudCompute("gpu"),
             drive_name=drive_name,
         )
 
-        # label studio
+        # label studio (flow + work)
         self.label_studio = LitLabelStudio(
             cloud_compute=CloudCompute("default"),
             drive_name=drive_name,
             database_dir=os.path.join(data_dir, "labelstudio_db"),
         )
-
-        # streamlit labeled
-        # self.my_streamlit_frame = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-        #     drive_name=drive_name,
-        # )
-
-        # streamlit video
-        # self.my_streamlit_video = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-        #     drive_name=drive_name,
-        # )
 
     # @property
     # def ready(self) -> bool:
@@ -211,103 +194,6 @@ class LitPoseApp(LightningFlow):
         # set the new outputs for UIs
         self.litpose.run(action="init_lp_outputs_to_uis", search_dir=outputs[0])
 
-    def start_fiftyone_dataset_creation(self):
-
-        cmd = "python" \
-              + " " + self.diagnostics_ui.st_script_name \
-              + " " + self.diagnostics_ui.st_script_args \
-              + " " + self.diagnostics_ui.script_args_append \
-              + " " + "eval.fiftyone.dataset_to_create=images"
-        self.litpose.work.run(cmd, cwd=self.diagnostics_ui.st_script_dir)
-
-        # add dataset name to list for user to see
-        self.diagnostics_ui.add_fo_dataset(self.diagnostics_ui.st_dataset_name)
-
-    def start_st_frame(self):
-        """run streamlit for labeled frames"""
-
-        # set labeled csv
-        # TODO: extract this directly from hydra
-        csv_file = os.path.join(
-            lightning_pose_dir, "toy_datasets/toymouseRunningData/CollectedData_.csv")
-        labeled_csv_args = f"--labels_csv={csv_file}"
-
-        # set prediction files (hard code some paths for now)
-        prediction_file_args = ""
-        for model_dir in self.diagnostics_ui.st_model_dirs:
-            abs_file = os.path.join(
-                lightning_pose_dir, self.diagnostics_ui.outputs_dir, model_dir, "predictions.csv")
-            prediction_file_args += f" --prediction_files={abs_file}"
-
-        # set model names
-        model_name_args = ""
-        for name in self.diagnostics_ui.st_model_display_names:
-            model_name_args += f" --model_names={name}"
-
-        # set data config (take config from first selected model)
-        cfg_file = os.path.join(
-            lightning_pose_dir, self.diagnostics_ui.outputs_dir, self.diagnostics_ui.st_model_dirs[0], ".hydra",
-            "config.yaml")
-        # replace relative paths of example dataset
-        cfg = yaml.safe_load(open(cfg_file))
-        if not os.path.isabs(cfg["data"]["data_dir"]):
-            # data_dir = cfg["data"]["data_dir"]
-            cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
-                lightning_pose_dir, cfg["data"]["data_dir"]))
-        # resave file
-        yaml.safe_dump(cfg, open(cfg_file, "w"))
-
-        data_cfg_args = f" --data_cfg={cfg_file}"
-
-        cmd = "streamlit run ./tracking-diagnostics/apps/labeled_frame_diagnostics.py" \
-              + " --server.address {host} --server.port {port}" \
-              + " -- " \
-              + " " + labeled_csv_args \
-              + " " + prediction_file_args \
-              + " " + model_name_args \
-              + " " + data_cfg_args
-        self.my_streamlit_frame.run(cmd, wait_for_exit=False, cwd=".")
-
-    def start_st_video(self):
-        """run streamlit for videos"""
-
-        # set prediction files (hard code some paths for now)
-        # select random video
-        prediction_file_args = ""
-        video_file = "test_vid.csv"  # TODO: find random vid in predictions directory
-        for model_dir in self.diagnostics_ui.st_model_dirs:
-            abs_file = os.path.join(
-                lightning_pose_dir, self.diagnostics_ui.outputs_dir, model_dir, "video_preds", video_file)
-            prediction_file_args += f" --prediction_files={abs_file}"
-
-        # set model names
-        model_name_args = ""
-        for name in self.diagnostics_ui.st_model_display_names:
-            model_name_args += f" --model_names={name}"
-
-        # set data config (take config from first selected model)
-        cfg_file = os.path.join(
-            lightning_pose_dir, self.diagnostics_ui.outputs_dir, self.diagnostics_ui.st_model_dirs[0], ".hydra",
-            "config.yaml")
-        # replace relative paths of example dataset
-        cfg = yaml.safe_load(open(cfg_file))
-        if not os.path.isabs(cfg["data"]["data_dir"]):
-            # data_dir = cfg["data"]["data_dir"]
-            cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
-                lightning_pose_dir, cfg["data"]["data_dir"]))
-        # resave file
-        yaml.safe_dump(cfg, open(cfg_file, "w"))
-
-        data_cfg_args = f" --data_cfg={cfg_file}"
-
-        cmd = "streamlit run ./tracking-diagnostics/apps/video_diagnostics.py" \
-              + " --server.address {host} --server.port {port}" \
-              + " -- " \
-              + " " + prediction_file_args \
-              + " " + model_name_args \
-              + " " + data_cfg_args
-        self.my_streamlit_video.run(cmd, wait_for_exit=False, cwd=".")
-
     def run(self):
 
         # for unit testing purposes
@@ -327,26 +213,24 @@ class LitPoseApp(LightningFlow):
         self.project_io.run(action="find_initialized_projects")
         self.project_ui.initialized_projects = self.project_io.initialized_projects
 
-        # find previously trained models, expose to training and diagnostics UIs
-        self.litpose.run(action="init_lp_outputs_to_uis", search_dir=self.project_io.model_dir)
-        if self.litpose.lp_outputs:
-            self.train_ui.set_hydra_outputs(self.litpose.lp_outputs)
-            # self.diagnostics_ui.set_hydra_outputs(self.litpose.lp_outputs)
+        # find previously trained models for project, expose to training and diagnostics UIs
+        self.litpose.run(action="find_trained_models", search_dir=self.project_io.model_dir)
+        if self.litpose.trained_models:
+            self.train_ui.set_hydra_outputs(self.litpose.trained_models)
+            self.diagnostics_ui.set_hydra_outputs(self.litpose.trained_models)
 
-        # find previously constructed fiftyone datasets, expose to fiftyone UI
-        # self.litpose.run(action="init_fiftyone_outputs_to_ui")
-        # if self.litpose.fiftyone_datasets:
-        #     self.diagnostics_ui.set_fo_dataset(self.litpose.fiftyone_datasets)
+        # find previously constructed fiftyone datasets
+        self.diagnostics_ui.run(action="find_fiftyone_datasets")
 
         # -----------------------------
         # init background services once
         # -----------------------------
         self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
+        self.diagnostics_ui.run(action="start_fiftyone")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
-        # self.litpose.run(action="start_fiftyone")
 
         # -----------------------------
         # run works
@@ -367,9 +251,9 @@ class LitPoseApp(LightningFlow):
             # update paths now that we know which project we're working with
             self.project_io.run(
                 action="update_paths", project_name=self.project_ui.st_project_name)
-            # update paths for frame extraction object
             self.extract_ui.proj_dir = self.project_io.proj_dir
-            # update paths for label studio object
+            self.diagnostics_ui.proj_dir = self.project_io.proj_dir
+            self.diagnostics_ui.config_name = self.project_io.config_name
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_io.proj_dir, proj_name=self.project_ui.st_project_name)
@@ -449,11 +333,11 @@ class LitPoseApp(LightningFlow):
             self.train_ui.run_script = False
 
         # initialize diagnostics on button press
-        # if self.fo_ui.run_script:
-        #     self.fo_ui.run_script = False
-        #     self.start_fiftyone_dataset_creation()
-        #     # self.start_st_frame()
-        #     # self.start_st_video()
+        if self.diagnostics_ui.run_script:
+            self.diagnostics_ui.run(action="build_fiftyone_dataset")
+            # self.diagnostics_ui.run(action="start_st_frame")
+            # self.diagnostics_ui.run(action="start_st_video")
+            self.diagnostics_ui.run_script = False
 
     def configure_layout(self):
 
@@ -464,21 +348,21 @@ class LitPoseApp(LightningFlow):
         annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
 
         # training tabs
-        train_demo_tab = {"name": "Train", "content": self.train_ui}
-        train_diag_tab = {"name": "Train Status", "content": self.tensorboard}
+        train_tab = {"name": "Train", "content": self.train_ui}
+        train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        # fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
-        fo_tab = {"name": "Labeled Preds", "content": self.litpose.work}
-        # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
-        # st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
+        diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
+        fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
+        # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
+        # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
 
         if self.landing_ui.st_mode == "demo":
             return [
                 landing_tab,
-                train_demo_tab,
-                train_diag_tab,
-                # fo_prep_tab,
+                train_tab,
+                train_status_tab,
+                diagnostics_prep_tab,
                 fo_tab,
                 # st_frame_tab,
                 # st_video_tab,
@@ -498,10 +382,12 @@ class LitPoseApp(LightningFlow):
                     project_tab,
                     extract_tab,
                     annotate_tab,
-                    train_demo_tab,
-                    train_diag_tab,
-                    # fo_prep_tab,
-                    # fo_tab,
+                    train_tab,
+                    train_status_tab,
+                    diagnostics_prep_tab,
+                    fo_tab,
+                    # st_frame_tab,
+                    # st_video_tab,
                 ]
 
         else:

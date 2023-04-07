@@ -4,7 +4,7 @@ from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
 import streamlit as st
 
-from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend
 
 
 class LandingUI(LightningFlow):

@@ -1,8 +1,6 @@
 from functools import partial
 import lightning.app as L
-from lightning.app.storage.path import Path
 from lightning.app.storage.drive import Drive
-from lightning.app.structures import Dict, List
 from lightning.app.utilities.app_helpers import _collect_child_process_pids
 import os
 import shlex
@@ -12,7 +10,7 @@ import subprocess
 import threading
 import time
 
-from lightning_pose_app.utils.args import args_to_dict
+from lightning_pose_app.utilities import args_to_dict
 
 
 def add_to_system_env(env_key='env', **kwargs) -> dict:

@@ -7,10 +7,10 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import time
 
-from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend
 
 
-class TrainDemoUI(LightningFlow):
+class TrainUI(LightningFlow):
     """UI to enter training parameters for demo data."""
 
     def __init__(

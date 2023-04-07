@@ -12,7 +12,7 @@ from PIL import Image
 import streamlit as st
 import yaml
 
-from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend
 
 
 class ProjectDataIO(LightningWork):

@@ -1,28 +1,8 @@
 from lightning import LightningFlow
-from lightning.app import BuildConfig
 import os
-from typing import List
 
 from lightning_pose_app.bashwork import LitBashWork
-
-
-# dir where label studio python venv will be setup
-label_studio_venv = "venv-label-studio"
-
-
-class LabelStudioBuildConfig(BuildConfig):
-
-    @staticmethod
-    def build_commands() -> List[str]:
-        # added an install for label-studio-sdk to automatically launch the label studio server.
-        return [
-            "sudo apt-get update",
-            "sudo apt-get install libpq-dev",
-            f"virtualenv ~/{label_studio_venv}",
-            f". ~/{label_studio_venv}/bin/activate; which python; ",
-            f"python -m pip install -e .; ",  # install lightning app to have access to packages
-            f"python -m pip install label-studio label-studio-sdk; deactivate",
-        ]
+from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studio_venv
 
 
 class LitLabelStudio(LightningFlow):

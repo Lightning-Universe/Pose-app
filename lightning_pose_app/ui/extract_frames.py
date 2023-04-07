@@ -5,7 +5,7 @@ import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
-from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend
 
 
 class ExtractFramesUI(LightningFlow):
