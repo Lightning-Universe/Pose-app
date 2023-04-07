@@ -9,23 +9,6 @@ Lightning App for:
 
 The following instructions detail how to install the app locally for development purposes.
 
-## Create grid session 
-Note: if you are developing from a local, non-Grid machine, skip this section and go to 
-`Environment setup`.
-
-From a laptop, create a new Grid session:
-```bash
-$ grid session create --instance_type g4dn.xlarge 
-```
-
-Make sure session ssh is setup for VSC:
-```
-$ grid session ssh GRID_SESSION_NAME "exit"
-```
-
-Open VSC, and connect to GRID_SESSION_NAME. Complete the following steps within 
-GRID_SESSION_NAME from VSC.
-
 ## Environment setup 
 
 First, create a conda environment:
@@ -53,12 +36,6 @@ Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
 (lai) $ python -m pip install -r requirements.txt
 ```
 
-Record versions and git hash:
-```bash
-(lai) $ lightning --version
-(lai) $ python --version
-```
-
 ## Run the app on the cloud
 Once the environment has been set up, running the app on the cloud is easy! Launch with the
 following command:
@@ -67,23 +44,16 @@ following command:
 ```
 
 ## Run the app locally
-Running the app locally requires a bit of extra work, since we'll need to set up additional 
-environments in order to mirror what happens on the cloud when machines are requisitioned;
-this involves setting up various virtual environments.
+Running the app locally requires a bit of extra work, since we'll need to install some additional
+packages and set up a virtual environement in order to mirror what happens on the cloud when 
+machines are requisitioned.
 
-#### Tensorflow
-Install:
+Install tensorboard:
 ```bash
-(lai) $ virtualenv ~/venv-tensorboard 
-(lai) $ source ~/venv-tensorboard/bin/activate; which python; python -m pip install tensorflow tensorboard; deactivate
-```
-Test:
-```bash
-(lai) $ source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
+(lai) $ python -m pip install tensorboard
 ```
 
-#### LabelStudio
-Install:
+Install LabelStudio virtual environment:
 ```bash
 (lai) $ virtualenv ~/venv-label-studio 
 (lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
@@ -94,46 +64,6 @@ Test:
 ```bash
 (lai) $ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
-
-#### Lightning Pose
-Install on a machine _without_ a GPU:
-```bash
-(lai) $ cd ~/Pose-app
-(lai) $ virtualenv ~/venv-lightning-pose
-(lai) $ source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -e .; cd ..; deactivate
-```
-
-Install on a machine _with_ a GPU:
-```bash
-(lai) $ cd ~/Pose-app
-(lai) $ virtualenv ~/venv-lightning-pose
-(lai) $ source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -r requirements.txt; cd ..; deactivate
-```
-
-Test:
-```bash
-(lai) $ source ~/venv-lightning-pose/bin/activate; cd lightning-pose; fiftyone app launch; cd ..; deactivate
-```
-
-#### nginx
-Lastly, we need to take care of some bookkeeping for the Nginx web server used by Label Studio. 
-First, install the `nginx` package:
-```bash
-$ sudo apt install nginx
-```
-
-Then, we need to change the permissions of some files:
-```bash
-$ sudo touch /run/nginx.pid
-$ sudo chown `whoami` /run/nginx.pid
-$ sudo chown -R `whoami` /etc/nginx/ /var/log/nginx/ /var/lib/nginx/
-```
-Note that you may periodically need to rerun these last three commands. If Label Studio is not
-responsive, look at the stdout upon launching the app; if you see an error telling you that
-the file `/run/nginx.pid` cannot be found, for example, then rerun the above three commands and
-try again.  
-
-#### Run the app!
 
 In order to run the application locally, run the following commands:
 
