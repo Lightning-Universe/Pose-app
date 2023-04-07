@@ -7,8 +7,8 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import yaml
 
-# from lai_components.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
-from lai_components.vsc_streamlit import StreamlitFrontend
+# from lightning_pose_app.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
+from lightning_pose_app.vsc_streamlit import StreamlitFrontend
 
 
 class ExtractFramesUI(LightningFlow):

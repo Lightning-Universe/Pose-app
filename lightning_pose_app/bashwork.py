@@ -13,7 +13,7 @@ import signal
 import time
 from functools import partial
 
-from lai_components.args_utils import args_to_dict
+from lightning_pose_app.args_utils import args_to_dict
 
 
 def add_to_system_env(env_key='env', **kwargs) -> dict:

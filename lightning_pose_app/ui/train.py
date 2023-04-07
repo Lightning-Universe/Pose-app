@@ -7,7 +7,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import time
 
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.vsc_streamlit import StreamlitFrontend
 
 
 class TrainDemoUI(LightningFlow):

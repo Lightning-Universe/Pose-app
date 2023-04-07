@@ -14,7 +14,7 @@ import streamlit as st
 import time
 import yaml
 
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.vsc_streamlit import StreamlitFrontend
 
 
 class ProjectDataIO(LightningWork):

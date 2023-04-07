@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.vsc_streamlit import StreamlitFrontend
 
 from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
