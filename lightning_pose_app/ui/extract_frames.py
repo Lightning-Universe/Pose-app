@@ -1,14 +1,11 @@
 from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
-import numpy as np
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-import yaml
 
-# from lai_components.vsc_streamlit import StreamlitFrontendFileUploader as StreamlitFrontend
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
 
 
 class ExtractFramesUI(LightningFlow):

@@ -151,7 +151,7 @@ def get_rel_image_paths_from_idx_files(basedir: str) -> List[str]:
     img_list = []
     for root, dirs, files in os.walk(basedir):
         for file in files:
-            if file.endswith(".csv"):
+            if file == "selected_frames.csv":
                 abspath = os.path.join(root, file)
                 img_files = np.genfromtxt(abspath, delimiter=',', dtype=str)
                 for img_file in img_files:

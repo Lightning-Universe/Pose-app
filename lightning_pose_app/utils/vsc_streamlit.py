@@ -1,11 +1,10 @@
-import sys
 import inspect
-import os
-import subprocess
-
 import lightning.app
 from lightning.app.utilities.log import get_logfile
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
+import os
+import subprocess
+import sys
 
 
 class StreamlitFrontend(LitStreamlitFrontend):

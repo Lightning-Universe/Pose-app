@@ -1,24 +1,13 @@
-import os
-import logging
-import string
-from datetime import datetime
-
-import streamlit as st
-from streamlit_ace import st_ace
-import shlex
-
-from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name
-from lai_components.args_utils import args_to_dict, dict_to_args
-from lai_components.vsc_streamlit import StreamlitFrontend
-
-from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.app.components.python import TracerPythonScript
+from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
-from lightning.app.storage.path import Path
+import streamlit as st
+
+from lightning_pose_app.utils.args import args_to_dict, dict_to_args
+from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
 
 
-class FoRunUI(LightningFlow):
-    """UI to run Fiftyone."""
+class DiagnosticsUI(LightningFlow):
+    """UI to run Fiftyone and Streamlit apps."""
 
     def __init__(
             self,
@@ -26,11 +15,10 @@ class FoRunUI(LightningFlow):
             script_dir,
             script_name,
             script_args,
-            script_env,
-            outputs_dir="outputs",
             **kwargs
     ):
         super().__init__(*args, **kwargs)
+
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
         # UI sets to True to kickoff jobs
@@ -41,12 +29,12 @@ class FoRunUI(LightningFlow):
         self.script_dir = script_dir
         self.script_name = script_name
         self.script_args = script_args
-        self.script_env = script_env
-        self.outputs_dir = outputs_dir
 
-        # FO list (updated externally by top-level flow)
+        # params updated externally by top-level flow
         self.fo_datasets = []
         self.hydra_outputs = {}
+        self.proj_dir = None
+        self.config_name = None
 
         self.script_args_append = None
 
@@ -59,14 +47,10 @@ class FoRunUI(LightningFlow):
         self.st_script_args = None
         self.st_dataset_name = None
         self.st_model_dirs = None
-        self.st_hydra_config_name = None
-        self.st_hydra_config_dir = None
 
         # copy over for now, we can add these to the UI later if we want
         self.st_script_dir = script_dir
         self.st_script_name = script_name
-        self.st_script_env = script_env
-        self.st_outputs_dir = outputs_dir
 
     def set_fo_dataset(self, names):
         self.fo_datasets = names
@@ -125,8 +109,8 @@ def _render_streamlit_fn(state: AppState):
         Click 'Prepare' to begin preparation of the diagnostics. These diagnostics will be 
         displayed in the following three tabs:
         * View Preds: view model predictions and ground truth on all images using FiftyOne
-        * Frame Diag: TODO
-        * Video Diag: TODO
+        * Frame Diag: view metrics on labeled frames in streamlit
+        * Video Diag: view metrics on unlabeled videos in streamlit
 
         """
     )
@@ -194,16 +178,14 @@ def _render_streamlit_fn(state: AppState):
         state.st_model_display_names = st_model_display_names
         state.st_model_dirs = st_model_dirs
         state.st_script_args = state.script_args
-        state.st_hydra_config_name = get_hydra_config_name()
-        state.st_hydra_config_dir = get_hydra_dir_name()
 
         # set key-value pairs that will be used as script args
         script_args_append = f"eval.fiftyone.dataset_name={st_dataset_name}"
         script_args_append += " " + "eval.fiftyone.model_display_names=[%s]" % \
                               ','.join([f"'{x}'" for x in st_model_display_names])
         script_args_append += " " + "eval.fiftyone.launch_app_from_script=False"
-        script_args_append += " " + state.st_hydra_config_name
-        script_args_append += " " + state.st_hydra_config_dir
+        script_args_append += f" --config_path={os.path.join(os.getcwd(), state.proj_dir)}"
+        script_args_append += f" --config_name={state.config_name}"
         state.script_args_append = script_args_append
 
         state.run_script = True  # must the last to prevent race condition

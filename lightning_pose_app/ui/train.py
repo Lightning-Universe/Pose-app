@@ -7,7 +7,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import time
 
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
 
 
 class TrainDemoUI(LightningFlow):
@@ -19,7 +19,6 @@ class TrainDemoUI(LightningFlow):
         script_dir,
         script_name,
         script_args,
-        script_env,
         max_epochs=200,
         **kwargs
     ):
@@ -34,7 +33,6 @@ class TrainDemoUI(LightningFlow):
         self.script_dir = script_dir
         self.script_name = script_name
         self.script_args = script_args
-        self.script_env = script_env
 
         self.n_labeled_frames = None  # set externally
         self.n_total_frames = None  # set externally
@@ -67,7 +65,6 @@ class TrainDemoUI(LightningFlow):
         # copy over for now, we can add these to the UI later if we want
         self.st_script_dir = script_dir
         self.st_script_name = script_name
-        self.st_script_env = script_env
 
     def set_hydra_outputs(self, names: dict):
         # this function is called by the top-level app when model training completes.
@@ -182,6 +179,7 @@ def _render_streamlit_fn(state: AppState):
             tmp += f" training.max_epochs={st_max_epochs}"
             tmp += f" training.train_frames={st_train_frames}"
             tmp += f" training.profiler=null"
+            tmp += f" training.log_every_n_steps=1"  # for debugging
             tmp += f" eval.predict_vids_after_training=true"
             dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
             if i == 0:
@@ -201,5 +199,5 @@ def _render_streamlit_fn(state: AppState):
         st.text("Model training launched!")
         state.run_script = True  # must the last to prevent race condition
         # force rerun
-        st_autorefresh(interval=2000, key="refresh_train_ui")
+        st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
         # TODO: show training progress

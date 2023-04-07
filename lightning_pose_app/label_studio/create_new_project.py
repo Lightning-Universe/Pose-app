@@ -5,9 +5,9 @@ import datetime
 import os
 import yaml
 
-from lai_components.label_studio.utils import connect_to_label_studio
-from lai_components.label_studio.utils import start_project
-from lai_components.label_studio.utils import create_data_source
+from lightning_pose_app.label_studio.utils import connect_to_label_studio
+from lightning_pose_app.label_studio.utils import start_project
+from lightning_pose_app.label_studio.utils import create_data_source
 
 print("Executing create_new_project.py")
 
