@@ -160,6 +160,8 @@ class LitPoseApp(LightningFlow):
         # get existing model directories that contain test*.csv
         if not search_dir:
             search_dir = self.project_io.model_dir
+        if not search_dir:
+            return
 
         cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
         self.my_work.run(cmd, cwd=os.getcwd(), save_stdout=True)
