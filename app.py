@@ -1,6 +1,6 @@
 """Main loop for lightning pose app
 
-To run from the command line (inside the conda environment named "lai" here:
+To run from the command line (inside the conda environment named "lai" here):
 (lai) user@machine: lightning run app app.py
 
 """

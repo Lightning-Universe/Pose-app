@@ -9,23 +9,6 @@ Lightning App for:
 
 The following instructions detail how to install the app locally for development purposes.
 
-## Create grid session 
-Note: if you are developing from a local, non-Grid machine, skip this section and go to 
-`Environment setup`.
-
-From a laptop, create a new Grid session:
-```bash
-$ grid session create --instance_type g4dn.xlarge 
-```
-
-Make sure session ssh is setup for VSC:
-```
-$ grid session ssh GRID_SESSION_NAME "exit"
-```
-
-Open VSC, and connect to GRID_SESSION_NAME. Complete the following steps within 
-GRID_SESSION_NAME from VSC.
-
 ## Environment setup 
 
 First, create a conda environment:
@@ -53,12 +36,6 @@ Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
 (lai) $ python -m pip install -r requirements.txt
 ```
 
-Record versions and git hash:
-```bash
-(lai) $ lightning --version
-(lai) $ python --version
-```
-
 ## Run the app on the cloud
 Once the environment has been set up, running the app on the cloud is easy! Launch with the
 following command:
@@ -76,8 +53,7 @@ Install tensorboard:
 (lai) $ python -m pip install tensorboard
 ```
 
-#### LabelStudio
-Install:
+Install LabelStudio virtual environment:
 ```bash
 (lai) $ virtualenv ~/venv-label-studio 
 (lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
@@ -88,8 +64,6 @@ Test:
 ```bash
 (lai) $ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
-
-#### Run the app!
 
 In order to run the application locally, run the following commands:
 
