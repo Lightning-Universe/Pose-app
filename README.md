@@ -95,44 +95,6 @@ Test:
 (lai) $ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
 
-#### Lightning Pose
-Install on a machine _without_ a GPU:
-```bash
-(lai) $ cd ~/Pose-app
-(lai) $ virtualenv ~/venv-lightning-pose
-(lai) $ source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -e .; cd ..; deactivate
-```
-
-Install on a machine _with_ a GPU:
-```bash
-(lai) $ cd ~/Pose-app
-(lai) $ virtualenv ~/venv-lightning-pose
-(lai) $ source ~/venv-lightning-pose/bin/activate; cd lightning-pose; which python; python -m pip install -r requirements.txt; cd ..; deactivate
-```
-
-Test:
-```bash
-(lai) $ source ~/venv-lightning-pose/bin/activate; cd lightning-pose; fiftyone app launch; cd ..; deactivate
-```
-
-#### nginx
-Lastly, we need to take care of some bookkeeping for the Nginx web server used by Label Studio. 
-First, install the `nginx` package:
-```bash
-$ sudo apt install nginx
-```
-
-Then, we need to change the permissions of some files:
-```bash
-$ sudo touch /run/nginx.pid
-$ sudo chown `whoami` /run/nginx.pid
-$ sudo chown -R `whoami` /etc/nginx/ /var/log/nginx/ /var/lib/nginx/
-```
-Note that you may periodically need to rerun these last three commands. If Label Studio is not
-responsive, look at the stdout upon launching the app; if you see an error telling you that
-the file `/run/nginx.pid` cannot be found, for example, then rerun the above three commands and
-try again.  
-
 #### Run the app!
 
 In order to run the application locally, run the following commands:

@@ -19,7 +19,7 @@ import yaml
 
 from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.build_utils import lightning_pose_dir
-from lai_components.build_utils import lightning_pose_venv, tensorboard_venv
+from lai_components.build_utils import tensorboard_venv
 from lai_components.build_utils import (
     LitPoseBuildConfig,
     StreamlitBuildConfig,
@@ -174,7 +174,7 @@ class LitPoseApp(LightningFlow):
     def init_fiftyone_outputs_to_ui(self):
         # get existing fiftyone datasets
         cmd = "fiftyone datasets list"
-        self.my_work.run(cmd, venv_name=lightning_pose_venv)
+        self.my_work.run(cmd)
         if self.my_work.last_args() == cmd:
             options = []
             for x in self.my_work.stdout:
@@ -209,7 +209,6 @@ class LitPoseApp(LightningFlow):
         self.my_work.run(
             cmd,
             wait_for_exit=True,
-            venv_name=lightning_pose_venv,
             cwd=lightning_pose_dir,
             inputs=self.extract_ui.st_video_files,
             outputs=[os.path.join(self.extract_ui.proj_dir, "labeled-data")],
@@ -231,12 +230,7 @@ class LitPoseApp(LightningFlow):
         # TODO:
         #   right after fiftyone, the previous find command is triggered should not be the case.
         cmd = "fiftyone app launch --address $host --port $port"
-        self.my_work.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            wait_for_exit=False,
-            cwd=lightning_pose_dir,
-        )
+        self.my_work.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
 
     def start_lp_train_video_predict(self):
 
@@ -275,7 +269,6 @@ class LitPoseApp(LightningFlow):
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.my_work.run(
                 cmd,
-                venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
                 inputs=inputs,
@@ -298,7 +291,6 @@ class LitPoseApp(LightningFlow):
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.my_work.run(
                 cmd,
-                venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
                 inputs=inputs,
@@ -329,7 +321,6 @@ class LitPoseApp(LightningFlow):
               + " " + "eval.fiftyone.dataset_to_create=images"
         self.my_work.run(
             cmd,
-            venv_name=lightning_pose_venv,
             env=self.fo_ui.st_script_env,
             cwd=self.fo_ui.st_script_dir,
           )
@@ -380,12 +371,7 @@ class LitPoseApp(LightningFlow):
               + " " + prediction_file_args \
               + " " + model_name_args \
               + " " + data_cfg_args
-        self.my_streamlit_frame.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            wait_for_exit=False,
-            cwd="."
-        )
+        self.my_streamlit_frame.run(cmd, wait_for_exit=False, cwd=".")
 
     def start_st_video(self):
         """run streamlit for videos"""
@@ -425,12 +411,7 @@ class LitPoseApp(LightningFlow):
               + " " + prediction_file_args \
               + " " + model_name_args \
               + " " + data_cfg_args
-        self.my_streamlit_video.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            wait_for_exit=False,
-            cwd="."
-        )
+        self.my_streamlit_video.run(cmd, wait_for_exit=False, cwd=".")
 
     def run(self):
 
