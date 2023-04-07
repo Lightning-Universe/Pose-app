@@ -67,9 +67,7 @@ class ProjectDataIO(LightningWork):
                     print(f"drive success get {file_or_dir}")
             except Exception as e:
                 print(e)
-                print(self.drive.root)
-                print(os.path.exists(os.path.join(self.drive.root, file_or_dir)))
-                print(f"could not find {file_or_dir} in drive")
+                print(f"could not find {file_or_dir} in in {self.drive.root}")
         else:
             print(f"loading local version of {file_or_dir}")
 
@@ -138,7 +136,6 @@ class ProjectDataIO(LightningWork):
                             config_dict[sconfig_name][key][key1] = val1
                     else:
                         config_dict[sconfig_name][key] = val
-
             # save out updated config file locally
             if not os.path.exists(self.proj_dir):
                 os.makedirs(self.proj_dir)
@@ -269,7 +266,6 @@ class ProjectUI(LightningFlow):
         self.config_file = None
         self.create_new_project = False
         self.initialized_projects = []
-        self.keypoints = None
 
         # input from ProjectIO
         self.st_n_views = 0
@@ -348,7 +344,6 @@ def _render_streamlit_fn(state: AppState):
             if state.st_submits == 1:
                 # signal to lightning app that project has been loaded; this will populate other
                 # UIs with relevant project info
-                state.keypoints = st_keypoints
                 state.run_script = True
                 state.st_submits += 1
         elif (st_mode == "Create new project") and (st_project_name in state.initialized_projects):
@@ -382,7 +377,8 @@ def _render_streamlit_fn(state: AppState):
         st_pcamv_columns = np.array([[0], [1]], dtype=np.int32)
         pcamv_ready = True
 
-    else:
+    elif not DEBUG:
+
         # camera views
         if enter_data:
             st.markdown("##### Camera views")
@@ -496,7 +492,6 @@ def _render_streamlit_fn(state: AppState):
                         )
                         st_pcamv_columns[c, r] = np.where(np.array(st_keypoints) == kp)[0]
 
-                print(st_pcamv_columns)
             st.markdown("")
         else:
             st_n_bodyparts = 0
@@ -580,7 +575,13 @@ def _render_streamlit_fn(state: AppState):
             state.st_project_name = st_project_name
             state.st_project_loaded = True
             state.st_new_vals = st_new_vals
-            state.keypoints = st_new_vals["data"]["keypoints"]
+
+            state.st_n_views = st_n_views
+            state.st_keypoints = st_new_vals["data"]["keypoints"]
+            state.st_n_keypoints = st_n_keypoints
+            state.st_pcasv_columns = st_new_vals["data"]["columns_for_singleview_pca"]
+            state.st_pcamv_columns = st_new_vals["data"]["mirrored_column_matches"]
+
             st.text("Request submitted!")
             state.run_script = True  # must the last to prevent race condition
             st_autorefresh(interval=2000, key="refresh_project_ui")

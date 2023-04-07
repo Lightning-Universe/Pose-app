@@ -15,7 +15,6 @@ class DiagnosticsUI(LightningFlow):
             script_dir,
             script_name,
             script_args,
-            script_env,
             **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -30,7 +29,6 @@ class DiagnosticsUI(LightningFlow):
         self.script_dir = script_dir
         self.script_name = script_name
         self.script_args = script_args
-        self.script_env = script_env
 
         # params updated externally by top-level flow
         self.fo_datasets = []
@@ -53,7 +51,6 @@ class DiagnosticsUI(LightningFlow):
         # copy over for now, we can add these to the UI later if we want
         self.st_script_dir = script_dir
         self.st_script_name = script_name
-        self.st_script_env = script_env
 
     def set_fo_dataset(self, names):
         self.fo_datasets = names

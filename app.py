@@ -6,6 +6,7 @@ To run from the command line (inside the conda environment named "lai" here):
 """
 
 from lightning import CloudCompute, LightningApp, LightningFlow
+from lightning.app.utilities.cloud import is_running_in_cloud
 import os
 import time
 import yaml
@@ -19,8 +20,6 @@ from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
 from lightning_pose_app.ui.train import TrainDemoUI
 from lightning_pose_app.utils.build_configs import TensorboardBuildConfig
-
-ON_CLOUD = False  # set False when debugging locally, weird things can happen w/ shared filesystem
 
 
 class LitPoseApp(LightningFlow):
@@ -67,7 +66,6 @@ class LitPoseApp(LightningFlow):
             script_dir=lightning_pose_dir,
             script_name="scripts/train_hydra.py",
             script_args="",
-            script_env="HYDRA_FULL_ERROR=1",
             max_epochs=200,
         )
 
@@ -173,7 +171,6 @@ class LitPoseApp(LightningFlow):
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.litpose.work.run(
                 cmd,
-                env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
                 inputs=inputs,
                 outputs=outputs,
@@ -195,7 +192,6 @@ class LitPoseApp(LightningFlow):
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.litpose.work.run(
                 cmd,
-                env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
                 inputs=inputs,
                 outputs=outputs,
@@ -222,11 +218,7 @@ class LitPoseApp(LightningFlow):
               + " " + self.diagnostics_ui.st_script_args \
               + " " + self.diagnostics_ui.script_args_append \
               + " " + "eval.fiftyone.dataset_to_create=images"
-        self.litpose.work.run(
-            cmd,
-            env=self.diagnostics_ui.st_script_env,
-            cwd=self.diagnostics_ui.st_script_dir,
-          )
+        self.litpose.work.run(cmd, cwd=self.diagnostics_ui.st_script_dir)
 
         # add dataset name to list for user to see
         self.diagnostics_ui.add_fo_dataset(self.diagnostics_ui.st_dataset_name)
@@ -325,7 +317,7 @@ class LitPoseApp(LightningFlow):
         # don't interfere /w train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
-        if not ON_CLOUD and self.train_ui.run_script:
+        if not is_running_in_cloud() and self.train_ui.run_script:
             run_while_training = False
 
         # -----------------------------
@@ -371,28 +363,52 @@ class LitPoseApp(LightningFlow):
 
         # update project configuration when user clicks button in project UI
         if self.project_ui.run_script and run_while_training:
-            # update user-supplied parameters in config yaml file
-            self.project_io.run(
-                action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
 
-            # update data dir for frame extraction object
+            # update paths now that we know which project we're working with
+            self.project_io.run(
+                action="update_paths", project_name=self.project_ui.st_project_name)
+            # update paths for frame extraction object
             self.extract_ui.proj_dir = self.project_io.proj_dir
-            # update label studio object paths
+            # update paths for label studio object
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_io.proj_dir, proj_name=self.project_ui.st_project_name)
 
-            # create label studio xml file, create/load project
+            # create/load project
             if self.project_ui.create_new_project and self.project_ui.count == 0:
-                self.label_studio.run(
-                    action="create_labeling_config_xml", keypoints=self.project_ui.keypoints)
-                self.label_studio.run(action="create_new_project")
+                # create project from scratch
+                self.project_io.run(
+                    action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
+                if self.project_ui.st_keypoints:
+                    # if statement here so that we only run "create_new_project" once we have data
+                    self.label_studio.run(
+                        action="create_labeling_config_xml",
+                        keypoints=self.project_ui.st_keypoints)
+                    self.label_studio.run(action="create_new_project")
+                    # allow app to advance
+                    self.project_ui.count += 1
+                    self.project_ui.run_script = False
             else:
-                # project already created; update label studio object
-                self.label_studio.keypoints = self.project_ui.keypoints
-
-            self.project_ui.count += 1
-            self.project_ui.run_script = False
+                # project already created
+                if self.project_ui.count == 0:
+                    # load project configuration from config file
+                    self.project_io.run(
+                        action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
+                    # copy project defaults into UI
+                    for key, val in self.project_io.proj_defaults.items():
+                        setattr(self.project_ui, key, val)
+                    # update label studio object
+                    self.label_studio.keypoints = self.project_ui.st_keypoints
+                    # allow app to advance
+                    self.project_ui.count += 1
+                    self.project_ui.run_script = False
+                else:
+                    # update project
+                    self.project_io.run(
+                        action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
+                    # allow app to advance
+                    self.project_ui.count += 1
+                    self.project_ui.run_script = False
 
         # extract frames for labeling from uploaded videos
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
