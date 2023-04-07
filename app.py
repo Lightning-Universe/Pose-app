@@ -1,6 +1,6 @@
 """Main loop for lightning pose app
 
-To run from the command line (inside the conda environment named "lai" here:
+To run from the command line (inside the conda environment named "lai" here):
 (lai) user@machine: lightning run app app.py
 
 """
@@ -18,8 +18,7 @@ from typing import Optional, Union, List
 import yaml
 
 from lai_components.args_utils import args_to_dict, dict_to_args
-from lai_components.build_utils import lightning_pose_dir, tracking_diag_dir
-from lai_components.build_utils import lightning_pose_venv, tensorboard_venv
+from lai_components.build_utils import lightning_pose_dir
 from lai_components.build_utils import (
     LitPoseBuildConfig,
     StreamlitBuildConfig,
@@ -35,10 +34,6 @@ from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
 from lai_work.bashwork import LitBashWork
 
-
-# TODO
-# - cloud: getting files recursively doesn't work [sent to @tchaton]
-# - upload new vid: issue with duplicates
 
 ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
 
@@ -136,14 +131,14 @@ class LitPoseApp(LightningFlow):
         # streamlit labeled
         # self.my_streamlit_frame = LitBashWork(
         #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),
+        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
         #     drive_name=drive_name,
         # )
 
         # streamlit video
         # self.my_streamlit_video = LitBashWork(
         #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),
+        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
         #     drive_name=drive_name,
         # )
 
@@ -160,6 +155,8 @@ class LitPoseApp(LightningFlow):
         # get existing model directories that contain test*.csv
         if not search_dir:
             search_dir = self.project_io.model_dir
+        if not search_dir:
+            return
 
         cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
         self.my_work.run(cmd, cwd=os.getcwd(), save_stdout=True)
@@ -174,7 +171,7 @@ class LitPoseApp(LightningFlow):
     def init_fiftyone_outputs_to_ui(self):
         # get existing fiftyone datasets
         cmd = "fiftyone datasets list"
-        self.my_work.run(cmd, venv_name=lightning_pose_venv)
+        self.my_work.run(cmd)
         if self.my_work.last_args() == cmd:
             options = []
             for x in self.my_work.stdout:
@@ -209,7 +206,6 @@ class LitPoseApp(LightningFlow):
         self.my_work.run(
             cmd,
             wait_for_exit=True,
-            venv_name=lightning_pose_venv,
             cwd=lightning_pose_dir,
             inputs=self.extract_ui.st_video_files,
             outputs=[os.path.join(self.extract_ui.proj_dir, "labeled-data")],
@@ -219,24 +215,14 @@ class LitPoseApp(LightningFlow):
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
-        self.my_tb.run(
-            cmd,
-            venv_name=tensorboard_venv,
-            wait_for_exit=False,
-            cwd=os.getcwd(),
-        )
+        self.my_tb.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
     def start_fiftyone(self):
         """run fiftyone"""
         # TODO:
         #   right after fiftyone, the previous find command is triggered should not be the case.
         cmd = "fiftyone app launch --address $host --port $port"
-        self.my_work.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            wait_for_exit=False,
-            cwd=lightning_pose_dir,
-        )
+        self.my_work.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
 
     def start_lp_train_video_predict(self):
 
@@ -275,7 +261,6 @@ class LitPoseApp(LightningFlow):
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.my_work.run(
                 cmd,
-                venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
                 inputs=inputs,
@@ -298,7 +283,6 @@ class LitPoseApp(LightningFlow):
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.my_work.run(
                 cmd,
-                venv_name=lightning_pose_venv,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
                 inputs=inputs,
@@ -311,7 +295,6 @@ class LitPoseApp(LightningFlow):
         cmd = "null command"  # make this unique
         self.my_tb.run(
             cmd,
-            venv_name=tensorboard_venv,
             cwd=os.getcwd(),
             input_output_only=True,
             inputs=outputs,
@@ -329,7 +312,6 @@ class LitPoseApp(LightningFlow):
               + " " + "eval.fiftyone.dataset_to_create=images"
         self.my_work.run(
             cmd,
-            venv_name=lightning_pose_venv,
             env=self.fo_ui.st_script_env,
             cwd=self.fo_ui.st_script_dir,
           )
@@ -380,12 +362,7 @@ class LitPoseApp(LightningFlow):
               + " " + prediction_file_args \
               + " " + model_name_args \
               + " " + data_cfg_args
-        self.my_streamlit_frame.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            wait_for_exit=False,
-            cwd="."
-        )
+        self.my_streamlit_frame.run(cmd, wait_for_exit=False, cwd=".")
 
     def start_st_video(self):
         """run streamlit for videos"""
@@ -425,12 +402,7 @@ class LitPoseApp(LightningFlow):
               + " " + prediction_file_args \
               + " " + model_name_args \
               + " " + data_cfg_args
-        self.my_streamlit_video.run(
-            cmd,
-            venv_name=lightning_pose_venv,
-            wait_for_exit=False,
-            cwd="."
-        )
+        self.my_streamlit_video.run(cmd, wait_for_exit=False, cwd=".")
 
     def run(self):
 
@@ -458,8 +430,8 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # init background services once
         # -----------------------------
-        self.label_studio.run(action="start_label_studio")
         self.label_studio.run(action="import_database")
+        self.label_studio.run(action="start_label_studio")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)

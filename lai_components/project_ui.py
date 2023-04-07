@@ -309,7 +309,9 @@ def _render_streamlit_fn(state: AppState):
 
     st.text(f"Available projects: {state.initialized_projects}")
 
-    st_project_name = st.text_input("Enter project name", value="")
+    st_project_name = st.text_input(
+        "Enter project name",
+        value="" if not state.st_project_loaded else state.st_project_name)
 
     if st_project_name and st_mode == "Load existing project":
         if st_project_name not in state.initialized_projects:
@@ -475,7 +477,7 @@ def _render_streamlit_fn(state: AppState):
 
             if st_n_bodyparts > 0:
 
-                st_pcamv_columns = np.zeros((st_n_views, st_n_bodyparts), dtype=np.int)
+                st_pcamv_columns = np.zeros((st_n_views, st_n_bodyparts), dtype=np.int32)
 
                 # set column titles
                 cols_title = st.columns(st_n_views + 1)
