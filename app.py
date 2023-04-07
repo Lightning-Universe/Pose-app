@@ -11,18 +11,14 @@ import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
+from lightning_pose_app.litpose import LitPose, lightning_pose_dir
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.diagnostics import DiagnosticsUI
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
 from lightning_pose_app.ui.train import TrainDemoUI
-from lightning_pose_app.utils.build_configs import lightning_pose_dir
-from lightning_pose_app.utils.build_configs import (
-    LitPoseBuildConfig,
-    TensorboardBuildConfig,
-)
-from lightning_pose_app.utils.lpa import output_with_video_prediction
+from lightning_pose_app.utils.build_configs import TensorboardBuildConfig
 
 ON_CLOUD = False  # set False when debugging locally, weird things can happen w/ shared filesystem
 
@@ -75,7 +71,7 @@ class LitPoseApp(LightningFlow):
             max_epochs=200,
         )
 
-        # fiftyone tab (images only for now)
+        # diagnostics tab
         # self.diagnostics_ui = DiagnosticsUI(
         #     script_dir=lightning_pose_dir,
         #     script_name="scripts/create_fiftyone_dataset.py",
@@ -93,22 +89,18 @@ class LitPoseApp(LightningFlow):
         # workers
         # -----------------------------
         # tensorboard
-        self.my_tb = LitBashWork(
+        self.tensorboard = LitBashWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
             drive_name=drive_name,
             component_name="tensorboard",
         )
 
-        # frame extraction/training
-        self.my_work = LitBashWork(
+        # lightning pose: frame extraction and model training
+        self.litpose = LitPose(
             cloud_compute=CloudCompute("gpu"),
-            cloud_build_config=LitPoseBuildConfig(),  # this is where Lightning Pose is installed
             drive_name=drive_name,
-            component_name="my_work",
-            wait_seconds_after_run=1,
         )
-        self.work_is_done_extract_frames = False
 
         # label studio
         self.label_studio = LitLabelStudio(
@@ -139,82 +131,12 @@ class LitPoseApp(LightningFlow):
     #         self.my_work.url != "",
     #         self.label_studio.label_studio.url != ""])
 
-    def init_lp_outputs_to_uis(self, search_dir=None):
-
-        # get existing model directories that contain predictions.csv file
-        # (created upon completion of model training)
-        if not search_dir:
-            search_dir = self.project_io.model_dir
-        if not search_dir:
-            return
-
-        cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
-        self.my_work.run(cmd, cwd=os.getcwd(), save_stdout=True)
-        if self.my_work.last_args() == cmd:
-            outputs = output_with_video_prediction(self.my_work.last_stdout())
-            if outputs:
-                self.train_ui.set_hydra_outputs(outputs)
-                # self.diagnostics_ui.set_hydra_outputs(outputs)
-            self.my_work.reset_last_args()
-
-    # TODO: where is the fiftyone db stored?
-    def init_fiftyone_outputs_to_ui(self):
-        # get existing fiftyone datasets
-        cmd = "fiftyone datasets list"
-        self.my_work.run(cmd)
-        if self.my_work.last_args() == cmd:
-            names = []
-            for x in self.my_work.stdout:
-                if x.endswith("No datasets found"):
-                    continue
-                if x.startswith("Migrating database"):
-                    continue
-                if x.endswith("python"):
-                    continue
-                names.append(x)
-            self.diagnostics_ui.set_fo_dataset(names)
-        else:
-            pass
-
-    def start_extract_frames(self):
-
-        # set videos to select frames from
-        vid_file_args = ""
-        for vid_file in self.extract_ui.st_video_files:
-            vid_file_ = os.path.join(os.getcwd(), vid_file)
-            vid_file_args += f" --video_files={vid_file_}"
-
-        data_dir = os.path.join(os.getcwd(), self.extract_ui.proj_dir, "labeled-data")
-
-        cmd = "python" \
-              + " " + self.extract_ui.script_name \
-              + vid_file_args \
-              + f" --data_dir={data_dir}" \
-              + f" --n_frames_per_video={self.extract_ui.st_n_frames_per_video}" \
-              + f" --context_frames=2" \
-              + f" --export_idxs_as_csv"
-        self.my_work.run(
-            cmd,
-            wait_for_exit=True,
-            cwd=lightning_pose_dir,
-            inputs=self.extract_ui.st_video_files,
-            outputs=[os.path.join(self.extract_ui.proj_dir, "labeled-data")],
-        )
-        self.work_is_done_extract_frames = True
-
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
-        self.my_tb.run(cmd, wait_for_exit=False, cwd=os.getcwd())
+        self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
-    def start_fiftyone(self):
-        """run fiftyone"""
-        # TODO:
-        #   right after fiftyone, the previous find command is triggered should not be the case.
-        cmd = "fiftyone app launch --address $host --port $port"
-        self.my_work.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
-
-    def start_lp_train_video_predict(self):
+    def train_models(self):
 
         # check to see if we're in demo mode or not
         base_dir = os.path.join(os.getcwd(), self.project_io.proj_dir)
@@ -249,7 +171,7 @@ class LitPoseApp(LightningFlow):
                   + " " + self.train_ui.st_script_args["super"] \
                   + f" hydra.run.dir={hydra_srun}" \
                   + f" hydra.sweep.dir={hydra_mrun}"
-            self.my_work.run(
+            self.litpose.work.run(
                 cmd,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
@@ -271,7 +193,7 @@ class LitPoseApp(LightningFlow):
                   + " " + self.train_ui.st_script_args["semisuper"] \
                   + f" hydra.run.dir={hydra_srun}" \
                   + f" hydra.sweep.dir={hydra_mrun}"
-            self.my_work.run(
+            self.litpose.work.run(
                 cmd,
                 env=self.train_ui.st_script_env,
                 cwd=self.train_ui.st_script_dir,
@@ -283,7 +205,7 @@ class LitPoseApp(LightningFlow):
         # have TB pull the new data
         # input_output_only=True means that we'll pull inputs from drive, but not run commands
         cmd = "null command"  # make this unique
-        self.my_tb.run(
+        self.tensorboard.run(
             cmd,
             cwd=os.getcwd(),
             input_output_only=True,
@@ -291,7 +213,7 @@ class LitPoseApp(LightningFlow):
         )
 
         # set the new outputs for UIs
-        self.init_lp_outputs_to_uis(search_dir=outputs[0])
+        self.litpose.run(action="init_lp_outputs_to_uis", search_dir=outputs[0])
 
     def start_fiftyone_dataset_creation(self):
 
@@ -300,7 +222,7 @@ class LitPoseApp(LightningFlow):
               + " " + self.diagnostics_ui.st_script_args \
               + " " + self.diagnostics_ui.script_args_append \
               + " " + "eval.fiftyone.dataset_to_create=images"
-        self.my_work.run(
+        self.litpose.work.run(
             cmd,
             env=self.diagnostics_ui.st_script_env,
             cwd=self.diagnostics_ui.st_script_dir,
@@ -412,10 +334,17 @@ class LitPoseApp(LightningFlow):
         # find previously initialized projects, expose to project UI
         self.project_io.run(action="find_initialized_projects")
         self.project_ui.initialized_projects = self.project_io.initialized_projects
-        # find previously trained models, expose to training UI
-        self.init_lp_outputs_to_uis(search_dir=self.project_io.model_dir)
+
+        # find previously trained models, expose to training and diagnostics UIs
+        self.litpose.run(action="init_lp_outputs_to_uis", search_dir=self.project_io.model_dir)
+        if self.litpose.lp_outputs:
+            self.train_ui.set_hydra_outputs(self.litpose.lp_outputs)
+            # self.diagnostics_ui.set_hydra_outputs(self.litpose.lp_outputs)
+
         # find previously constructed fiftyone datasets, expose to fiftyone UI
-        # self.init_fiftyone_outputs_to_ui()
+        # self.litpose.run(action="init_fiftyone_outputs_to_ui")
+        # if self.litpose.fiftyone_datasets:
+        #     self.diagnostics_ui.set_fo_dataset(self.litpose.fiftyone_datasets)
 
         # -----------------------------
         # init background services once
@@ -425,10 +354,10 @@ class LitPoseApp(LightningFlow):
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
-        # self.start_fiftyone()
+        # self.litpose.run(action="start_fiftyone")
 
         # -----------------------------
-        # run work
+        # run works
         # -----------------------------
         # update paths if we know which project we're working with
         self.project_io.run(
@@ -467,12 +396,18 @@ class LitPoseApp(LightningFlow):
 
         # extract frames for labeling from uploaded videos
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
-            self.start_extract_frames()
-            # wait until litbashwork is done extracting frames, then update tasks
-            if self.work_is_done_extract_frames:
+            self.litpose.run(
+                action="start_extract_frames",
+                video_files=self.extract_ui.st_video_files,
+                proj_dir=self.extract_ui.proj_dir,
+                script_name=self.extract_ui.script_name,
+                n_frames_per_video=self.extract_ui.st_n_frames_per_video,
+            )
+            # wait until litpose is done extracting frames, then update tasks
+            if self.litpose.work_is_done_extract_frames:
                 self.project_io.run(action="update_frame_shapes")
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
-                self.work_is_done_extract_frames = False
+                self.litpose.work_is_done_extract_frames = False
                 self.extract_ui.run_script = False
 
         # check labeling task and export new labels
@@ -494,7 +429,7 @@ class LitPoseApp(LightningFlow):
 
         # train on ui button press
         if self.train_ui.run_script:
-            self.start_lp_train_video_predict()
+            self.train_models()
             self.train_ui.run_script = False
 
         # initialize diagnostics on button press
@@ -514,11 +449,11 @@ class LitPoseApp(LightningFlow):
 
         # training tabs
         train_demo_tab = {"name": "Train", "content": self.train_ui}
-        train_diag_tab = {"name": "Train Status", "content": self.my_tb}
+        train_diag_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
         # fo_prep_tab = {"name": "Prepare Diagnostics", "content": self.fo_ui}
-        fo_tab = {"name": "Labeled Preds", "content": self.my_work}
+        fo_tab = {"name": "Labeled Preds", "content": self.litpose.work}
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.my_streamlit_frame}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.my_streamlit_video}
 

@@ -182,6 +182,8 @@ def _render_streamlit_fn(state: AppState):
             tmp += f" training.max_epochs={st_max_epochs}"
             tmp += f" training.train_frames={st_train_frames}"
             tmp += f" training.profiler=null"
+            tmp += f" training.log_every_n_steps=1"
+            tmp += f" training.check_val_every_n_epoch=1"
             tmp += f" eval.predict_vids_after_training=true"
             dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
             if i == 0:
@@ -201,5 +203,5 @@ def _render_streamlit_fn(state: AppState):
         st.text("Model training launched!")
         state.run_script = True  # must the last to prevent race condition
         # force rerun
-        st_autorefresh(interval=2000, key="refresh_train_ui")
+        st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
         # TODO: show training progress

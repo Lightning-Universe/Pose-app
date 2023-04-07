@@ -37,6 +37,7 @@ class LitLabelStudio(LightningFlow):
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
+
         self.label_studio = LitBashWork(
             cloud_compute=cloud_compute,
             cloud_build_config=LabelStudioBuildConfig(),
