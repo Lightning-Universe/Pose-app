@@ -1,24 +1,15 @@
+from lightning import LightningFlow
+from lightning.app.utilities.state import AppState
 import os
-import logging
-import string
-from datetime import datetime
-
 import streamlit as st
-from streamlit_ace import st_ace
-import shlex
 
-from lai_components.hydra_ui import hydra_config, get_hydra_config_name, get_hydra_dir_name
+from lai_components.hydra_ui import get_hydra_config_name, get_hydra_dir_name
 from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.vsc_streamlit import StreamlitFrontend
 
-from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.app.components.python import TracerPythonScript
-from lightning.app.utilities.state import AppState
-from lightning.app.storage.path import Path
 
-
-class FoRunUI(LightningFlow):
-    """UI to run Fiftyone."""
+class DiagnosticsUI(LightningFlow):
+    """UI to run Fiftyone and Streamlit apps."""
 
     def __init__(
             self,
@@ -27,10 +18,10 @@ class FoRunUI(LightningFlow):
             script_name,
             script_args,
             script_env,
-            outputs_dir="outputs",
             **kwargs
     ):
         super().__init__(*args, **kwargs)
+
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
         # UI sets to True to kickoff jobs
@@ -42,7 +33,6 @@ class FoRunUI(LightningFlow):
         self.script_name = script_name
         self.script_args = script_args
         self.script_env = script_env
-        self.outputs_dir = outputs_dir
 
         # FO list (updated externally by top-level flow)
         self.fo_datasets = []
@@ -66,7 +56,6 @@ class FoRunUI(LightningFlow):
         self.st_script_dir = script_dir
         self.st_script_name = script_name
         self.st_script_env = script_env
-        self.st_outputs_dir = outputs_dir
 
     def set_fo_dataset(self, names):
         self.fo_datasets = names
@@ -125,8 +114,8 @@ def _render_streamlit_fn(state: AppState):
         Click 'Prepare' to begin preparation of the diagnostics. These diagnostics will be 
         displayed in the following three tabs:
         * View Preds: view model predictions and ground truth on all images using FiftyOne
-        * Frame Diag: TODO
-        * Video Diag: TODO
+        * Frame Diag: view metrics on labeled frames in streamlit
+        * Video Diag: view metrics on unlabeled videos in streamlit
 
         """
     )

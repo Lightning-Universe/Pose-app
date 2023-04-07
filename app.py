@@ -29,13 +29,13 @@ from lai_components.project_ui import ProjectUI, ProjectDataIO
 from lai_components.extract_frames_ui import ExtractFramesUI
 from lai_components.label_studio.component import LitLabelStudio
 from lai_components.train_ui import TrainDemoUI
-from lai_components.fo_ui import FoRunUI
+from lai_components.diagnostics_ui import DiagnosticsUI
 from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
 from lai_work.bashwork import LitBashWork
 
 
-ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
+ON_CLOUD = False  # set False when debugging locally, weird things can happen w/ shared filesystem
 
 
 class LitPoseApp(LightningFlow):
@@ -87,18 +87,18 @@ class LitPoseApp(LightningFlow):
         )
 
         # fiftyone tab (images only for now)
-        # self.fo_ui = FoRunUI(
-        #     script_dir=lightning_pose_dir,
-        #     script_name="scripts/create_fiftyone_dataset.py",
-        #     script_env="HYDRA_FULL_ERROR=1",
-        #     script_args="""
-        #         eval.fiftyone.dataset_name=test1
-        #         eval.fiftyone.model_display_names=["test1"]
-        #         eval.fiftyone.dataset_to_create="images"
-        #         eval.fiftyone.build_speed="fast"
-        #         eval.fiftyone.launch_app_from_script=False
-        #     """
-        # )
+        self.diagnostics_ui = DiagnosticsUI(
+            script_dir=lightning_pose_dir,
+            script_name="scripts/create_fiftyone_dataset.py",
+            script_env="HYDRA_FULL_ERROR=1",
+            script_args="""
+                eval.fiftyone.dataset_name=test1
+                eval.fiftyone.model_display_names=["test1"]
+                eval.fiftyone.dataset_to_create="images"
+                eval.fiftyone.build_speed="fast"
+                eval.fiftyone.launch_app_from_script=False
+            """
+        )
 
         # -----------------------------
         # workers
@@ -150,9 +150,10 @@ class LitPoseApp(LightningFlow):
     #         self.my_work.url != "",
     #         self.label_studio.label_studio.url != ""])
 
-    def init_lp_outputs_to_ui(self, search_dir=None):
+    def init_lp_outputs_to_uis(self, search_dir=None):
 
-        # get existing model directories that contain test*.csv
+        # get existing model directories that contain predictions.csv file
+        # (created upon completion of model training)
         if not search_dir:
             search_dir = self.project_io.model_dir
         if not search_dir:
@@ -164,7 +165,7 @@ class LitPoseApp(LightningFlow):
             outputs = output_with_video_prediction(self.my_work.last_stdout())
             if outputs:
                 self.train_ui.set_hydra_outputs(outputs)
-            # self.fo_ui.set_hydra_outputs(outputs)
+                self.diagnostics_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
     # TODO: where is the fiftyone db stored?
@@ -173,7 +174,7 @@ class LitPoseApp(LightningFlow):
         cmd = "fiftyone datasets list"
         self.my_work.run(cmd)
         if self.my_work.last_args() == cmd:
-            options = []
+            names = []
             for x in self.my_work.stdout:
                 if x.endswith("No datasets found"):
                     continue
@@ -181,8 +182,8 @@ class LitPoseApp(LightningFlow):
                     continue
                 if x.endswith("python"):
                     continue
-                options.append(x)
-            self.fo_ui.set_fo_dataset(options)
+                names.append(x)
+            self.diagnostics_ui.set_fo_dataset(names)
         else:
             pass
 
@@ -301,23 +302,23 @@ class LitPoseApp(LightningFlow):
         )
 
         # set the new outputs for UIs
-        self.init_lp_outputs_to_ui(search_dir=outputs[0])
+        self.init_lp_outputs_to_uis(search_dir=outputs[0])
 
     def start_fiftyone_dataset_creation(self):
 
         cmd = "python" \
-              + " " + self.fo_ui.st_script_name \
-              + " " + self.fo_ui.st_script_args \
-              + " " + self.fo_ui.script_args_append \
+              + " " + self.diagnostics_ui.st_script_name \
+              + " " + self.diagnostics_ui.st_script_args \
+              + " " + self.diagnostics_ui.script_args_append \
               + " " + "eval.fiftyone.dataset_to_create=images"
         self.my_work.run(
             cmd,
-            env=self.fo_ui.st_script_env,
-            cwd=self.fo_ui.st_script_dir,
+            env=self.diagnostics_ui.st_script_env,
+            cwd=self.diagnostics_ui.st_script_dir,
           )
 
         # add dataset name to list for user to see
-        self.fo_ui.add_fo_dataset(self.fo_ui.st_dataset_name)
+        self.diagnostics_ui.add_fo_dataset(self.diagnostics_ui.st_dataset_name)
 
     def start_st_frame(self):
         """run streamlit for labeled frames"""
@@ -330,19 +331,19 @@ class LitPoseApp(LightningFlow):
 
         # set prediction files (hard code some paths for now)
         prediction_file_args = ""
-        for model_dir in self.fo_ui.st_model_dirs:
+        for model_dir in self.diagnostics_ui.st_model_dirs:
             abs_file = os.path.join(
-                lightning_pose_dir, self.fo_ui.outputs_dir, model_dir, "predictions.csv")
+                lightning_pose_dir, self.diagnostics_ui.outputs_dir, model_dir, "predictions.csv")
             prediction_file_args += f" --prediction_files={abs_file}"
 
         # set model names
         model_name_args = ""
-        for name in self.fo_ui.st_model_display_names:
+        for name in self.diagnostics_ui.st_model_display_names:
             model_name_args += f" --model_names={name}"
 
         # set data config (take config from first selected model)
         cfg_file = os.path.join(
-            lightning_pose_dir, self.fo_ui.outputs_dir, self.fo_ui.st_model_dirs[0], ".hydra",
+            lightning_pose_dir, self.diagnostics_ui.outputs_dir, self.diagnostics_ui.st_model_dirs[0], ".hydra",
             "config.yaml")
         # replace relative paths of example dataset
         cfg = yaml.safe_load(open(cfg_file))
@@ -371,19 +372,19 @@ class LitPoseApp(LightningFlow):
         # select random video
         prediction_file_args = ""
         video_file = "test_vid.csv"  # TODO: find random vid in predictions directory
-        for model_dir in self.fo_ui.st_model_dirs:
+        for model_dir in self.diagnostics_ui.st_model_dirs:
             abs_file = os.path.join(
-                lightning_pose_dir, self.fo_ui.outputs_dir, model_dir, "video_preds", video_file)
+                lightning_pose_dir, self.diagnostics_ui.outputs_dir, model_dir, "video_preds", video_file)
             prediction_file_args += f" --prediction_files={abs_file}"
 
         # set model names
         model_name_args = ""
-        for name in self.fo_ui.st_model_display_names:
+        for name in self.diagnostics_ui.st_model_display_names:
             model_name_args += f" --model_names={name}"
 
         # set data config (take config from first selected model)
         cfg_file = os.path.join(
-            lightning_pose_dir, self.fo_ui.outputs_dir, self.fo_ui.st_model_dirs[0], ".hydra",
+            lightning_pose_dir, self.diagnostics_ui.outputs_dir, self.diagnostics_ui.st_model_dirs[0], ".hydra",
             "config.yaml")
         # replace relative paths of example dataset
         cfg = yaml.safe_load(open(cfg_file))
@@ -423,9 +424,9 @@ class LitPoseApp(LightningFlow):
         self.project_io.run(action="find_initialized_projects")
         self.project_ui.initialized_projects = self.project_io.initialized_projects
         # find previously trained models, expose to training UI
-        self.init_lp_outputs_to_ui(search_dir=self.project_io.model_dir)
+        self.init_lp_outputs_to_uis(search_dir=self.project_io.model_dir)
         # find previously constructed fiftyone datasets, expose to fiftyone UI
-        # self.init_fiftyone_outputs_to_ui()
+        self.init_fiftyone_outputs_to_ui()
 
         # -----------------------------
         # init background services once
