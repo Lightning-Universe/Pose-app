@@ -3,9 +3,9 @@ import os
 import pickle
 import yaml
 
-from lai_components.label_studio.utils import connect_to_label_studio
-from lai_components.label_studio.utils import get_project
-from lai_components.label_studio.utils import LabelStudioJSONProcessor
+from lightning_pose_app.label_studio.utils import connect_to_label_studio
+from lightning_pose_app.label_studio.utils import get_project
+from lightning_pose_app.label_studio.utils import LabelStudioJSONProcessor
 
 print("Executing check_labeling_task_and_export.py")
 

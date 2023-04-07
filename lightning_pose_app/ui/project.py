@@ -1,7 +1,6 @@
 import copy
 import glob
 from lightning import LightningFlow, LightningWork
-from lightning.app.storage import Path
 from lightning.app.storage.drive import Drive
 from lightning.app.utilities.state import AppState
 import math
@@ -11,10 +10,9 @@ import shutil
 from streamlit_autorefresh import st_autorefresh
 from PIL import Image
 import streamlit as st
-import time
 import yaml
 
-from lightning_pose_app.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
 
 
 class ProjectDataIO(LightningWork):
@@ -96,7 +94,7 @@ class ProjectDataIO(LightningWork):
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
             self.config_file = os.path.join(self.proj_dir, self.config_name)
-            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_ui.py
+            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train.py
 
     def update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""

@@ -3,7 +3,7 @@ from lightning.app import BuildConfig
 import os
 from typing import List
 
-from lai_work.bashwork import LitBashWork
+from lightning_pose_app.bashwork import LitBashWork
 
 
 # dir where label studio python venv will be setup
@@ -133,7 +133,7 @@ class LitLabelStudio(LightningFlow):
 
         # build script command
         script_path = os.path.join(
-            os.getcwd(), "lai_components", "label_studio", "create_new_project.py")
+            os.getcwd(), "lightning_pose_app", "label_studio", "create_new_project.py")
         label_studio_config_file = os.path.join(os.getcwd(), self.filenames["label_studio_config"])
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
@@ -161,7 +161,7 @@ class LitLabelStudio(LightningFlow):
 
         # build script command
         script_path = os.path.join(
-            os.getcwd(), "lai_components", "label_studio", "update_tasks.py")
+            os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
                         f"--proj_dir {self.proj_dir_local} " \
@@ -184,7 +184,7 @@ class LitLabelStudio(LightningFlow):
         """Check for new labels, export to lightning pose format, export database to Drive"""
 
         script_path = os.path.join(
-            os.getcwd(), "lai_components", "label_studio", "check_labeling_task_and_export.py")
+            os.getcwd(), "lightning_pose_app", "label_studio", "check_labeling_task_and_export.py")
 
         if self.keypoints is not None:
             # only check task if keypoints attribute has been populated
@@ -224,7 +224,7 @@ class LitLabelStudio(LightningFlow):
         # build script command
         keypoints_list = "/".join(keypoints)
         script_path = os.path.join(
-            os.getcwd(), "lai_components", "label_studio", "create_labeling_config.py")
+            os.getcwd(), "lightning_pose_app", "label_studio", "create_labeling_config.py")
         build_command = f"python {script_path} " \
                         f"--proj_dir {self.proj_dir_local} " \
                         f"--filename {os.path.basename(self.filenames['label_studio_config'])} " \

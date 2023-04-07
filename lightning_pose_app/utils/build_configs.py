@@ -4,9 +4,6 @@ from typing import Optional, Union, List
 # sub dirs
 lightning_pose_dir = "lightning-pose"
 
-# virtualenv names located in ~
-tensorboard_venv = "venv-tensorboard"
-
 
 class TensorboardBuildConfig(L.BuildConfig):
 

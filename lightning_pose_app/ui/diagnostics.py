@@ -1,11 +1,10 @@
 from lightning import LightningFlow
 from lightning.app.utilities.state import AppState
-import os
 import streamlit as st
 
-from lai_components.hydra_ui import get_hydra_config_name, get_hydra_dir_name
-from lai_components.args_utils import args_to_dict, dict_to_args
-from lai_components.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.ui.hydra import get_hydra_config_name, get_hydra_dir_name
+from lightning_pose_app.utils.args import args_to_dict, dict_to_args
+from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
 
 
 class DiagnosticsUI(LightningFlow):

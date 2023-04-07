@@ -5,35 +5,24 @@ To run from the command line (inside the conda environment named "lai" here):
 
 """
 
-from datetime import datetime
-from lightning import CloudCompute, LightningApp, LightningFlow, LightningWork
-from lightning.app.utilities.state import AppState
-from lightning.app.storage.drive import Drive
-from lightning.app.storage import Path
+from lightning import CloudCompute, LightningApp, LightningFlow
 import os
-import shutil
-import streamlit as st
 import time
-from typing import Optional, Union, List
 import yaml
 
-from lai_components.args_utils import args_to_dict, dict_to_args
-from lai_components.build_utils import lightning_pose_dir
-from lai_components.build_utils import (
+from lightning_pose_app.bashwork import LitBashWork
+from lightning_pose_app.label_studio.component import LitLabelStudio
+from lightning_pose_app.ui.diagnostics import DiagnosticsUI
+from lightning_pose_app.ui.extract_frames import ExtractFramesUI
+from lightning_pose_app.ui.landing import LandingUI
+from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
+from lightning_pose_app.ui.train import TrainDemoUI
+from lightning_pose_app.utils.build_configs import lightning_pose_dir
+from lightning_pose_app.utils.build_configs import (
     LitPoseBuildConfig,
-    StreamlitBuildConfig,
     TensorboardBuildConfig,
 )
-from lai_components.landing_ui import LandingUI
-from lai_components.project_ui import ProjectUI, ProjectDataIO
-from lai_components.extract_frames_ui import ExtractFramesUI
-from lai_components.label_studio.component import LitLabelStudio
-from lai_components.train_ui import TrainDemoUI
-from lai_components.diagnostics_ui import DiagnosticsUI
-from lai_components.lpa_utils import output_with_video_prediction
-from lai_components.vsc_streamlit import StreamlitFrontend
-from lai_work.bashwork import LitBashWork
-
+from lightning_pose_app.utils.lpa import output_with_video_prediction
 
 ON_CLOUD = False  # set False when debugging locally, weird things can happen w/ shared filesystem
 
@@ -87,18 +76,18 @@ class LitPoseApp(LightningFlow):
         )
 
         # fiftyone tab (images only for now)
-        self.diagnostics_ui = DiagnosticsUI(
-            script_dir=lightning_pose_dir,
-            script_name="scripts/create_fiftyone_dataset.py",
-            script_env="HYDRA_FULL_ERROR=1",
-            script_args="""
-                eval.fiftyone.dataset_name=test1
-                eval.fiftyone.model_display_names=["test1"]
-                eval.fiftyone.dataset_to_create="images"
-                eval.fiftyone.build_speed="fast"
-                eval.fiftyone.launch_app_from_script=False
-            """
-        )
+        # self.diagnostics_ui = DiagnosticsUI(
+        #     script_dir=lightning_pose_dir,
+        #     script_name="scripts/create_fiftyone_dataset.py",
+        #     script_env="HYDRA_FULL_ERROR=1",
+        #     script_args="""
+        #         eval.fiftyone.dataset_name=test1
+        #         eval.fiftyone.model_display_names=["test1"]
+        #         eval.fiftyone.dataset_to_create="images"
+        #         eval.fiftyone.build_speed="fast"
+        #         eval.fiftyone.launch_app_from_script=False
+        #     """
+        # )
 
         # -----------------------------
         # workers
@@ -165,7 +154,7 @@ class LitPoseApp(LightningFlow):
             outputs = output_with_video_prediction(self.my_work.last_stdout())
             if outputs:
                 self.train_ui.set_hydra_outputs(outputs)
-                self.diagnostics_ui.set_hydra_outputs(outputs)
+                # self.diagnostics_ui.set_hydra_outputs(outputs)
             self.my_work.reset_last_args()
 
     # TODO: where is the fiftyone db stored?
@@ -426,7 +415,7 @@ class LitPoseApp(LightningFlow):
         # find previously trained models, expose to training UI
         self.init_lp_outputs_to_uis(search_dir=self.project_io.model_dir)
         # find previously constructed fiftyone datasets, expose to fiftyone UI
-        self.init_fiftyone_outputs_to_ui()
+        # self.init_fiftyone_outputs_to_ui()
 
         # -----------------------------
         # init background services once

@@ -4,9 +4,9 @@ import argparse
 import os
 import yaml
 
-from lai_components.label_studio.utils import connect_to_label_studio
-from lai_components.label_studio.utils import get_project
-from lai_components.label_studio.utils import get_rel_image_paths_from_idx_files
+from lightning_pose_app.label_studio.utils import connect_to_label_studio
+from lightning_pose_app.label_studio.utils import get_project
+from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
 
 print("Executing update_tasks.py")
 
