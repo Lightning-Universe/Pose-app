@@ -13,7 +13,7 @@ class TensorboardBuildConfig(L.BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            "python -m pip install tensorflow tensorboard",
+            "python -m pip install tensorboard",
         ]
 
 
@@ -24,7 +24,7 @@ class LitPoseBuildConfig(L.BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
-            "python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120; deactivate",
+            "python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120",
             f"python -m pip install -e {lightning_pose_dir}",
         ]
 
