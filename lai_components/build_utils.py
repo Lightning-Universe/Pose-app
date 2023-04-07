@@ -13,10 +13,7 @@ class TensorboardBuildConfig(L.BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            f"virtualenv ~/{tensorboard_venv}",
-            f". ~/{tensorboard_venv}/bin/activate; ",
-            f"python -m pip install tensorflow tensorboard;",
-            f"deactivate",
+            "python -m pip install tensorflow tensorboard",
         ]
 
 

@@ -19,7 +19,6 @@ import yaml
 
 from lai_components.args_utils import args_to_dict, dict_to_args
 from lai_components.build_utils import lightning_pose_dir
-from lai_components.build_utils import tensorboard_venv
 from lai_components.build_utils import (
     LitPoseBuildConfig,
     StreamlitBuildConfig,
@@ -35,10 +34,6 @@ from lai_components.lpa_utils import output_with_video_prediction
 from lai_components.vsc_streamlit import StreamlitFrontend
 from lai_work.bashwork import LitBashWork
 
-
-# TODO
-# - cloud: getting files recursively doesn't work [sent to @tchaton]
-# - upload new vid: issue with duplicates
 
 ON_CLOUD = True  # set False when debugging locally, weird things can happen w/ shared filesystem
 
@@ -218,12 +213,7 @@ class LitPoseApp(LightningFlow):
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
-        self.my_tb.run(
-            cmd,
-            venv_name=tensorboard_venv,
-            wait_for_exit=False,
-            cwd=os.getcwd(),
-        )
+        self.my_tb.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
     def start_fiftyone(self):
         """run fiftyone"""
@@ -303,7 +293,6 @@ class LitPoseApp(LightningFlow):
         cmd = "null command"  # make this unique
         self.my_tb.run(
             cmd,
-            venv_name=tensorboard_venv,
             cwd=os.getcwd(),
             input_output_only=True,
             inputs=outputs,
@@ -439,8 +428,8 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # init background services once
         # -----------------------------
-        self.label_studio.run(action="start_label_studio")
         self.label_studio.run(action="import_database")
+        self.label_studio.run(action="start_label_studio")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)

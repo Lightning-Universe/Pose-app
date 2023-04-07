@@ -67,19 +67,13 @@ following command:
 ```
 
 ## Run the app locally
-Running the app locally requires a bit of extra work, since we'll need to set up additional 
-environments in order to mirror what happens on the cloud when machines are requisitioned;
-this involves setting up various virtual environments.
+Running the app locally requires a bit of extra work, since we'll need to install some additional
+packages and set up a virtual environement in order to mirror what happens on the cloud when 
+machines are requisitioned.
 
-#### Tensorflow
-Install:
+Install tensorboard:
 ```bash
-(lai) $ virtualenv ~/venv-tensorboard 
-(lai) $ source ~/venv-tensorboard/bin/activate; which python; python -m pip install tensorflow tensorboard; deactivate
-```
-Test:
-```bash
-(lai) $ source ~/venv-tensorboard/bin/activate; tensorboard --logdir .; deactivate
+(lai) $ python -m pip install tensorboard
 ```
 
 #### LabelStudio
