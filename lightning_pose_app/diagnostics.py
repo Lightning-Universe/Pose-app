@@ -100,7 +100,8 @@ class DiagnosticsUI(LightningFlow):
               + " " + self.fiftyone_kwargs["script_name"] \
               + " " + self.st_script_args_append \
               + " " + self.st_script_args \
-              + " " + "eval.fiftyone.dataset_to_create=images"
+              + " " + "eval.fiftyone.dataset_to_create=images" \
+              + " " + "+eval.fiftyone.n_dirs_back=6"  # hack
         self.fiftyone.run(cmd, cwd=self.fiftyone_kwargs["script_dir"], timer=self.st_dataset_name)
 
         # add dataset name to list for user to see
