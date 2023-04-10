@@ -58,8 +58,8 @@ Install LabelStudio virtual environment:
 (lai) $ virtualenv ~/venv-label-studio 
 (lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
 (lai) $ source ~/venv-label-studio/bin/activate; python -m pip install -e .; deactivate -->
+<!-- ``` -->
 
-```
 ```bash
 (lai) $ sudo apt-get install libpq-dev
 (lai) $ virtualenv ~/venv-label-studio 
