@@ -7,10 +7,10 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import time
 
-from lightning_pose_app.utils.vsc_streamlit import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend
 
 
-class TrainDemoUI(LightningFlow):
+class TrainUI(LightningFlow):
     """UI to enter training parameters for demo data."""
 
     def __init__(
@@ -37,8 +37,8 @@ class TrainDemoUI(LightningFlow):
         self.n_labeled_frames = None  # set externally
         self.n_total_frames = None  # set externally
 
-        # hydra outputs list (updated externally by top-level flow)
-        self.hydra_outputs = {}
+        # updated externally by top-level flow
+        self.trained_models = {}
 
         # input to the UI
         self.max_epochs = max_epochs
@@ -66,9 +66,9 @@ class TrainDemoUI(LightningFlow):
         self.st_script_dir = script_dir
         self.st_script_name = script_name
 
-    def set_hydra_outputs(self, names: dict):
+    def update_trained_models_dict(self, names: dict):
         # this function is called by the top-level app when model training completes.
-        self.hydra_outputs.update(names)
+        self.trained_models.update(names)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -103,7 +103,7 @@ def _render_streamlit_fn(state: AppState):
     st.text(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
 
     st.selectbox(
-        "Existing Models", [k for k, v in sorted(state.hydra_outputs.items(), reverse=True)])
+        "Existing Models", [k for k, v in sorted(state.trained_models.items(), reverse=True)])
 
     st.markdown(
         """
