@@ -200,6 +200,30 @@ class LitPoseApp(LightningFlow):
         # automatically gets cast into a lightning Path object; however, you cannot pass a Path
         # object to Drive without an error
 
+    def run_inference(self, model, videos):
+
+        print("--------------------")
+        print("RUN INFERENCE HERE!!")
+        print(f"model: {model}")
+        print("--------------------")
+        # launch works
+        for video in videos:
+            self.inference[video] = LitPose(
+                cloud_compute=CloudCompute("gpu"),
+                drive_name=drive_name,
+                parallel=is_running_in_cloud(),
+            )
+            print(f"launching inference for video {video}")
+            self.inference[video].run('run_inference', model=model, video=video)
+
+        # clean up works
+        while len(self.inference) > 0:
+            for vid, work in self.inference.items():
+                if w.work.status.stage == "succeeded":
+                    # kill work
+                    print(f"killing work from video {video}")
+                    del self.inference[vid]
+
     def run(self):
 
         # for unit testing purposes
@@ -354,6 +378,16 @@ class LitPoseApp(LightningFlow):
         if self.project_io.update_models:
             self.project_io.update_models = False
             self.update_trained_models_list(timer=self.train_ui.count)
+
+        # # -------------------------------------------------------------
+        # # update models on ui button press
+        # # -------------------------------------------------------------
+        # if self.train_ui.run_script_update_models:
+        #     print("--------------------")
+        #     print("UPDATING MODELS HERE!!")
+        #     print("--------------------")
+        #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
+        #     self.train_ui.run_script_update_models = False
 
         # # -------------------------------------------------------------
         # # update models on ui button press
