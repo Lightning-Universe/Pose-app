@@ -137,7 +137,7 @@ class LitPoseApp(LightningFlow):
             os.path.join(self.project_io.proj_dir, "labeled-data"),
             os.path.join(self.project_io.proj_dir, "CollectedData.csv"),
         ]
-        outputs = [os.path.join(self.project_io.proj_dir, "models")]
+        outputs = [self.project_io.model_dir]
 
         # train supervised model
         if self.train_ui.st_train_super \
@@ -181,18 +181,11 @@ class LitPoseApp(LightningFlow):
             )
             self.train_ui.st_train_complete_flag["semisuper"] = True
 
-        # have TB pull the new data
-        # input_output_only=True means that we'll pull inputs from drive, but not run commands
-        cmd = "null command"  # make this unique
-        self.tensorboard.run(
-            cmd,
-            cwd=os.getcwd(),
-            input_output_only=True,
-            inputs=outputs,
-        )
-
-        # set the new outputs for UIs
-        self.litpose.run(action="init_lp_outputs_to_uis", search_dir=outputs[0])
+    def update_trained_models_dict(self, search_dir):
+        self.litpose.run(action="update_trained_models_dict", search_dir=search_dir)
+        if self.litpose.trained_models:
+            self.train_ui.update_trained_models_dict(self.litpose.trained_models)
+            self.diagnostics_ui.update_trained_models_dict(self.litpose.trained_models)
 
     def run(self):
 
@@ -206,25 +199,22 @@ class LitPoseApp(LightningFlow):
         if not is_running_in_cloud() and self.train_ui.run_script:
             run_while_training = False
 
-        # -----------------------------
+        # -------------------------------------------------------------
         # init UIs (find prev artifacts)
-        # -----------------------------
+        # -------------------------------------------------------------
         # find previously initialized projects, expose to project UI
         self.project_io.run(action="find_initialized_projects")
         self.project_ui.initialized_projects = self.project_io.initialized_projects
 
         # find previously trained models for project, expose to training and diagnostics UIs
-        self.litpose.run(action="find_trained_models", search_dir=self.project_io.model_dir)
-        if self.litpose.trained_models:
-            self.train_ui.set_hydra_outputs(self.litpose.trained_models)
-            self.diagnostics_ui.set_hydra_outputs(self.litpose.trained_models)
+        self.update_trained_models_dict(search_dir=self.project_io.model_dir)
 
         # find previously constructed fiftyone datasets
         self.diagnostics_ui.run(action="find_fiftyone_datasets")
 
-        # -----------------------------
+        # -------------------------------------------------------------
         # init background services once
-        # -----------------------------
+        # -------------------------------------------------------------
         self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
         self.diagnostics_ui.run(action="start_fiftyone")
@@ -232,9 +222,9 @@ class LitPoseApp(LightningFlow):
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
 
-        # -----------------------------
-        # run works
-        # -----------------------------
+        # -------------------------------------------------------------
+        # update project data (project may not exist yet)
+        # -------------------------------------------------------------
         # update paths if we know which project we're working with
         self.project_io.run(
             action="update_paths", project_name=self.project_ui.st_project_name)
@@ -245,7 +235,9 @@ class LitPoseApp(LightningFlow):
         for key, val in self.project_io.proj_defaults.items():
             setattr(self.project_ui, key, val)
 
-        # update project configuration when user clicks button in project UI
+        # -------------------------------------------------------------
+        # update project data (user has clicked button in project UI)
+        # -------------------------------------------------------------
         if self.project_ui.run_script and run_while_training:
 
             # update paths now that we know which project we're working with
@@ -294,7 +286,9 @@ class LitPoseApp(LightningFlow):
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
 
+        # -------------------------------------------------------------
         # extract frames for labeling from uploaded videos
+        # -------------------------------------------------------------
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
             self.litpose.run(
                 action="start_extract_frames",
@@ -310,7 +304,9 @@ class LitPoseApp(LightningFlow):
                 self.litpose.work_is_done_extract_frames = False
                 self.extract_ui.run_script = False
 
+        # -------------------------------------------------------------
         # check labeling task and export new labels
+        # -------------------------------------------------------------
         if self.project_ui.count > 0 and run_while_training:
             t_elapsed = 15  # seconds
             t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
@@ -327,12 +323,26 @@ class LitPoseApp(LightningFlow):
                 self.train_ui.n_total_frames = self.project_io.n_total_frames
                 self.label_studio.check_labels = False
 
-        # train on ui button press
+        # -------------------------------------------------------------
+        # train models on ui button press
+        # -------------------------------------------------------------
         if self.train_ui.run_script:
             self.train_models()
+            # have tensorboard pull the new data
+            self.tensorboard.run(
+                "null command",
+                cwd=os.getcwd(),
+                input_output_only=True,  # pull inputs from Drive, but do not run commands
+                inputs=[self.project_io.model_dir],
+            )
+            # set the new outputs for UIs
+            # NOTE: this call to update models isn't running the work???
+            self.update_trained_models_dict(search_dir=self.project_io.model_dir)
             self.train_ui.run_script = False
 
+        # -------------------------------------------------------------
         # initialize diagnostics on button press
+        # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
             self.diagnostics_ui.run(action="build_fiftyone_dataset")
             # self.diagnostics_ui.run(action="start_st_frame")

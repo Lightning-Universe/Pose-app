@@ -64,9 +64,9 @@ def work_is_free(lwork: L.LightningWork):
     # multiple works are queued but
     # count run that are in pending state
     if (
-            status.stage == LUE.WorkStageStatus.NOT_STARTED or
-            status.stage == LUE.WorkStageStatus.SUCCEEDED or
-            status.stage == LUE.WorkStageStatus.FAILED
+            status.stage == "not_started" or
+            status.stage == "succeeded" or
+            status.stage == "failed"
     ):
         # do not run if jobs are in pending state
         # not counting to reduce CPU load as looping thru all of the calls can get expensive

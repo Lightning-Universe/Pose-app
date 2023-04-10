@@ -50,7 +50,7 @@ class DiagnosticsUI(LightningFlow):
 
         # params updated externally by top-level flow
         self.fiftyone_datasets = []
-        self.hydra_outputs = {}
+        self.trained_models = {}
         self.proj_dir = None
         self.config_name = None
 
@@ -65,21 +65,20 @@ class DiagnosticsUI(LightningFlow):
         self.st_dataset_name = None
         self.st_model_dirs = None
 
-    def set_hydra_outputs(self, names: dict):
-        self.hydra_outputs.update(names)
-
-    def add_hydra_output(self, name: str):
-        self.hydra_outputs.update(name)
+    def update_trained_models_dict(self, names: dict):
+        self.trained_models.update(names)
 
     def start_fiftyone(self):
         """run fiftyone"""
-        cmd = "fiftyone app launch --address $host --port $port"
+        cmd = "fiftyone app launch --address $host --port $port --remote"
         self.fiftyone.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
 
     def find_fiftyone_datasets(self):
-        # get existing fiftyone datasets
+        """get existing fiftyone datasets"""
+        # NOTE: we could migrate the fiftyone database back and forth between the Drive but this
+        # seems lke overkill? the datasets are quick to make and users probably don't care so much
+        # about these datasets; can return to this later
         cmd = "fiftyone datasets list"
-        # TODO: need to pull in the fiftyone db
         self.fiftyone.run(cmd)
         if self.fiftyone.last_args() == cmd:
             names = []
@@ -272,14 +271,14 @@ def _render_streamlit_fn(state: AppState):
     # select first model (supervised)
     tmp = st.selectbox(
         "Select Model 1",
-        [k for k, v in sorted(state.hydra_outputs.items(), reverse=True)]
+        [k for k, v in sorted(state.trained_models.items(), reverse=True)]
     )
     st_model_dirs[0] = tmp
     tmp = st.text_input("Display name for Model 1")
     st_model_display_names[0] = tmp
 
     # select second model (semi-supervised)
-    options = [k for k, v in sorted(state.hydra_outputs.items(), reverse=True)]
+    options = [k for k, v in sorted(state.trained_models.items(), reverse=True)]
     if st_model_dirs[0]:
         options.remove(st_model_dirs[0])
 

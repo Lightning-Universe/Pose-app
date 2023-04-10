@@ -26,16 +26,28 @@ class LitPose(LightningFlow):
         )
 
         self.work_is_done_extract_frames = False
+        self.work_is_done_training = True
+        self.count = 0
 
         # these attributes get set by external app
-        self.trained_models = None
+        self.trained_models = {}
 
-    def find_trained_models(self, search_dir=None):
+    def update_trained_models_dict(self, search_dir=None):
 
         # get existing model directories that contain predictions.csv file
         # (created upon completion of model training)
         if not search_dir:
             return
+
+        # pull models from Drive on first call
+        if self.count == 0:
+            self.work.run(
+                "null command",
+                cwd=os.getcwd(),
+                input_output_only=True,  # pull inputs from Drive, but do not run commands
+                inputs=[search_dir],
+            )
+            self.count += 1
 
         cmd = f"find {search_dir} -maxdepth 4 -type f -name predictions.csv"
         self.work.run(cmd, cwd=os.getcwd(), save_stdout=True)
@@ -43,6 +55,7 @@ class LitPose(LightningFlow):
             outputs = process_stdout(self.work.last_stdout())
             self.trained_models = outputs
             self.work.reset_last_args()
+        self.count += 1
 
     def start_extract_frames(
             self, video_files=None, proj_dir=None, script_name=None, n_frames_per_video=20):
@@ -73,8 +86,8 @@ class LitPose(LightningFlow):
 
     def run(self, action=None, **kwargs):
 
-        if action == "find_trained_models":
-            self.find_trained_models(**kwargs)
+        if action == "update_trained_models_dict":
+            self.update_trained_models_dict(**kwargs)
         elif action == "start_extract_frames":
             self.start_extract_frames(**kwargs)
 
