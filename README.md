@@ -48,10 +48,10 @@ Running the app locally requires a bit of extra work, since we'll need to instal
 packages and set up a virtual environement in order to mirror what happens on the cloud when 
 machines are requisitioned.
 
-Install tensorboard:
+<!-- Install tensorboard:
 ```bash
 (lai) $ python -m pip install tensorboard
-```
+``` -->
 
 Install LabelStudio virtual environment:
 ```bash
