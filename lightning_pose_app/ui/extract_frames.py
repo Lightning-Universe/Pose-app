@@ -15,9 +15,6 @@ class ExtractFramesUI(LightningFlow):
         self,
         *args,
         drive_name,
-        script_dir,
-        script_name,
-        script_args,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -31,9 +28,6 @@ class ExtractFramesUI(LightningFlow):
         self.run_script = False
 
         # save parameters for later run
-        self.script_dir = script_dir
-        self.script_name = script_name
-        self.script_args = script_args
         self.proj_dir = None
 
         # output from the UI

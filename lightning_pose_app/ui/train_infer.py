@@ -24,9 +24,6 @@ class TrainUI(LightningFlow):
         self,
         *args,
         drive_name,
-        script_dir,
-        script_name,
-        script_args,
         max_epochs=200,
         **kwargs
     ):
@@ -42,9 +39,6 @@ class TrainUI(LightningFlow):
         self.run_script_infer = False
 
         # save parameters for later run
-        self.script_dir = script_dir
-        self.script_name = script_name
-        self.script_args = script_args
         self.proj_dir = None
 
         self.n_labeled_frames = None  # set externally

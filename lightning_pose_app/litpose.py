@@ -12,7 +12,6 @@ class LitPose(LightningFlow):
         *args,
         cloud_compute,
         drive_name,
-        proj_dir=None,
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -28,8 +27,7 @@ class LitPose(LightningFlow):
         self.work_is_done_extract_frames = False
         self.work_is_done_training = True
 
-    def start_extract_frames(
-            self, video_files=None, proj_dir=None, script_name=None, n_frames_per_video=20):
+    def start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
 
         # set videos to select frames from
         vid_file_args = ""
@@ -40,7 +38,7 @@ class LitPose(LightningFlow):
         data_dir = os.path.join(os.getcwd(), proj_dir, "labeled-data")
 
         cmd = "python" \
-              + " " + script_name \
+              + " scripts/extract_frames.py" \
               + vid_file_args \
               + f" --data_dir={data_dir}" \
               + f" --n_frames_per_video={n_frames_per_video}" \
