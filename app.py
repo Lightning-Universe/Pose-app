@@ -83,6 +83,9 @@ class LitPoseApp(LightningFlow):
             database_dir=os.path.join(data_dir, "labelstudio_db"),
         )
 
+        # works for inference
+        self.inference = {}
+
     # @property
     # def ready(self) -> bool:
     #     """Return true once all works have an assigned url"""
@@ -163,6 +166,30 @@ class LitPoseApp(LightningFlow):
         if self.litpose.trained_models:
             self.train_ui.update_trained_models_dict(self.litpose.trained_models)
             self.diagnostics_ui.update_trained_models_dict(self.litpose.trained_models)
+
+    def run_inference(self, model, videos):
+
+        print("--------------------")
+        print("RUN INFERENCE HERE!!")
+        print(f"model: {model}")
+        print("--------------------")
+        # launch works
+        for video in videos:
+            self.inference[video] = LitPose(
+                cloud_compute=CloudCompute("gpu"),
+                drive_name=drive_name,
+                parallel=is_running_in_cloud(),
+            )
+            print(f"launching inference for video {video}")
+            self.inference[video].run('run_inference', model=model, video=video)
+
+        # clean up works
+        while len(self.inference) > 0:
+            for vid, work in self.inference.items():
+                if w.work.status.stage == "succeeded":
+                    # kill work
+                    print(f"killing work from video {video}")
+                    del self.inference[vid]
 
     def run(self):
 
@@ -317,13 +344,24 @@ class LitPoseApp(LightningFlow):
             self.update_trained_models_dict(search_dir=self.project_io.model_dir)
             self.train_ui.run_script_train = False
 
+        # # -------------------------------------------------------------
+        # # update models on ui button press
+        # # -------------------------------------------------------------
+        # if self.train_ui.run_script_update_models:
+        #     print("--------------------")
+        #     print("UPDATING MODELS HERE!!")
+        #     print("--------------------")
+        #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
+        #     self.train_ui.run_script_update_models = False
+
         # -------------------------------------------------------------
         # run inference on ui button press (single model, multiple vids)
         # -------------------------------------------------------------
-        if self.train_ui.run_script_infer:
-            print("--------------------")
-            print("RUN INFERENCE HERE!!")
-            print("--------------------")
+        if self.train_ui.run_script_infer and run_while_training:
+            self.run_inference(
+                model=self.train_ui.st_inference_model,
+                videos=self.train_ui.st_inference_videos,
+            )
             self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
