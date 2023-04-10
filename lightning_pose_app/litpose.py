@@ -53,7 +53,12 @@ class LitPose(LightningFlow):
         )
         self.work_is_done_extract_frames = True
 
+    def run_inference(self, model, video):
+        pass
+
     def run(self, action=None, **kwargs):
 
         if action == "start_extract_frames":
             self.start_extract_frames(**kwargs)
+        elif action == "run_inference":
+            self.run_inference(**kwargs)
