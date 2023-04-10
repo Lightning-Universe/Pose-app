@@ -2,7 +2,10 @@
 
 from datetime import datetime
 from lightning import LightningFlow
+from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
+from lightning.app.storage.drive import Drive
+import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import time
@@ -11,6 +14,7 @@ from lightning_pose_app.utilities import StreamlitFrontend
 
 
 st.set_page_config(layout="wide")
+IS_RUNNING_IN_CLOUD = is_running_in_cloud()
 
 
 class TrainUI(LightningFlow):
@@ -19,6 +23,7 @@ class TrainUI(LightningFlow):
     def __init__(
         self,
         *args,
+        drive_name,
         script_dir,
         script_name,
         script_args,
@@ -26,16 +31,21 @@ class TrainUI(LightningFlow):
         **kwargs
     ):
         super().__init__(*args, **kwargs)
+
+        self.drive = Drive(drive_name)
+
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
         # UI sets to True to kickoff jobs
         # Job Runner sets to False when done
-        self.run_script = False
+        self.run_script_train = False
+        self.run_script_infer = False
 
         # save parameters for later run
         self.script_dir = script_dir
         self.script_name = script_name
         self.script_args = script_args
+        self.proj_dir = None
 
         self.n_labeled_frames = None  # set externally
         self.n_total_frames = None  # set externally
@@ -43,18 +53,16 @@ class TrainUI(LightningFlow):
         # updated externally by top-level flow
         self.trained_models = {}
 
-        # input to the UI
+        # input to the UI (train)
         self.max_epochs = max_epochs
-        self.train_frames = 1
         self.train_super = True
         self.train_semisuper = True
         self.loss_pcamv = True
         self.loss_pcasv = True
         self.loss_temp = True
 
-        # output from the UI
+        # output from the UI (train)
         self.st_max_epochs = None
-        self.st_train_frames = None
         self.st_train_super = None
         self.st_train_semisuper = None
         self.st_loss_pcamv = None
@@ -65,9 +73,8 @@ class TrainUI(LightningFlow):
         self.st_datetimes = None
         self.st_train_complete_flag = None
 
-        # copy over for now, we can add these to the UI later if we want
-        self.st_script_dir = script_dir
-        self.st_script_name = script_name
+        # output from the UI (infer)
+        self.st_inference_model = None
 
     def update_trained_models_dict(self, names: dict):
         # this function is called by the top-level app when model training completes.
@@ -81,6 +88,18 @@ def _render_streamlit_fn(state: AppState):
 
     # make a train tab and an inference tab
     train_tab, infer_tab = st.columns(2, gap="large")
+
+    # add shadows around each column
+    # box-shadow args: h-offset v-offset blur spread color
+    st.markdown("""
+        <style type="text/css">
+        div[data-testid="column"] {
+            box-shadow: 3px 3px 10px -1px rgb(0 0 0 / 20%);
+            border-radius: 5px;
+            padding: 2% 3% 3% 3%;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     with train_tab:
 
@@ -126,12 +145,6 @@ def _render_streamlit_fn(state: AppState):
             value=state.max_epochs,
         )
 
-        # train frames
-        st_train_frames = expander.text_input(
-            "Training frames (enter '1' to keep all training frames)",
-            value=state.train_frames,
-        )
-
         # unsupervised losses (semi-supervised only)
         expander.write("Select losses for semi-supervised model")
         st_loss_pcamv = expander.checkbox("PCA Multiview", value=state.loss_pcamv)
@@ -146,22 +159,22 @@ def _render_streamlit_fn(state: AppState):
         st_train_super = st.checkbox("Supervised", value=state.train_super)
         st_train_semisuper = st.checkbox("Semi-supervised", value=state.train_semisuper)
 
-        st_submit_button = st.button("Train models", disabled=True if state.run_script else False)
-        if state.run_script:
+        st_submit_button_train = st.button(
+            "Train models", disabled=True if state.run_script_train else False)
+        if state.run_script_train:
             st.warning(f"waiting for existing training to finish")
 
         # Lightning way of returning the parameters
-        if st_submit_button:
+        if st_submit_button_train:
 
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) and st_train_semisuper:
                 st.warning("must select at least one semi-supervised loss if training that model")
-                st_submit_button = False
+                st_submit_button_train = False
 
-        if st_submit_button:
+        if st_submit_button_train:
 
             # save streamlit options to flow object
             state.st_max_epochs = st_max_epochs
-            state.st_train_frames = st_train_frames
             state.st_train_super = st_train_super
             state.st_train_semisuper = st_train_semisuper
             state.st_loss_pcamv = st_loss_pcamv
@@ -185,7 +198,6 @@ def _render_streamlit_fn(state: AppState):
             for i in range(2):
                 tmp = ""
                 tmp += f" training.max_epochs={st_max_epochs}"
-                tmp += f" training.train_frames={st_train_frames}"
                 tmp += f" training.profiler=null"
                 tmp += f" training.log_every_n_steps=1"  # for debugging
                 tmp += f" eval.predict_vids_after_training=true"
@@ -205,7 +217,7 @@ def _render_streamlit_fn(state: AppState):
             state.st_datetimes = st_datetimes
             state.st_train_complete_flag = {"super": False, "semisuper": False}
             st.text("Model training launched!")
-            state.run_script = True  # must the last to prevent race condition
+            state.run_script_train = True  # must the last to prevent race condition
             # force rerun
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
             # TODO: show training progress
@@ -220,19 +232,42 @@ def _render_streamlit_fn(state: AppState):
             """
         )
 
-        model = st.selectbox(
+        # upload video files
+        video_dir = os.path.join(state.proj_dir, "videos")
+        os.makedirs(video_dir, exist_ok=True)
+
+        model_dir = st.selectbox(
             "Choose model to run inference",
             [k for k, v in sorted(state.trained_models.items(), reverse=True)]
         )
 
-    # add shadows around each column
-    # box-shadow args: h-offset v-offset blur spread color
-    st.markdown("""
-        <style type="text/css">
-        div[data-testid="column"] {
-            box-shadow: 3px 3px 10px -1px rgb(0 0 0 / 20%);
-            border-radius: 5px;
-            padding: 2% 3% 3% 3%;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+        # initialize the file uploader
+        uploaded_files = st.file_uploader("Choose video files", accept_multiple_files=True)
+
+        # for each of the uploaded files
+        st_videos = []
+        for uploaded_file in uploaded_files:
+            # read it
+            bytes_data = uploaded_file.read()
+            # name it
+            filename = uploaded_file.name.replace(" ", "_")
+            filepath = os.path.join(video_dir, filename)
+            st_videos.append(filepath)
+            # write the content of the file to the path
+            with open(filepath, "wb") as f:
+                f.write(bytes_data)
+            # push the data to the Drive
+            state.drive.put(filepath)
+
+        st_submit_button_infer = st.button(
+            "Run inference",
+            disabled=len(st_videos) == 0 or state.run_script_infer,
+        )
+        if state.run_script_infer:
+            st.warning(f"waiting for existing inference to finish")
+
+        # Lightning way of returning the parameters
+        if st_submit_button_infer:
+            state.st_inference_model = model_dir
+            st.text("Request submitted!")
+            state.run_script_infer = True  # must the last to prevent race condition
