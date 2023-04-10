@@ -92,7 +92,7 @@ class ProjectDataIO(LightningWork):
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
             self.config_file = os.path.join(self.proj_dir, self.config_name)
-            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train.py
+            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_infer.py
 
     def update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""

@@ -18,7 +18,7 @@ from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
-from lightning_pose_app.ui.train import TrainUI
+from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
 
@@ -63,6 +63,7 @@ class LitPoseApp(LightningFlow):
 
         # training tab (flow)
         self.train_ui = TrainUI(
+            drive_name=drive_name,
             script_dir=lightning_pose_dir,
             script_name="scripts/train_hydra.py",
             script_args="",
@@ -196,7 +197,7 @@ class LitPoseApp(LightningFlow):
         # don't interfere /w train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
-        if not is_running_in_cloud() and self.train_ui.run_script:
+        if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
 
         # -------------------------------------------------------------
@@ -244,6 +245,7 @@ class LitPoseApp(LightningFlow):
             self.project_io.run(
                 action="update_paths", project_name=self.project_ui.st_project_name)
             self.extract_ui.proj_dir = self.project_io.proj_dir
+            self.train_ui.proj_dir = self.project_io.proj_dir
             self.diagnostics_ui.proj_dir = self.project_io.proj_dir
             self.diagnostics_ui.config_name = self.project_io.config_name
             self.label_studio.run(
@@ -326,7 +328,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
-        if self.train_ui.run_script:
+        if self.train_ui.run_script_train:
             self.train_models()
             # have tensorboard pull the new data
             self.tensorboard.run(
@@ -338,7 +340,16 @@ class LitPoseApp(LightningFlow):
             # set the new outputs for UIs
             # NOTE: this call to update models isn't running the work???
             self.update_trained_models_dict(search_dir=self.project_io.model_dir)
-            self.train_ui.run_script = False
+            self.train_ui.run_script_train = False
+
+        # -------------------------------------------------------------
+        # run inference on ui button press (single model, multiple vids)
+        # -------------------------------------------------------------
+        if self.train_ui.run_script_infer:
+            print("--------------------")
+            print("RUN INFERENCE HERE!!")
+            print("--------------------")
+            self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
         # initialize diagnostics on button press
@@ -358,7 +369,7 @@ class LitPoseApp(LightningFlow):
         annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
 
         # training tabs
-        train_tab = {"name": "Train", "content": self.train_ui}
+        train_tab = {"name": "Train/Infer", "content": self.train_ui}
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
