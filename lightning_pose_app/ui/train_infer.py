@@ -36,7 +36,6 @@ class TrainUI(LightningFlow):
         # UI sets to True to kickoff jobs
         # Job Runner sets to False when done
         self.run_script_train = False
-        # self.run_script_update_models = False
         self.run_script_infer = False
 
         # save parameters for later run
@@ -350,38 +349,14 @@ def _render_streamlit_fn(state: AppState):
             """
         )
 
-        # st_submit_button_update = st.button(
-        #     "Update models",
-        #     disabled=state.run_script_update_models,
-        # )
-        # if state.run_script_update_models:
-        #     st.warning(f"waiting for updates to finish")
-        # st.text(state.run_script_update_models)
-        # if st_submit_button_update:
-        #     st.text("Request submitted!")
-        #     state.run_script_update_models = True  # must the last to prevent race condition
-        #     st.text(state.run_script_update_models)
+        # upload video files
+        video_dir = os.path.join(state.proj_dir, "videos")
+        os.makedirs(video_dir, exist_ok=True)
 
         model_dir = st.selectbox(
             "Choose model to run inference",
             [k for k, v in sorted(state.trained_models.items(), reverse=True)]
         )
-
-    # add shadows around each column
-    # box-shadow args: h-offset v-offset blur spread color
-    st.markdown("""
-        <style type="text/css">
-        div[data-testid="column"] {
-            box-shadow: 3px 3px 10px -1px rgb(0 0 0 / 20%);
-            border-radius: 5px;
-            padding: 2% 3% 3% 3%;
-        }
-        </style>
-    """, unsafe_allow_html=True)
->>>>>>> train/inference panes:lightning_pose_app/ui/train_infer.py
-        # upload video files
-        video_dir = os.path.join(state.proj_dir, "videos")
-        os.makedirs(video_dir, exist_ok=True)
 
         # initialize the file uploader
         uploaded_files = st.file_uploader("Choose video files", accept_multiple_files=True)
@@ -406,13 +381,10 @@ def _render_streamlit_fn(state: AppState):
             disabled=len(st_videos) == 0 or state.run_script_infer,
         )
         if state.run_script_infer:
-            st.warning("waiting for existing inference to finish")
+            st.warning(f"waiting for existing inference to finish")
 
         # Lightning way of returning the parameters
         if st_submit_button_infer:
             state.st_inference_model = model_dir
-            state.st_inference_videos = st_videos
             st.text("Request submitted!")
             state.run_script_infer = True  # must the last to prevent race condition
-            # force rerun to show "waiting for existing..." message
-            st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
