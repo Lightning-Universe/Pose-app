@@ -54,35 +54,13 @@ class LitPoseApp(LightningFlow):
         self.project_ui = ProjectUI(data_dir=data_dir)
 
         # extract frames tab (flow)
-        self.extract_ui = ExtractFramesUI(
-            drive_name=drive_name,
-            script_dir=lightning_pose_dir,
-            script_name="scripts/extract_frames.py",
-            script_args="",
-        )
+        self.extract_ui = ExtractFramesUI(drive_name=drive_name)
 
         # training tab (flow)
-        self.train_ui = TrainUI(
-            drive_name=drive_name,
-            script_dir=lightning_pose_dir,
-            script_name="scripts/train_hydra.py",
-            script_args="",
-            max_epochs=200,
-        )
+        self.train_ui = TrainUI(drive_name=drive_name)
 
         # diagnostics tab (flow + work)
-        self.diagnostics_ui = DiagnosticsUI(
-            drive_name=drive_name,
-            fiftyone_kwargs=dict(
-                script_dir=lightning_pose_dir,
-                script_name="scripts/create_fiftyone_dataset.py",
-                script_args="""
-                    eval.fiftyone.dataset_to_create="images"
-                    eval.fiftyone.build_speed="fast"
-                    eval.fiftyone.remote=false
-                """
-            )
-        )
+        self.diagnostics_ui = DiagnosticsUI(drive_name=drive_name)
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
@@ -147,15 +125,14 @@ class LitPoseApp(LightningFlow):
                 base_dir, "models", self.train_ui.st_datetimes["super"])
             hydra_mrun = os.path.join(
                 base_dir, "models/multirun", self.train_ui.st_datetimes["super"])
-            cmd = "python" \
-                  + " " + self.train_ui.st_script_name \
+            cmd = "python scripts/train_hydra.py" \
                   + config_cmd \
                   + " " + self.train_ui.st_script_args["super"] \
                   + f" hydra.run.dir={hydra_srun}" \
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.litpose.work.run(
                 cmd,
-                cwd=self.train_ui.st_script_dir,
+                cwd=lightning_pose_dir,
                 inputs=inputs,
                 outputs=outputs,
             )
@@ -168,15 +145,14 @@ class LitPoseApp(LightningFlow):
                 base_dir, "models", self.train_ui.st_datetimes["semisuper"])
             hydra_mrun = os.path.join(
                 base_dir, "models/multirun", self.train_ui.st_datetimes["semisuper"])
-            cmd = "python" \
-                  + " " + self.train_ui.st_script_name \
+            cmd = "python scripts/train_hydra.py" \
                   + config_cmd \
                   + " " + self.train_ui.st_script_args["semisuper"] \
                   + f" hydra.run.dir={hydra_srun}" \
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.litpose.work.run(
                 cmd,
-                cwd=self.train_ui.st_script_dir,
+                cwd=lightning_pose_dir,
                 inputs=inputs,
                 outputs=outputs,
             )
@@ -296,7 +272,6 @@ class LitPoseApp(LightningFlow):
                 action="start_extract_frames",
                 video_files=self.extract_ui.st_video_files,
                 proj_dir=self.extract_ui.proj_dir,
-                script_name=self.extract_ui.script_name,
                 n_frames_per_video=self.extract_ui.st_n_frames_per_video,
             )
             # wait until litpose is done extracting frames, then update tasks

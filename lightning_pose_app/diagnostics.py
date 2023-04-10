@@ -15,13 +15,11 @@ class DiagnosticsUI(LightningFlow):
         self,
         *args,
         drive_name,
-        fiftyone_kwargs={},
         **kwargs
     ):
         super().__init__(*args, **kwargs)
 
         # fiftyone worker
-        self.fiftyone_kwargs = fiftyone_kwargs
         self.fiftyone = LitBashWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseNoGpuBuildConfig(),  # get fiftyone
@@ -58,7 +56,11 @@ class DiagnosticsUI(LightningFlow):
         self.submit_count = 0
 
         # output from the UI
-        self.st_script_args = self.fiftyone_kwargs["script_args"]
+        self.st_script_args = """
+            eval.fiftyone.dataset_to_create="images"
+            eval.fiftyone.build_speed="fast"
+            eval.fiftyone.remote=false
+        """
         self.st_script_args_append = None
         self.st_model_display_names = None
         self.st_submit = False
@@ -95,13 +97,12 @@ class DiagnosticsUI(LightningFlow):
             pass
 
     def build_fiftyone_dataset(self):
-        cmd = "python" \
-              + " " + self.fiftyone_kwargs["script_name"] \
+        cmd = "python scripts/create_fiftyone_dataset.py" \
               + " " + self.st_script_args_append \
               + " " + self.st_script_args \
               + " " + "eval.fiftyone.dataset_to_create=images" \
               + " " + "+eval.fiftyone.n_dirs_back=6"  # hack
-        self.fiftyone.run(cmd, cwd=self.fiftyone_kwargs["script_dir"], timer=self.st_dataset_name)
+        self.fiftyone.run(cmd, cwd=lightning_pose_dir, timer=self.st_dataset_name)
 
         # add dataset name to list for user to see
         self.fiftyone_datasets.append(self.st_dataset_name)
