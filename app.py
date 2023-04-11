@@ -161,11 +161,7 @@ class LitPoseApp(LightningFlow):
             )
             self.train_ui.st_train_complete_flag["semisuper"] = True
 
-    def update_trained_models_dict(self, search_dir):
-        self.litpose.run(action="update_trained_models_dict", search_dir=search_dir)
-        if self.litpose.trained_models:
-            self.train_ui.update_trained_models_dict(self.litpose.trained_models)
-            self.diagnostics_ui.update_trained_models_dict(self.litpose.trained_models)
+        self.train_ui.count += 1
 
     def run_inference(self, model, videos):
 
@@ -198,6 +194,12 @@ class LitPoseApp(LightningFlow):
         # automatically gets cast into a lightning Path object; however, you cannot pass a Path
         # object to Drive without an error
 
+    def update_trained_models_list(self, timer):
+        self.project_io.run(action="update_trained_models_list", timer=timer)
+        if self.project_io.trained_models:
+            self.train_ui.trained_models = self.project_io.trained_models
+            self.diagnostics_ui.trained_models = self.project_io.trained_models
+
     def run(self):
 
         # for unit testing purposes
@@ -218,7 +220,7 @@ class LitPoseApp(LightningFlow):
         self.project_ui.initialized_projects = self.project_io.initialized_projects
 
         # find previously trained models for project, expose to training and diagnostics UIs
-        self.update_trained_models_dict(search_dir=self.project_io.model_dir)
+        self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
         self.diagnostics_ui.run(action="find_fiftyone_datasets")
@@ -345,20 +347,13 @@ class LitPoseApp(LightningFlow):
                 input_output_only=True,  # pull inputs from Drive, but do not run commands
                 inputs=[self.project_io.model_dir],
             )
-            # set the new outputs for UIs
-            # NOTE: this call to update models isn't running the work???
-            self.update_trained_models_dict(search_dir=self.project_io.model_dir)
-            self.train_ui.run_script_train = False
+            self.project_io.update_models = True
+            self.train_ui.run_script = False
 
-        # # -------------------------------------------------------------
-        # # update models on ui button press
-        # # -------------------------------------------------------------
-        # if self.train_ui.run_script_update_models:
-        #     print("--------------------")
-        #     print("UPDATING MODELS HERE!!")
-        #     print("--------------------")
-        #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
-        #     self.train_ui.run_script_update_models = False
+        # set the new outputs for UIs
+        if self.project_io.update_models:
+            self.project_io.update_models = False
+            self.update_trained_models_list(timer=self.train_ui.count)
 
         # -------------------------------------------------------------
         # run inference on ui button press (single model, multiple vids)
@@ -397,9 +392,31 @@ class LitPoseApp(LightningFlow):
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
 
-        if self.landing_ui.st_mode == "demo":
+        # if self.landing_ui.st_mode == "demo":
+        #     return [
+        #         landing_tab,
+        #         train_tab,
+        #         train_status_tab,
+        #         diagnostics_prep_tab,
+        #         fo_tab,
+        #         # st_frame_tab,
+        #         # st_video_tab,
+        #     ]
+        #
+        # elif self.landing_ui.st_mode == "project":
+        if not self.extract_ui.proj_dir:
+            # need to create/load new project before moving on to other tabs
             return [
                 landing_tab,
+                project_tab,
+            ]
+        else:
+            # show all tabs
+            return [
+                landing_tab,
+                project_tab,
+                extract_tab,
+                annotate_tab,
                 train_tab,
                 train_status_tab,
                 diagnostics_prep_tab,
@@ -408,30 +425,8 @@ class LitPoseApp(LightningFlow):
                 # st_video_tab,
             ]
 
-        elif self.landing_ui.st_mode == "project":
-            if not self.extract_ui.proj_dir:
-                # need to create/load new project before moving on to other tabs
-                return [
-                    landing_tab,
-                    project_tab,
-                ]
-            else:
-                # show all tabs
-                return [
-                    landing_tab,
-                    project_tab,
-                    extract_tab,
-                    annotate_tab,
-                    train_tab,
-                    train_status_tab,
-                    diagnostics_prep_tab,
-                    fo_tab,
-                    # st_frame_tab,
-                    # st_video_tab,
-                ]
-
-        else:
-            return [landing_tab]
+        # else:
+        #     return [landing_tab]
 
 
 app = LightningApp(LitPoseApp())

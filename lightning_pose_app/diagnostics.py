@@ -2,6 +2,7 @@ from lightning import CloudCompute, LightningFlow
 from lightning.app.utilities.state import AppState
 import os
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.build_configs import LitPoseNoGpuBuildConfig, lightning_pose_dir
@@ -48,7 +49,7 @@ class DiagnosticsUI(LightningFlow):
 
         # params updated externally by top-level flow
         self.fiftyone_datasets = []
-        self.trained_models = {}
+        self.trained_models = []
         self.proj_dir = None
         self.config_name = None
 
@@ -66,9 +67,6 @@ class DiagnosticsUI(LightningFlow):
         self.st_submit = False
         self.st_dataset_name = None
         self.st_model_dirs = None
-
-    def update_trained_models_dict(self, names: dict):
-        self.trained_models.update(names)
 
     def start_fiftyone(self):
         """run fiftyone"""
@@ -270,16 +268,13 @@ def _render_streamlit_fn(state: AppState):
     st_model_display_names = [None for _ in range(2)]
 
     # select first model (supervised)
-    tmp = st.selectbox(
-        "Select Model 1",
-        [k for k, v in sorted(state.trained_models.items(), reverse=True)]
-    )
+    tmp = st.selectbox("Select Model 1", sorted(state.trained_models, reverse=True))
     st_model_dirs[0] = tmp
     tmp = st.text_input("Display name for Model 1")
     st_model_display_names[0] = tmp
 
     # select second model (semi-supervised)
-    options = [k for k, v in sorted(state.trained_models.items(), reverse=True)]
+    options = sorted(state.trained_models, reverse=True)
     if st_model_dirs[0]:
         options.remove(st_model_dirs[0])
 
@@ -339,3 +334,6 @@ def _render_streamlit_fn(state: AppState):
         state.st_script_args_append = script_args_append
 
         state.run_script = True  # must the last to prevent race condition
+
+        # force rerun
+        st_autorefresh(interval=2000, key="refresh_diagnostics_submitted")
