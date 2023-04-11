@@ -155,10 +155,9 @@ def _render_streamlit_fn(state: AppState):
         st_train_super = st.checkbox("Supervised", value=state.train_super)
         st_train_semisuper = st.checkbox("Semi-supervised", value=state.train_semisuper)
 
-        st_submit_button_train = st.button(
-            "Train models", disabled=True if state.run_script_train else False)
+        st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
         if state.run_script_train:
-            st.warning(f"waiting for existing training to finish")
+            st.warning("waiting for existing training to finish")
 
         # Lightning way of returning the parameters
         if st_submit_button_train:
@@ -214,7 +213,7 @@ def _render_streamlit_fn(state: AppState):
             state.st_train_complete_flag = {"super": False, "semisuper": False}
             st.text("Model training launched!")
             state.run_script_train = True  # must the last to prevent race condition
-            # force rerun
+            # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
             # TODO: show training progress
 
@@ -272,7 +271,7 @@ def _render_streamlit_fn(state: AppState):
             disabled=len(st_videos) == 0 or state.run_script_infer,
         )
         if state.run_script_infer:
-            st.warning(f"waiting for existing inference to finish")
+            st.warning("waiting for existing inference to finish")
 
         # Lightning way of returning the parameters
         if st_submit_button_infer:
@@ -280,3 +279,5 @@ def _render_streamlit_fn(state: AppState):
             state.st_inference_videos = st_videos
             st.text("Request submitted!")
             state.run_script_infer = True  # must the last to prevent race condition
+            # force rerun to show "waiting for existing..." message
+            st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
