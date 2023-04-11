@@ -28,6 +28,7 @@ class TrainUI(LightningFlow):
         # UI sets to True to kickoff jobs
         # Job Runner sets to False when done
         self.run_script = False
+        self.count = 0
 
         # save parameters for later run
         self.script_dir = script_dir
@@ -38,7 +39,7 @@ class TrainUI(LightningFlow):
         self.n_total_frames = None  # set externally
 
         # updated externally by top-level flow
-        self.trained_models = {}
+        self.trained_models = []
 
         # input to the UI
         self.max_epochs = max_epochs
@@ -65,10 +66,6 @@ class TrainUI(LightningFlow):
         # copy over for now, we can add these to the UI later if we want
         self.st_script_dir = script_dir
         self.st_script_name = script_name
-
-    def update_trained_models_dict(self, names: dict):
-        # this function is called by the top-level app when model training completes.
-        self.trained_models.update(names)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -103,7 +100,7 @@ def _render_streamlit_fn(state: AppState):
     st.text(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
 
     st.selectbox(
-        "Existing Models", [k for k, v in sorted(state.trained_models.items(), reverse=True)])
+        "Existing Models", sorted(state.trained_models, reverse=True))
 
     st.markdown(
         """

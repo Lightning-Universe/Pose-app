@@ -45,6 +45,9 @@ class ProjectDataIO(LightningWork):
         self.n_labeled_frames = 0
         self.n_total_frames = 0
 
+        self.update_models = False
+        self.trained_models = []
+
     def _get_from_drive_if_not_local(self, file_or_dir):
 
         if not os.path.exists(file_or_dir):
@@ -233,6 +236,17 @@ class ProjectDataIO(LightningWork):
             "st_pcamv_columns": st_pcamv_columns,
         }
 
+    def update_trained_models_list(self, **kwargs):
+
+        if self.model_dir:
+            trained_models = []
+            dirs = self.drive.list(self.model_dir)
+            for dir in dirs:
+                dirs_ = self.drive.list(dir)
+                for dir_ in dirs_:
+                    trained_models.append('/'.join(dir_.split('/')[-2:]))
+            self.trained_models = trained_models
+
     def run(self, action, **kwargs):
 
         if action == "find_initialized_projects":
@@ -247,6 +261,8 @@ class ProjectDataIO(LightningWork):
             self.compute_labeled_frame_fraction(**kwargs)
         elif action == "load_project_defaults":
             self.load_project_defaults(**kwargs)
+        elif action == "update_trained_models_list":
+            self.update_trained_models_list(**kwargs)
 
 
 class ProjectUI(LightningFlow):
