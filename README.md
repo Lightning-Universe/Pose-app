@@ -13,34 +13,38 @@ The following instructions detail how to install the app locally for development
 
 First, create a conda environment:
 ```bash
-$ cd ~
-$ conda create --yes --name lai python=3.9
-$ conda activate lai
+cd ~
+conda create --yes --name lai python=3.9
+conda activate lai
 ```
 
 Next, install the `Pose-app` repo:
 ```bash
-(lai) $ cd ~
-(lai) $ git clone https://github.com/Lightning-Universe/Pose-app
-(lai) $ cd Pose-app
-(lai) $ python -m pip install -r requirements.txt
-(lai) $ python -m pip install -e .
+cd ~
+git clone https://github.com/Lightning-Universe/Pose-app
+cd Pose-app
+pip install -r requirements.txt
+pip install -e .
 ```
-(Note the use of `python -m pip` rather than just `pip`, this is important!)
+
+(Removed `python -m pip` and kept just `pip`, not sure this is important!)
 
 Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
+
 ```bash
-(lai) $ cd ~/Pose-app
-(lai) $ git clone https://github.com/danbider/lightning-pose
-(lai) $ cd lightning-pose
-(lai) $ python -m pip install -r requirements.txt
+cd ~/Pose-app
+git clone https://github.com/danbider/lightning-pose
+cd lightning-pose
+pip install -r requirements.txt
 ```
+
+(internal: removed `python -m pip install -r requirements.txt`)
 
 ## Run the app on the cloud
 Once the environment has been set up, running the app on the cloud is easy! Launch with the
 following command:
 ```bash
-(lai) $ lightning run app app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+lightning run app app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 ```
 
 ## Run the app locally
@@ -48,12 +52,7 @@ Running the app locally requires a bit of extra work, since we'll need to instal
 packages and set up a virtual environement in order to mirror what happens on the cloud when 
 machines are requisitioned.
 
-<!-- Install tensorboard:
-```bash
-(lai) $ python -m pip install tensorboard
-``` -->
-
-Install LabelStudio virtual environment:
+Install LabelStudio:
 <!-- ```bash
 (lai) $ virtualenv ~/venv-label-studio 
 (lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
@@ -61,20 +60,30 @@ Install LabelStudio virtual environment:
 <!-- ``` -->
 
 ```bash
-(lai) $ sudo apt-get install libpq-dev
+sudo apt-get install libpq-dev
+conda install libffi==3.3 # it may downgrade python, but this is fine
+pip install label-studio label-studio-sdk
+```
+Test
+```bash
+label-studio version
+```
+
+<!-- ```bash
+sudo apt-get install libpq-dev
 (lai) $ virtualenv ~/venv-label-studio 
 (lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
 (lai) $ source ~/venv-label-studio/bin/activate; python -m pip install -e .; deactivate
-```
+``` -->
 
-Test:
+<!-- Test:
 ```bash
 (lai) $ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
-```
+``` -->
 
 In order to run the application locally, run the following commands:
 
 ```bash
-(lai) $ cd ~/Pose-app
-(lai) $ lightning run app app.py
+cd ~/Pose-app
+lightning run app app.py
 ```
