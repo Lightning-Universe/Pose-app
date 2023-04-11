@@ -3,4 +3,3 @@ streamlit
 streamlit_autorefresh
 watchdog
 streamlit-ace
-virtualenv
