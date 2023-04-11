@@ -12,8 +12,8 @@ class LitPoseBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
-            "python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120",
-            f"python -m pip install -e {lightning_pose_dir}",
+            "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120",
+            f"pip install -e {lightning_pose_dir}",
         ]
 
 
@@ -24,7 +24,7 @@ class LitPoseNoGpuBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
-            f"python -m pip install -e {lightning_pose_dir}",
+            f"pip install -e {lightning_pose_dir}",
         ]
 
 
@@ -36,8 +36,9 @@ class LabelStudioBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install libpq-dev",
-            f"pip install -e .; ",  # install lightning app to have access to packages
-            f"pip install label-studio label-studio-sdk; deactivate",
+            "conda install libffi==3.3",
+            "pip install -e .; ",  # install lightning app to have access to packages
+            "pip install label-studio label-studio-sdk; deactivate",
         ]
 
 
@@ -46,7 +47,7 @@ class TensorboardBuildConfig(BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            "python -m pip install tensorboard",
+            "pip install tensorboard",
         ]
 
 
@@ -55,5 +56,5 @@ class StreamlitBuildConfig(BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            "python -m pip install -e ."
+            "pip install -e ."
         ]
