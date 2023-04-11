@@ -210,19 +210,26 @@ class LitPoseApp(LightningFlow):
         for video in videos:
             self.inference[video] = LitPose(
                 cloud_compute=CloudCompute("gpu"),
-                drive_name=drive_name,
-                parallel=is_running_in_cloud(),
+                drive_name="lit://lpa",  # see note below
+                parallel=True,  # is_running_in_cloud(),
             )
-            print(f"launching inference for video {video}")
             self.inference[video].run('run_inference', model=model, video=video)
 
         # clean up works
         while len(self.inference) > 0:
-            for vid, work in self.inference.items():
-                if w.work.status.stage == "succeeded":
+            for video in list(self.inference):
+                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
                     # kill work
                     print(f"killing work from video {video}")
-                    del self.inference[vid]
+                    del self.inference[video]
+
+        print("--------------------")
+        print("END OF INFERENCE")
+        print("--------------------")
+
+        # drive_name has to be hard-coded because if we save it as an attribute of the app it
+        # automatically gets cast into a lightning Path object; however, you cannot pass a Path
+        # object to Drive without an error
 
     def run(self):
 

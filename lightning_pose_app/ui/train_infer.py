@@ -394,7 +394,7 @@ def _render_streamlit_fn(state: AppState):
             disabled=len(st_videos) == 0 or state.run_script_infer,
         )
         if state.run_script_infer:
-            st.warning(f"waiting for existing inference to finish")
+            st.warning("waiting for existing inference to finish")
 
         # Lightning way of returning the parameters
         if st_submit_button_infer:
@@ -402,3 +402,5 @@ def _render_streamlit_fn(state: AppState):
             state.st_inference_videos = st_videos
             st.text("Request submitted!")
             state.run_script_infer = True  # must the last to prevent race condition
+            # force rerun to show "waiting for existing..." message
+            st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
