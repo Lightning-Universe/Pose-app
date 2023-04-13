@@ -2,7 +2,7 @@ from lightning import LightningFlow
 import os
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.build_configs import LabelStudioBuildConfig
+from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studio_venv
 
 
 class LitLabelStudio(LightningFlow):
@@ -58,6 +58,7 @@ class LitLabelStudio(LightningFlow):
         # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
         self.label_studio.run(
             "null command",
+            venv_name=label_studio_venv,
             cwd=os.getcwd(),
             input_output_only=True,
             inputs=[self.database_dir],
@@ -72,6 +73,7 @@ class LitLabelStudio(LightningFlow):
         # start label-studio on the default port 8080
         self.label_studio.run(
             f"label-studio start --no-browser --internal-host $host --port $port",
+            venv_name=label_studio_venv,
             wait_for_exit=False,
             env={
                 "LABEL_STUDIO_USERNAME": self.username,
@@ -124,6 +126,7 @@ class LitLabelStudio(LightningFlow):
         # run command to create new label studio project
         self.label_studio.run(
             build_command,
+            venv_name=label_studio_venv,
             wait_for_exit=True,
             inputs=[
                 self.filenames["label_studio_config"],
@@ -148,6 +151,7 @@ class LitLabelStudio(LightningFlow):
         # run command to update label studio tasks
         self.label_studio.run(
             build_command,
+            venv_name=label_studio_venv,
             wait_for_exit=True,
             timer=videos,
             inputs=[
@@ -177,6 +181,7 @@ class LitLabelStudio(LightningFlow):
             # run command to check labeling task
             self.label_studio.run(
                 run_command,
+                venv_name=label_studio_venv,
                 wait_for_exit=True,
                 timer=timer,
                 inputs=[

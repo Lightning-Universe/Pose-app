@@ -46,35 +46,20 @@ lightning run app app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utilit
 Running the app locally requires a few additional installs.
 
 Install LabelStudio:
-<!-- ```bash
-(lai) $ virtualenv ~/venv-label-studio 
-(lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
-(lai) $ source ~/venv-label-studio/bin/activate; python -m pip install -e .; deactivate -->
-<!-- ``` -->
-
 ```bash
-sudo apt-get install libpq-dev
-conda install libffi==3.3
-pip install label-studio label-studio-sdk
+virtualenv ~/venv-label-studio 
+source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
+source ~/venv-label-studio/bin/activate; conda install libffi==3.3; deactivate
+source ~/venv-label-studio/bin/activate; pip install label-studio label-studio-sdk; deactivate
+source ~/venv-label-studio/bin/activate; pip install -e .; deactivate
 ```
+
 (note that `libffi` install may downgrade python, but this is fine.)
 
 Test
 ```bash
-label-studio version
+source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
-
-<!-- ```bash
-sudo apt-get install libpq-dev
-(lai) $ virtualenv ~/venv-label-studio 
-(lai) $ source ~/venv-label-studio/bin/activate; which python; python -m pip install label-studio label-studio-sdk; deactivate
-(lai) $ source ~/venv-label-studio/bin/activate; python -m pip install -e .; deactivate
-``` -->
-
-<!-- Test:
-```bash
-(lai) $ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
-``` -->
 
 In order to run the application locally, run the following commands:
 

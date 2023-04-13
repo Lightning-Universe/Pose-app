@@ -4,6 +4,9 @@ from typing import List
 # dir where lightning pose package lives
 lightning_pose_dir = "lightning-pose"
 
+# dir where label studio python venv will be set up
+label_studio_venv = "venv-label-studio"
+
 
 class LitPoseBuildConfig(BuildConfig):
 
@@ -24,6 +27,7 @@ class LabelStudioBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install libpq-dev",
+            ". ~/{label_studio_venv}/bin/activate; ",
             "conda install libffi==3.3",
             "pip install -e .; ",  # install lightning app to have access to packages
             "pip install label-studio label-studio-sdk; deactivate",
