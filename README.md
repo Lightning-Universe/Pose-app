@@ -54,9 +54,11 @@ Install LabelStudio:
 
 ```bash
 sudo apt-get install libpq-dev
-conda install libffi==3.3  # it may downgrade python, but this is fine
+conda install libffi==3.3
 pip install label-studio label-studio-sdk
 ```
+(note that `libffi` install may downgrade python, but this is fine.)
+
 Test
 ```bash
 label-studio version
