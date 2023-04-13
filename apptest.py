@@ -7,6 +7,7 @@ To run from the command line (inside the conda environment named "lai" here):
 
 from lightning import CloudCompute, LightningApp, LightningFlow
 from lightning.app.utilities.cloud import is_running_in_cloud
+from lightning.app.structures import Dict
 import os
 import time
 import yaml
@@ -29,7 +30,7 @@ class LitPoseApp(LightningFlow):
         self.extract_ui.proj_dir = "data/TEST"
 
         # works for inference
-        self.inference = {}
+        self.inference = Dict()
 
     def extract_frames(self, video_files, proj_dir, n_frames_per_video=20):
 
