@@ -122,8 +122,7 @@ def _render_streamlit_fn(state: AppState):
         # TODO: update with st_radial
         st.text(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
 
-        st.selectbox(
-            "Existing Models", [k for k, v in sorted(state.trained_models.items(), reverse=True)])
+        st.selectbox("Models", sorted(state.trained_models, reverse=True))
 
         st.markdown(
             """
@@ -236,10 +235,7 @@ def _render_streamlit_fn(state: AppState):
         #     state.run_script_update_models = True  # must the last to prevent race condition
         #     st.text(state.run_script_update_models)
 
-        model_dir = st.selectbox(
-            "Choose model to run inference",
-            [k for k, v in sorted(state.trained_models.items(), reverse=True)]
-        )
+        model_dir = st.selectbox("Choose model to run inference", sorted(state.trained_models, reverse=True))
 
         # upload video files
         video_dir = os.path.join(state.proj_dir, "videos")
