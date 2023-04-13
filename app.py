@@ -418,13 +418,13 @@ class LitPoseApp(LightningFlow):
         if not self.extract_ui.proj_dir:
             # need to create/load new project before moving on to other tabs
             return [
-                landing_tab,
+                # landing_tab,
                 project_tab,
             ]
         else:
             # show all tabs
             return [
-                landing_tab,
+                # landing_tab,
                 project_tab,
                 extract_tab,
                 annotate_tab,

@@ -47,6 +47,7 @@ Running the app locally requires a few additional installs.
 
 Install LabelStudio:
 ```bash
+cd ~/Pose-app
 virtualenv ~/venv-label-studio 
 source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
 source ~/venv-label-studio/bin/activate; conda install libffi==3.3; deactivate
