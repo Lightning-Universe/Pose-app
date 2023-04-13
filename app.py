@@ -200,68 +200,6 @@ class LitPoseApp(LightningFlow):
             self.train_ui.trained_models = self.project_io.trained_models
             self.diagnostics_ui.trained_models = self.project_io.trained_models
 
-    def run_inference(self, model, videos):
-
-        print("--------------------")
-        print("RUN INFERENCE HERE!!")
-        print(f"model: {model}")
-        print("--------------------")
-        # launch works
-        for video in videos:
-            self.inference[video] = LitPose(
-                cloud_compute=CloudCompute("gpu"),
-                drive_name="lit://lpa",  # see note below
-                parallel=True,  # is_running_in_cloud(),
-            )
-            self.inference[video].run('run_inference', model=model, video=video)
-
-        # clean up works
-        while len(self.inference) > 0:
-            for video in list(self.inference):
-                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
-                    # kill work
-                    print(f"killing work from video {video}")
-                    del self.inference[video]
-
-        print("--------------------")
-        print("END OF INFERENCE")
-        print("--------------------")
-
-        # drive_name has to be hard-coded because if we save it as an attribute of the app it
-        # automatically gets cast into a lightning Path object; however, you cannot pass a Path
-        # object to Drive without an error
-
-    def run_inference(self, model, videos):
-
-        print("--------------------")
-        print("RUN INFERENCE HERE!!")
-        print(f"model: {model}")
-        print("--------------------")
-        # launch works
-        for video in videos:
-            self.inference[video] = LitPose(
-                cloud_compute=CloudCompute("gpu"),
-                drive_name="lit://lpa",  # see note below
-                parallel=True,  # is_running_in_cloud(),
-            )
-            self.inference[video].run('run_inference', model=model, video=video)
-
-        # clean up works
-        while len(self.inference) > 0:
-            for video in list(self.inference):
-                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
-                    # kill work
-                    print(f"killing work from video {video}")
-                    del self.inference[video]
-
-        print("--------------------")
-        print("END OF INFERENCE")
-        print("--------------------")
-
-        # drive_name has to be hard-coded because if we save it as an attribute of the app it
-        # automatically gets cast into a lightning Path object; however, you cannot pass a Path
-        # object to Drive without an error
-
     def run(self):
 
         # for unit testing purposes
@@ -426,26 +364,6 @@ class LitPoseApp(LightningFlow):
         #     print("--------------------")
         #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
         #     self.train_ui.run_script_update_models = False
-
-        # # -------------------------------------------------------------
-        # # update models on ui button press
-        # # -------------------------------------------------------------
-        # if self.train_ui.run_script_update_models:
-        #     print("--------------------")
-        #     print("UPDATING MODELS HERE!!")
-        #     print("--------------------")
-        #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
-        #     self.train_ui.run_script_update_models = False
-
-        # -------------------------------------------------------------
-        # run inference on ui button press (single model, multiple vids)
-        # -------------------------------------------------------------
-        if self.train_ui.run_script_infer and run_while_training:
-            self.run_inference(
-                model=self.train_ui.st_inference_model,
-                videos=self.train_ui.st_inference_videos,
-            )
-            self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
         # run inference on ui button press (single model, multiple vids)
