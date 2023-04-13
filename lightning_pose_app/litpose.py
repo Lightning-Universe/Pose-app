@@ -12,7 +12,8 @@ class LitPose(LightningFlow):
         *args,
         cloud_compute,
         drive_name,
-        proj_dir=None,
+        component_name="litpose",
+        parallel=False,
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -21,15 +22,23 @@ class LitPose(LightningFlow):
             cloud_compute=cloud_compute,
             cloud_build_config=LitPoseBuildConfig(),  # this is where Lightning Pose is installed
             drive_name=drive_name,
-            component_name="litpose",
+            component_name=component_name,
             wait_seconds_after_run=1,
+            parallel=parallel,
         )
 
-        self.work_is_done_extract_frames = False
+        self.work_is_done_extract_frames = True
         self.work_is_done_training = True
+        self.work_is_done_inference = True
+        self.count = 0
 
-    def start_extract_frames(
-            self, video_files=None, proj_dir=None, script_name=None, n_frames_per_video=20):
+    def start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
+
+        print(f"launching extraction for video {video_files[0]}")
+        self.work_is_done_extract_frames = False
+
+        print(f"launching extraction for video {video_files[0]}")
+        self.work_is_done_extract_frames = False
 
         # set videos to select frames from
         vid_file_args = ""
@@ -40,7 +49,7 @@ class LitPose(LightningFlow):
         data_dir = os.path.join(os.getcwd(), proj_dir, "labeled-data")
 
         cmd = "python" \
-              + " " + script_name \
+              + " scripts/extract_frames.py" \
               + vid_file_args \
               + f" --data_dir={data_dir}" \
               + f" --n_frames_per_video={n_frames_per_video}" \
@@ -55,7 +64,16 @@ class LitPose(LightningFlow):
         )
         self.work_is_done_extract_frames = True
 
+    def run_inference(self, model, video):
+        import time
+        self.work_is_done_inference = False
+        print(f"launching inference for video {video} using model {model}")
+        time.sleep(5)
+        self.work_is_done_inference = True
+
     def run(self, action=None, **kwargs):
 
         if action == "start_extract_frames":
             self.start_extract_frames(**kwargs)
+        elif action == "run_inference":
+            self.run_inference(**kwargs)

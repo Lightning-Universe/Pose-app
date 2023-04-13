@@ -18,7 +18,7 @@ from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
-from lightning_pose_app.ui.train import TrainUI
+from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
 
@@ -27,7 +27,7 @@ class LitPoseApp(LightningFlow):
     def __init__(self):
         super().__init__()
 
-        # shared data for apps
+        # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
         drive_name = "lit://lpa"
 
         # -----------------------------
@@ -54,34 +54,13 @@ class LitPoseApp(LightningFlow):
         self.project_ui = ProjectUI(data_dir=data_dir)
 
         # extract frames tab (flow)
-        self.extract_ui = ExtractFramesUI(
-            drive_name=drive_name,
-            script_dir=lightning_pose_dir,
-            script_name="scripts/extract_frames.py",
-            script_args="",
-        )
+        self.extract_ui = ExtractFramesUI(drive_name=drive_name)
 
         # training tab (flow)
-        self.train_ui = TrainUI(
-            script_dir=lightning_pose_dir,
-            script_name="scripts/train_hydra.py",
-            script_args="",
-            max_epochs=200,
-        )
+        self.train_ui = TrainUI(drive_name=drive_name)
 
         # diagnostics tab (flow + work)
-        self.diagnostics_ui = DiagnosticsUI(
-            drive_name=drive_name,
-            fiftyone_kwargs=dict(
-                script_dir=lightning_pose_dir,
-                script_name="scripts/create_fiftyone_dataset.py",
-                script_args="""
-                    eval.fiftyone.dataset_to_create="images"
-                    eval.fiftyone.build_speed="fast"
-                    eval.fiftyone.remote=false
-                """
-            )
-        )
+        self.diagnostics_ui = DiagnosticsUI(drive_name=drive_name)
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
@@ -103,6 +82,9 @@ class LitPoseApp(LightningFlow):
             drive_name=drive_name,
             database_dir=os.path.join(data_dir, "labelstudio_db"),
         )
+
+        # works for inference
+        self.inference = {}
 
     # @property
     # def ready(self) -> bool:
@@ -146,15 +128,14 @@ class LitPoseApp(LightningFlow):
                 base_dir, "models", self.train_ui.st_datetimes["super"])
             hydra_mrun = os.path.join(
                 base_dir, "models/multirun", self.train_ui.st_datetimes["super"])
-            cmd = "python" \
-                  + " " + self.train_ui.st_script_name \
+            cmd = "python scripts/train_hydra.py" \
                   + config_cmd \
                   + " " + self.train_ui.st_script_args["super"] \
                   + f" hydra.run.dir={hydra_srun}" \
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.litpose.work.run(
                 cmd,
-                cwd=self.train_ui.st_script_dir,
+                cwd=lightning_pose_dir,
                 inputs=inputs,
                 outputs=outputs,
             )
@@ -167,21 +148,51 @@ class LitPoseApp(LightningFlow):
                 base_dir, "models", self.train_ui.st_datetimes["semisuper"])
             hydra_mrun = os.path.join(
                 base_dir, "models/multirun", self.train_ui.st_datetimes["semisuper"])
-            cmd = "python" \
-                  + " " + self.train_ui.st_script_name \
+            cmd = "python scripts/train_hydra.py" \
                   + config_cmd \
                   + " " + self.train_ui.st_script_args["semisuper"] \
                   + f" hydra.run.dir={hydra_srun}" \
                   + f" hydra.sweep.dir={hydra_mrun}"
             self.litpose.work.run(
                 cmd,
-                cwd=self.train_ui.st_script_dir,
+                cwd=lightning_pose_dir,
                 inputs=inputs,
                 outputs=outputs,
             )
             self.train_ui.st_train_complete_flag["semisuper"] = True
 
         self.train_ui.count += 1
+
+    def run_inference(self, model, videos):
+
+        print("--------------------")
+        print("RUN INFERENCE HERE!!")
+        print(f"model: {model}")
+        print("--------------------")
+        # launch works
+        for video in videos:
+            self.inference[video] = LitPose(
+                cloud_compute=CloudCompute("gpu"),
+                drive_name="lit://lpa",  # see note below
+                parallel=True,  # is_running_in_cloud(),
+            )
+            self.inference[video].run('run_inference', model=model, video=video)
+
+        # clean up works
+        while len(self.inference) > 0:
+            for video in list(self.inference):
+                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
+                    # kill work
+                    print(f"killing work from video {video}")
+                    del self.inference[video]
+
+        print("--------------------")
+        print("END OF INFERENCE")
+        print("--------------------")
+
+        # drive_name has to be hard-coded because if we save it as an attribute of the app it
+        # automatically gets cast into a lightning Path object; however, you cannot pass a Path
+        # object to Drive without an error
 
     def update_trained_models_list(self, timer):
         self.project_io.run(action="update_trained_models_list", timer=timer)
@@ -198,7 +209,7 @@ class LitPoseApp(LightningFlow):
         # don't interfere /w train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
-        if not is_running_in_cloud() and self.train_ui.run_script:
+        if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
 
         # -------------------------------------------------------------
@@ -246,6 +257,7 @@ class LitPoseApp(LightningFlow):
             self.project_io.run(
                 action="update_paths", project_name=self.project_ui.st_project_name)
             self.extract_ui.proj_dir = self.project_io.proj_dir
+            self.train_ui.proj_dir = self.project_io.proj_dir
             self.diagnostics_ui.proj_dir = self.project_io.proj_dir
             self.diagnostics_ui.config_name = self.project_io.config_name
             self.label_studio.run(
@@ -296,14 +308,12 @@ class LitPoseApp(LightningFlow):
                 action="start_extract_frames",
                 video_files=self.extract_ui.st_video_files,
                 proj_dir=self.extract_ui.proj_dir,
-                script_name=self.extract_ui.script_name,
                 n_frames_per_video=self.extract_ui.st_n_frames_per_video,
             )
             # wait until litpose is done extracting frames, then update tasks
             if self.litpose.work_is_done_extract_frames:
                 self.project_io.run(action="update_frame_shapes")
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
-                self.litpose.work_is_done_extract_frames = False
                 self.extract_ui.run_script = False
 
         # -------------------------------------------------------------
@@ -328,7 +338,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
-        if self.train_ui.run_script:
+        if self.train_ui.run_script_train:
             self.train_models()
             # have tensorboard pull the new data
             self.tensorboard.run(
@@ -344,6 +354,26 @@ class LitPoseApp(LightningFlow):
         if self.project_io.update_models:
             self.project_io.update_models = False
             self.update_trained_models_list(timer=self.train_ui.count)
+
+        # # -------------------------------------------------------------
+        # # update models on ui button press
+        # # -------------------------------------------------------------
+        # if self.train_ui.run_script_update_models:
+        #     print("--------------------")
+        #     print("UPDATING MODELS HERE!!")
+        #     print("--------------------")
+        #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
+        #     self.train_ui.run_script_update_models = False
+
+        # -------------------------------------------------------------
+        # run inference on ui button press (single model, multiple vids)
+        # -------------------------------------------------------------
+        if self.train_ui.run_script_infer and run_while_training:
+            self.run_inference(
+                model=self.train_ui.st_inference_model,
+                videos=self.train_ui.st_inference_videos,
+            )
+            self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
         # initialize diagnostics on button press
@@ -363,7 +393,7 @@ class LitPoseApp(LightningFlow):
         annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
 
         # training tabs
-        train_tab = {"name": "Train", "content": self.train_ui}
+        train_tab = {"name": "Train/Infer", "content": self.train_ui}
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
