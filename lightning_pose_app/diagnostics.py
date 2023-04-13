@@ -28,18 +28,18 @@ class DiagnosticsUI(LightningFlow):
         )
 
         # streamlit labeled worker
-        # self.my_streamlit_frame = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-        #     drive_name=drive_name,
-        # )
+        self.st_frame_work = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+            cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
+            drive_name=drive_name,
+        )
 
         # streamlit video worker
-        # self.my_streamlit_video = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-        #     drive_name=drive_name,
-        # )
+        self.st_video_work = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+            cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
+            drive_name=drive_name,
+        )
 
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
@@ -108,33 +108,28 @@ class DiagnosticsUI(LightningFlow):
     def start_st_frame(self):
         """run streamlit for labeled frames"""
 
-        # TODO: UPDATE FROM ANKIT
-
         # set labeled csv
-        csv_file = os.path.join(
-            lightning_pose_dir, "toy_datasets/toymouseRunningData/CollectedData_.csv")
+        csv_file = os.path.join(self.proj_dir, "CollectedData.csv")
         labeled_csv_args = f"--labels_csv={csv_file}"
 
         # set prediction files (hard code some paths for now)
         prediction_file_args = ""
-        for model_dir in self.diagnostics_ui.st_model_dirs:
-            abs_file = os.path.join(
-                lightning_pose_dir, self.diagnostics_ui.outputs_dir, model_dir, "predictions.csv")
+        for model_dir in self.st_model_dirs:
+            abs_file = os.path.join(self.proj_dir, "models", model_dir, "predictions.csv")
             prediction_file_args += f" --prediction_files={abs_file}"
 
         # set model names
         model_name_args = ""
-        for name in self.diagnostics_ui.st_model_display_names:
+        for name in self.st_model_display_names:
             model_name_args += f" --model_names={name}"
 
         # set data config (take config from first selected model)
         cfg_file = os.path.join(
-            lightning_pose_dir, self.diagnostics_ui.outputs_dir, self.diagnostics_ui.st_model_dirs[0], ".hydra",
-            "config.yaml")
+            self.proj_dir, "models", self.st_model_dirs[0], ".hydra", "config.yaml")
+
         # replace relative paths of example dataset
         cfg = yaml.safe_load(open(cfg_file))
         if not os.path.isabs(cfg["data"]["data_dir"]):
-            # data_dir = cfg["data"]["data_dir"]
             cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
                 lightning_pose_dir, cfg["data"]["data_dir"]))
         # resave file
@@ -142,38 +137,39 @@ class DiagnosticsUI(LightningFlow):
 
         data_cfg_args = f" --data_cfg={cfg_file}"
 
-        cmd = "streamlit run ./tracking-diagnostics/apps/labeled_frame_diagnostics.py" \
+        cmd = "streamlit run lightning_pose/apps/labeled_frame_diagnostics.py" \
               + " --server.address {host} --server.port {port}" \
               + " -- " \
               + " " + labeled_csv_args \
               + " " + prediction_file_args \
               + " " + model_name_args \
               + " " + data_cfg_args
-        self.my_streamlit_frame.run(cmd, wait_for_exit=False, cwd=".")
+        self.st_frame_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
 
     def start_st_video(self):
         """run streamlit for videos"""
 
-        # TODO: UPDATE FROM ANKIT
+        # start with random video in predictions directory
+        video_file = os.listdir(os.path.join(
+            self.proj_dir, "models", self.di, "video_preds"))[0]
 
         # set prediction files (hard code some paths for now)
         # select random video
         prediction_file_args = ""
-        video_file = "test_vid.csv"  # TODO: find random vid in predictions directory
-        for model_dir in self.diagnostics_ui.st_model_dirs:
+        for model_dir in self.st_model_dirs:
             abs_file = os.path.join(
-                lightning_pose_dir, self.diagnostics_ui.outputs_dir, model_dir, "video_preds", video_file)
+                self.proj_dir, "models", model_dir, "video_preds", video_file)
             prediction_file_args += f" --prediction_files={abs_file}"
 
         # set model names
         model_name_args = ""
-        for name in self.diagnostics_ui.st_model_display_names:
+        for name in self.st_model_display_names:
             model_name_args += f" --model_names={name}"
 
         # set data config (take config from first selected model)
         cfg_file = os.path.join(
-            lightning_pose_dir, self.diagnostics_ui.outputs_dir, self.diagnostics_ui.st_model_dirs[0], ".hydra",
-            "config.yaml")
+            self.proj_dir, "models", self.st_model_dirs[0], ".hydra", "config.yaml")
+
         # replace relative paths of example dataset
         cfg = yaml.safe_load(open(cfg_file))
         if not os.path.isabs(cfg["data"]["data_dir"]):
@@ -185,13 +181,13 @@ class DiagnosticsUI(LightningFlow):
 
         data_cfg_args = f" --data_cfg={cfg_file}"
 
-        cmd = "streamlit run ./tracking-diagnostics/apps/video_diagnostics.py" \
+        cmd = "streamlit run lightning_pose/apps/video_diagnostics.py" \
               + " --server.address {host} --server.port {port}" \
               + " -- " \
               + " " + prediction_file_args \
               + " " + model_name_args \
               + " " + data_cfg_args
-        self.my_streamlit_video.run(cmd, wait_for_exit=False, cwd=".")
+        self.st_video_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
 
     def run(self, action, **kwargs):
 

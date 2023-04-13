@@ -185,6 +185,7 @@ class LitPoseApp(LightningFlow):
                 if video in self.inference.keys() and self.inference[video].work_is_done_inference:
                     # kill work
                     print(f"killing work from video {video}")
+                    self.inference[video].stop()
                     del self.inference[video]
 
         print("--------------------")
@@ -381,8 +382,8 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
             self.diagnostics_ui.run(action="build_fiftyone_dataset")
-            # self.diagnostics_ui.run(action="start_st_frame")
-            # self.diagnostics_ui.run(action="start_st_video")
+            self.diagnostics_ui.run(action="start_st_frame")
+            self.diagnostics_ui.run(action="start_st_video")
             self.diagnostics_ui.run_script = False
 
     def configure_layout(self):

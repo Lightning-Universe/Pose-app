@@ -60,6 +60,7 @@ class LitPoseApp(LightningFlow):
                         and self.inference[video].work_is_done_extract_frames:
                     # kill work
                     print(f"killing work from video {video}")
+                    self.inference[video].stop()
                     del self.inference[video]
 
         print("--------------------")
