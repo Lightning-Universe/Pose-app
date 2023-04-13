@@ -4,9 +4,6 @@ from typing import List
 # dir where lightning pose package lives
 lightning_pose_dir = "lightning-pose"
 
-# dir where label studio python venv will be setup
-label_studio_venv = "venv-label-studio"
-
 
 class LitPoseBuildConfig(BuildConfig):
 
@@ -15,8 +12,8 @@ class LitPoseBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
-            "python -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120",
-            f"python -m pip install -e {lightning_pose_dir}",
+            "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120",
+            f"pip install -e {lightning_pose_dir}",
         ]
 
 
@@ -27,7 +24,7 @@ class LitPoseNoGpuBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
-            f"python -m pip install -e {lightning_pose_dir}",
+            f"pip install -e {lightning_pose_dir}",
         ]
 
 
@@ -39,10 +36,9 @@ class LabelStudioBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install libpq-dev",
-            f"virtualenv ~/{label_studio_venv}",
-            f". ~/{label_studio_venv}/bin/activate; which python; ",
-            f"python -m pip install -e .; ",  # install lightning app to have access to packages
-            f"python -m pip install label-studio label-studio-sdk; deactivate",
+            "conda install libffi==3.3",
+            "pip install -e .; ",  # install lightning app to have access to packages
+            "pip install label-studio label-studio-sdk; deactivate",
         ]
 
 
@@ -51,7 +47,7 @@ class TensorboardBuildConfig(BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            "python -m pip install tensorboard",
+            "pip install tensorboard",
         ]
 
 
@@ -60,5 +56,5 @@ class StreamlitBuildConfig(BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            "python -m pip install -e ."
+            "pip install -e ."
         ]

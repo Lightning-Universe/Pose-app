@@ -43,9 +43,7 @@ lightning run app app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utilit
 ```
 
 ## Run the app locally
-Running the app locally requires a bit of extra work, since we'll need to install some additional
-packages and set up a virtual environement in order to mirror what happens on the cloud when 
-machines are requisitioned.
+Running the app locally requires a few additional installs.
 
 Install LabelStudio:
 <!-- ```bash
@@ -56,7 +54,7 @@ Install LabelStudio:
 
 ```bash
 sudo apt-get install libpq-dev
-conda install libffi==3.3 # it may downgrade python, but this is fine
+conda install libffi==3.3  # it may downgrade python, but this is fine
 pip install label-studio label-studio-sdk
 ```
 Test
