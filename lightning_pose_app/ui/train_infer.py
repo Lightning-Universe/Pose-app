@@ -38,6 +38,7 @@ class TrainUI(LightningFlow):
         self.run_script_train = False
         # self.run_script_update_models = False
         self.run_script_infer = False
+        self.count = 0
 
         # save parameters for later run
         self.proj_dir = None

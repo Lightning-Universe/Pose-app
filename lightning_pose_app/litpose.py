@@ -37,6 +37,9 @@ class LitPose(LightningFlow):
         print(f"launching extraction for video {video_files[0]}")
         self.work_is_done_extract_frames = False
 
+        print(f"launching extraction for video {video_files[0]}")
+        self.work_is_done_extract_frames = False
+
         # set videos to select frames from
         vid_file_args = ""
         for vid_file in video_files:
