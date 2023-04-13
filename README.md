@@ -14,7 +14,7 @@ The following instructions detail how to install the app locally for development
 First, create a conda environment:
 ```bash
 cd ~
-conda create --yes --name lai python=3.9
+conda create --yes --name lai python=3.8
 conda activate lai
 ```
 
@@ -23,11 +23,8 @@ Next, install the `Pose-app` repo:
 cd ~
 git clone https://github.com/Lightning-Universe/Pose-app
 cd Pose-app
-pip install -r requirements.txt
 pip install -e .
 ```
-
-(Removed `python -m pip` and kept just `pip`, not sure this is important!)
 
 Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
 
@@ -35,10 +32,8 @@ Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
 cd ~/Pose-app
 git clone https://github.com/danbider/lightning-pose
 cd lightning-pose
-pip install -r requirements.txt
+pip install -e .
 ```
-
-(internal: removed `python -m pip install -r requirements.txt`)
 
 ## Run the app on the cloud
 Once the environment has been set up, running the app on the cloud is easy! Launch with the
