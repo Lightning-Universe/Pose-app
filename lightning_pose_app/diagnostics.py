@@ -5,7 +5,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.build_configs import LitPoseNoGpuBuildConfig, lightning_pose_dir
+from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_dir
 from lightning_pose_app.utilities import args_to_dict, dict_to_args, StreamlitFrontend
 
 
@@ -25,7 +25,7 @@ class DiagnosticsUI(LightningFlow):
         self.fiftyone_kwargs = fiftyone_kwargs
         self.fiftyone = LitBashWork(
             cloud_compute=CloudCompute("default"),
-            cloud_build_config=LitPoseNoGpuBuildConfig(),  # get fiftyone
+            cloud_build_config=LitPoseBuildConfig(),  # get fiftyone
             drive_name=drive_name,
         )
 

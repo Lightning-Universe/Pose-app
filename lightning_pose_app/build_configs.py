@@ -12,18 +12,6 @@ class LitPoseBuildConfig(BuildConfig):
         return [
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
-            "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120",
-            f"pip install -e {lightning_pose_dir}",
-        ]
-
-
-class LitPoseNoGpuBuildConfig(BuildConfig):
-
-    @staticmethod
-    def build_commands() -> List[str]:
-        return [
-            "sudo apt-get update",
-            "sudo apt-get install -y ffmpeg libsm6 libxext6",
             f"pip install -e {lightning_pose_dir}",
         ]
 
