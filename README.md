@@ -46,8 +46,8 @@ lightning run app app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utilit
 Running the app locally requires a few additional installs.
 
 Install LabelStudio:
+from `/path/to/Pose-app`, run
 ```bash
-cd ~/Pose-app
 virtualenv ~/venv-label-studio 
 source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
 source ~/venv-label-studio/bin/activate; conda install libffi==3.3; deactivate
