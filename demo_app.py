@@ -22,7 +22,7 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 
 
 # TODO
-# - project_io: simplify `load_project_defaults`, set defaults in __init__
+# - ProjectDataIO._put_to_drive_remove_local does NOT overwrite directories already on Drive - this is bad!
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 # - figure out what to do about inference
 # - figure out what to do with landing tab/current markdown
@@ -35,6 +35,8 @@ class LitPoseApp(LightningFlow):
 
         # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
         drive_name = "lit://lpa"
+
+        self.proj_name = "demo"
 
         # -----------------------------
         # paths
@@ -80,6 +82,27 @@ class LitPoseApp(LightningFlow):
             drive_name=drive_name,
         )
 
+        # -----------------------------
+        # copy toy data to project
+        # -----------------------------
+        # here we copy the toy dataset config file, frames, and labels that come packaged with the 
+        # lightning-pose repo and move it to a new directory that is consistent with the project 
+        # structure the app expects
+        # later we will write that newly copied data to the Drive so other Works have access
+
+        # config file
+        toy_config_file_src = os.path.join(
+            lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
+        toy_config_file_dst = os.path.join(self.data_dir, self.proj_name, "model_config_demo.yaml")
+        self.project_io._copy_file(toy_config_file_src, toy_config_file_dst)
+
+        # frames, videos, and labels
+        toy_data_src = os.path.join(lightning_pose_dir, "toy_datasets/toymouseRunningData")
+        toy_data_dst = os.path.join(self.data_dir, self.proj_name)
+        self.project_io._copy_dir(toy_data_src, toy_data_dst)
+
+        self.demo_data_transferred = False
+
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
@@ -93,8 +116,8 @@ class LitPoseApp(LightningFlow):
             config_cmd = f" --config-path={base_dir}" \
                          f" --config-name={self.project_io.config_name}" \
                          f" data.data_dir={base_dir}" \
-                         f" data.video_dir={os.path.join(base_dir, 'videos')}" \
-                         f" eval.test_videos_directory={os.path.join(base_dir, 'videos')}"
+                         f" data.video_dir={os.path.join(base_dir, 'unlabeled_videos')}" \
+                         f" eval.test_videos_directory={os.path.join(base_dir, 'unlabeled_videos')}"
         else:
             config_cmd = \
                 " eval.test_videos_directory=toy_datasets/toymouseRunningData/unlabeled_videos"
@@ -103,7 +126,7 @@ class LitPoseApp(LightningFlow):
         inputs = [
             os.path.join(self.project_io.proj_dir, self.project_io.config_name),
             os.path.join(self.project_io.proj_dir, "labeled-data"),
-            os.path.join(self.project_io.proj_dir, "CollectedData.csv"),
+            os.path.join(self.project_io.proj_dir, "CollectedData_.csv"),
         ]
         outputs = [self.project_io.model_dir]
 
@@ -167,46 +190,34 @@ class LitPoseApp(LightningFlow):
         if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
 
+        # write demo data to the Drive so other Works have access (run once)
+        if not self.demo_data_transferred:
+            self.project_io.run(
+                action="put_file_to_drive", 
+                file_or_dir=os.path.join(self.data_dir, self.proj_name), 
+                remove_local=False
+            )
+            print("Demo data transferred to Drive")
+            self.demo_data_transferred = True
+
         # -------------------------------------------------------------
-        # init UIs (find prev artifacts)
+        # update project data
         # -------------------------------------------------------------
+        # update paths if we know which project we're working with
+        self.project_io.run(action="update_paths", project_name=self.proj_name)
+        self.train_ui.proj_dir = self.project_io.proj_dir
+        self.diagnostics_ui.proj_dir = self.project_io.proj_dir
+        self.diagnostics_ui.config_name = self.project_io.config_name
+
+        # start background services (only run once)
+        self.start_tensorboard(logdir=self.project_io.model_dir)
+        # self.diagnostics_ui.run(action="start_fiftyone")
+
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
         # self.diagnostics_ui.run(action="find_fiftyone_datasets")
-
-        # -------------------------------------------------------------
-        # init background services once
-        # -------------------------------------------------------------
-        # self.diagnostics_ui.run(action="start_fiftyone")
-        if self.project_io.model_dir is not None:
-            # only launch once we know which project we're working on
-            self.start_tensorboard(logdir=self.project_io.model_dir)
-
-        # -------------------------------------------------------------
-        # update project data from toy dataset
-        # -------------------------------------------------------------
-        # update paths if we know which project we're working with
-        self.project_io.run(action="update_paths", project_name="demo")
-
-        # here we copy the toy dataset config file that comes packaged with the lightning-pose repo 
-        # and move it to a new directory that is consistent with the project structure the app 
-        # expects
-        # we then write that newly copied config file to the Drive so other Works have access
-        toy_config_file_src = os.path.join(
-            os.getcwd(), lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
-        toy_config_file_dst = os.path.join(self.data_dir, "demo", "model_config_demo.yaml")
-        self.project_io._copy_file(toy_config_file_src, toy_config_file_dst)
-        self.project_io.run(
-            action="put_file_to_drive", file_or_dir=toy_config_file_dst, remove_local=False)
-
-        # -------------------------------------------------------------
-        # update project data (user has clicked button in project UI)
-        # -------------------------------------------------------------
-        self.train_ui.proj_dir = self.project_io.proj_dir
-        self.diagnostics_ui.proj_dir = self.project_io.proj_dir
-        self.diagnostics_ui.config_name = self.project_io.config_name
 
         # -------------------------------------------------------------
         # train models on ui button press
@@ -255,7 +266,7 @@ class LitPoseApp(LightningFlow):
 
         # training tabs
         train_tab = {"name": "Train Infer", "content": self.train_ui}
-        # train_status_tab = {"name": "Train Status", "content": self.tensorboard}
+        train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
         # diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
@@ -266,7 +277,7 @@ class LitPoseApp(LightningFlow):
         return [
             # landing_tab,
             train_tab,
-            # train_status_tab,
+            train_status_tab,
             # diagnostics_prep_tab,
             # fo_tab,
             # st_frame_tab,

@@ -53,6 +53,8 @@ class LitPoseApp(LightningFlow):
             default_config_dict=default_config_dict,
         )
         self.project_ui = ProjectUI(data_dir=data_dir)
+        for key, val in self.project_io.proj_defaults.items():
+            setattr(self.project_ui, key, val)
 
         # extract frames tab (flow)
         self.extract_ui = ExtractFramesUI(drive_name=drive_name)
@@ -243,12 +245,13 @@ class LitPoseApp(LightningFlow):
         # update paths if we know which project we're working with
         self.project_io.run(
             action="update_paths", project_name=self.project_ui.st_project_name)
+        # TODO: the following lines can be deleted once it is checked they're no longer necessary
         # load project configuration from defaults
-        self.project_io.run(
-            action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
+        # self.project_io.run(
+        #     action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
         # copy project defaults into UI
-        for key, val in self.project_io.proj_defaults.items():
-            setattr(self.project_ui, key, val)
+        # for key, val in self.project_io.proj_defaults.items():
+        #     setattr(self.project_ui, key, val)
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
