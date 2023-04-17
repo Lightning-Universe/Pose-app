@@ -80,14 +80,23 @@ class ProjectDataIO(LightningWork):
             print(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
+        print("======================")
+        print(f"put to drive {file_or_dir}")
         if os.path.isfile(file_or_dir):
+            print("put file")
             self.drive.put(file_or_dir)
         elif os.path.isdir(file_or_dir):
-            existing_files = self.drive.list(os.path.dirname(file_or_dir))
-            if file_or_dir not in existing_files:
-                self.drive.put(file_or_dir)
-            else:
-                print(f"{file_or_dir} already exists on Drive! not updating")
+            print("put dir")
+            files_local = os.listdir(file_or_dir)
+            print(files_local)
+            existing_files = self.drive.list(file_or_dir)
+            print(existing_files)
+            for file_or_dir_local in files_local:
+                rel_path = os.path.join(file_or_dir, file_or_dir_local)
+                if rel_path not in existing_files:
+                    self.drive.put(rel_path)
+                else:
+                    print(f"{rel_path} already exists on Drive! not updating")
         # clean up the local object
         if remove_local:
             if os.path.isfile(file_or_dir):
@@ -108,16 +117,25 @@ class ProjectDataIO(LightningWork):
         except IOError as e:
             print(f"Unable to copy file. {e}")
 
-    @staticmethod
-    def _copy_dir(src_path, dst_path):
+    def _copy_dir(self, src_path, dst_path):
         """Copy a directory from the source path to the destination path."""
         try:
             os.makedirs(dst_path, exist_ok=True)
-            if not os.path.isdir(dst_path):
-                shutil.copytree(src_path, dst_path)
-                print(f"Directory copied from {src_path} to {dst_path}")
-            else:
-                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
+            src_files_or_dirs = os.listdir(src_path)
+            for src_file_or_dir in src_files_or_dirs:
+                if os.path.isfile(os.path.join(src_path, src_file_or_dir)):
+                    self._copy_file(
+                        os.path.join(src_path, src_file_or_dir),
+                        os.path.join(dst_path, src_file_or_dir),
+                    )
+                else:
+                    src_dir = os.path.join(src_path, src_file_or_dir)
+                    dst_dir = os.path.join(dst_path, src_file_or_dir)
+                    if not os.path.isdir(dst_dir):
+                        shutil.copytree(src_dir, dst_dir)
+                        print(f"Directory copied from {src_dir} to {dst_dir}")
+                    else:
+                        print(f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
         except IOError as e:
             print(f"Unable to copy directory. {e}")
 

@@ -125,7 +125,8 @@ class LitPoseApp(LightningFlow):
         # list files needed from Drive
         inputs = [
             os.path.join(self.project_io.proj_dir, self.project_io.config_name),
-            os.path.join(self.project_io.proj_dir, "labeled-data"),
+            os.path.join(self.project_io.proj_dir, "barObstacleScaling1"),
+            os.path.join(self.project_io.proj_dir, "unlabeled_videos"),
             os.path.join(self.project_io.proj_dir, "CollectedData_.csv"),
         ]
         outputs = [self.project_io.model_dir]
@@ -180,6 +181,8 @@ class LitPoseApp(LightningFlow):
 
     def run(self):
 
+        print("--------- HERE 0 -----------")
+
         # for unit testing purposes
         if os.environ.get("TESTING_LAI"):
             print("⚡ Lightning Pose App! ⚡")
@@ -214,15 +217,16 @@ class LitPoseApp(LightningFlow):
         # self.diagnostics_ui.run(action="start_fiftyone")
 
         # find previously trained models for project, expose to training and diagnostics UIs
-        self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
+        # self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
         # self.diagnostics_ui.run(action="find_fiftyone_datasets")
-
+        print("--------- HERE 1 -----------")
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
         if self.train_ui.run_script_train:
+            print("--------- HERE 2 -----------")
             self.train_models()
             # have tensorboard pull the new data
             self.tensorboard.run(
