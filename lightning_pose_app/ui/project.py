@@ -74,14 +74,31 @@ class ProjectDataIO(LightningWork):
         else:
             print(f"loading local version of {file_or_dir}")
 
-    def _put_to_drive_remove_local(self, file_or_dir):
+    def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
         print(f"putting {file_or_dir} to drive")
-        self.drive.put(file_or_dir)
+        drive_files = self.drive.list(os.path.dirname(file_or_dir))
+        # TODO: this is bad! will not overwrite files. just a hack for now
+        if os.path.basename(file_or_dir) not in drive_files:
+            self.drive.put(file_or_dir)
         # clean up the local object
-        if os.path.isfile(file_or_dir):
-            os.remove(file_or_dir)
-        else:
-            shutil.rmtree(file_or_dir)
+        if remove_local:
+            if os.path.isfile(file_or_dir):
+                os.remove(file_or_dir)
+            else:
+                shutil.rmtree(file_or_dir)
+
+    @staticmethod
+    def _copy_file(src_path, dst_path):
+        """Copy a file from the source path to the destination path."""
+        try:
+            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+            if not os.path.isfile(dst_path):
+                shutil.copy(src_path, dst_path)
+                print(f"File copied from {src_path} to {dst_path}")
+            else:
+                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
+        except IOError as e:
+            print(f"Unable to copy file. {e}")
 
     def find_initialized_projects(self):
         # for some reason adding "component_name" arg isn't working
@@ -240,11 +257,13 @@ class ProjectDataIO(LightningWork):
 
         if self.model_dir:
             trained_models = []
-            dirs = self.drive.list(self.model_dir)
-            for dir in dirs:
-                dirs_ = self.drive.list(dir)
-                for dir_ in dirs_:
-                    trained_models.append('/'.join(dir_.split('/')[-2:]))
+            # this returns a list of model training days
+            dirs_day = self.drive.list(self.model_dir)
+            # loop over days and find HH-MM-SS
+            for dir_day in dirs_day:
+                dirs_time = self.drive.list(dir_day)
+                for dir_time in dirs_time:
+                    trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
 
     def run(self, action, **kwargs):
@@ -263,6 +282,8 @@ class ProjectDataIO(LightningWork):
             self.load_project_defaults(**kwargs)
         elif action == "update_trained_models_list":
             self.update_trained_models_list(**kwargs)
+        elif action == "put_file_to_drive":
+            self._put_to_drive_remove_local(**kwargs)
 
 
 class ProjectUI(LightningFlow):

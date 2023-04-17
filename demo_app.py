@@ -15,12 +15,17 @@ import yaml
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.diagnostics import DiagnosticsUI
 from lightning_pose_app.litpose import LitPose
-from lightning_pose_app.label_studio.component import LitLabelStudio
-from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.landing import LandingUI
-from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
+from lightning_pose_app.ui.project import ProjectDataIO
 from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
+
+
+# TODO
+# - project_io: simplify `load_project_defaults`, set defaults in __init__
+# - launch training in parallel (get this working with `extract_frames` standalone app first)
+# - figure out what to do about inference
+# - figure out what to do with landing tab/current markdown
 
 
 class LitPoseApp(LightningFlow):
@@ -44,7 +49,7 @@ class LitPoseApp(LightningFlow):
         # flows and works
         # -----------------------------
         # landing tab (flow)
-        self.landing_ui = LandingUI()
+        # self.landing_ui = LandingUI()
 
         # project manager (work) and tab (flow)
         self.project_io = ProjectDataIO(
@@ -52,10 +57,7 @@ class LitPoseApp(LightningFlow):
             data_dir=data_dir,
             default_config_dict=default_config_dict,
         )
-        self.project_ui = ProjectUI(data_dir=data_dir)
-
-        # extract frames tab (flow)
-        self.extract_ui = ExtractFramesUI(drive_name=drive_name)
+        # self.project_ui = ProjectUI(data_dir=data_dir)
 
         # training tab (flow)
         self.train_ui = TrainUI(drive_name=drive_name)
@@ -76,16 +78,6 @@ class LitPoseApp(LightningFlow):
             cloud_compute=CloudCompute("gpu"),
             drive_name=drive_name,
         )
-
-        # label studio (flow + work)
-        self.label_studio = LitLabelStudio(
-            cloud_compute=CloudCompute("default"),
-            drive_name=drive_name,
-            database_dir=os.path.join(data_dir, "labelstudio_db"),
-        )
-
-        # works for inference
-        self.inference = Dict()
 
     # @property
     # def ready(self) -> bool:
@@ -164,38 +156,6 @@ class LitPoseApp(LightningFlow):
 
         self.train_ui.count += 1
 
-    def run_inference(self, model, videos):
-
-        print("--------------------")
-        print("RUN INFERENCE HERE!!")
-        print(f"model: {model}")
-        print("--------------------")
-        # launch works
-        for video in videos:
-            self.inference[video] = LitPose(
-                cloud_compute=CloudCompute("gpu"),
-                drive_name="lit://lpa",  # see note below
-                parallel=True,  # is_running_in_cloud(),
-            )
-            self.inference[video].run('run_inference', model=model, video=video)
-
-        # clean up works
-        while len(self.inference) > 0:
-            for video in list(self.inference):
-                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
-                    # kill work
-                    print(f"killing work from video {video}")
-                    self.inference[video].stop()
-                    del self.inference[video]
-
-        print("--------------------")
-        print("END OF INFERENCE")
-        print("--------------------")
-
-        # drive_name has to be hard-coded because if we save it as an attribute of the app it
-        # automatically gets cast into a lightning Path object; however, you cannot pass a Path
-        # object to Drive without an error
-
     def update_trained_models_list(self, timer):
         self.project_io.run(action="update_trained_models_list", timer=timer)
         if self.project_io.trained_models:
@@ -217,10 +177,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # init UIs (find prev artifacts)
         # -------------------------------------------------------------
-        # find previously initialized projects, expose to project UI
-        self.project_io.run(action="find_initialized_projects")
-        self.project_ui.initialized_projects = self.project_io.initialized_projects
-
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
@@ -230,112 +186,34 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # init background services once
         # -------------------------------------------------------------
-        self.label_studio.run(action="import_database")
-        self.label_studio.run(action="start_label_studio")
         self.diagnostics_ui.run(action="start_fiftyone")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
 
         # -------------------------------------------------------------
-        # update project data (project may not exist yet)
+        # update project data from toy dataset
         # -------------------------------------------------------------
         # update paths if we know which project we're working with
-        self.project_io.run(
-            action="update_paths", project_name=self.project_ui.st_project_name)
+        self.project_io.run(action="update_paths", project_name="demo")
+
+        # here we copy the toy dataset config file that comes packaged with the lightning-pose repo and
+        # move it to a new directory that is consistent with the project structure the app expects
+        # we then write that newly copied config file to the Drive so other Works have access
+        toy_config_file_src = os.path.join(os.getcwd(), lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
+        toy_config_file_dst = os.path.join(os.getcwd(), "data", "demo", "model_config_demo.yaml")  # TODO: don't hard-code "data"
+        self.project_io._copy_file(toy_config_file_src, toy_config_file_dst)
+        # self.project_io._put_to_drive_remove_local(toy_config_file_dst, remove_local=False)
+        self.project_io.run(action="put_file_to_drive", file_or_dir=toy_config_file_dst, remove_local=False)
         # load project configuration from defaults
-        self.project_io.run(
-            action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
-        # copy project defaults into UI
-        for key, val in self.project_io.proj_defaults.items():
-            setattr(self.project_ui, key, val)
+        self.project_io.run(action="load_project_defaults")
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
         # -------------------------------------------------------------
-        if self.project_ui.run_script and run_while_training:
-
-            # update paths now that we know which project we're working with
-            self.project_io.run(
-                action="update_paths", project_name=self.project_ui.st_project_name)
-            self.extract_ui.proj_dir = self.project_io.proj_dir
-            self.train_ui.proj_dir = self.project_io.proj_dir
-            self.diagnostics_ui.proj_dir = self.project_io.proj_dir
-            self.diagnostics_ui.config_name = self.project_io.config_name
-            self.label_studio.run(
-                action="update_paths",
-                proj_dir=self.project_io.proj_dir, proj_name=self.project_ui.st_project_name)
-
-            # create/load project
-            if self.project_ui.create_new_project and self.project_ui.count == 0:
-                # create project from scratch
-                self.project_io.run(
-                    action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
-                if self.project_ui.st_keypoints:
-                    # if statement here so that we only run "create_new_project" once we have data
-                    self.label_studio.run(
-                        action="create_labeling_config_xml",
-                        keypoints=self.project_ui.st_keypoints)
-                    self.label_studio.run(action="create_new_project")
-                    # allow app to advance
-                    self.project_ui.count += 1
-                    self.project_ui.run_script = False
-            else:
-                # project already created
-                if self.project_ui.count == 0:
-                    # load project configuration from config file
-                    self.project_io.run(
-                        action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
-                    # copy project defaults into UI
-                    for key, val in self.project_io.proj_defaults.items():
-                        setattr(self.project_ui, key, val)
-                    # update label studio object
-                    self.label_studio.keypoints = self.project_ui.st_keypoints
-                    # allow app to advance
-                    self.project_ui.count += 1
-                    self.project_ui.run_script = False
-                else:
-                    # update project
-                    self.project_io.run(
-                        action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
-                    # allow app to advance
-                    self.project_ui.count += 1
-                    self.project_ui.run_script = False
-
-        # -------------------------------------------------------------
-        # extract frames for labeling from uploaded videos
-        # -------------------------------------------------------------
-        if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
-            self.litpose.run(
-                action="start_extract_frames",
-                video_files=self.extract_ui.st_video_files,
-                proj_dir=self.extract_ui.proj_dir,
-                n_frames_per_video=self.extract_ui.st_n_frames_per_video,
-            )
-            # wait until litpose is done extracting frames, then update tasks
-            if self.litpose.work_is_done_extract_frames:
-                self.project_io.run(action="update_frame_shapes")
-                self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
-                self.extract_ui.run_script = False
-
-        # -------------------------------------------------------------
-        # check labeling task and export new labels
-        # -------------------------------------------------------------
-        if self.project_ui.count > 0 and run_while_training:
-            t_elapsed = 15  # seconds
-            t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
-            if self.schedule(f"* * * * * {t_elapsed_list}"):
-                # only true for a single flow execution every n seconds; capture event in state var
-                self.label_studio.check_labels = True
-                self.label_studio.time = time.time()
-            if self.label_studio.check_labels:
-                self.label_studio.run(
-                    action="check_labeling_task_and_export", timer=self.label_studio.time)
-                self.project_io.run(
-                    action="compute_labeled_frame_fraction", timer=self.label_studio.time)
-                self.train_ui.n_labeled_frames = self.project_io.n_labeled_frames
-                self.train_ui.n_total_frames = self.project_io.n_total_frames
-                self.label_studio.check_labels = False
+        self.train_ui.proj_dir = self.project_io.proj_dir
+        self.diagnostics_ui.proj_dir = self.project_io.proj_dir
+        self.diagnostics_ui.config_name = self.project_io.config_name
 
         # -------------------------------------------------------------
         # train models on ui button press
@@ -357,24 +235,15 @@ class LitPoseApp(LightningFlow):
             self.project_io.update_models = False
             self.update_trained_models_list(timer=self.train_ui.count)
 
-        # # -------------------------------------------------------------
-        # # update models on ui button press
-        # # -------------------------------------------------------------
-        # if self.train_ui.run_script_update_models:
-        #     print("--------------------")
-        #     print("UPDATING MODELS HERE!!")
-        #     print("--------------------")
-        #     self.update_trained_models_dict(search_dir=self.project_io.model_dir)
-        #     self.train_ui.run_script_update_models = False
-
         # -------------------------------------------------------------
         # run inference on ui button press (single model, multiple vids)
         # -------------------------------------------------------------
         if self.train_ui.run_script_infer and run_while_training:
-            self.run_inference(
-                model=self.train_ui.st_inference_model,
-                videos=self.train_ui.st_inference_videos,
-            )
+            print("Cannot run inference in demo right now")
+            # self.run_inference(
+            #     model=self.train_ui.st_inference_model,
+            #     videos=self.train_ui.st_inference_videos,
+            # )
             self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
@@ -388,12 +257,6 @@ class LitPoseApp(LightningFlow):
 
     def configure_layout(self):
 
-        # init tabs
-        landing_tab = {"name": "Home", "content": self.landing_ui}
-        project_tab = {"name": "Manage Project", "content": self.project_ui}
-        extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
-
         # training tabs
         train_tab = {"name": "Train/Infer", "content": self.train_ui}
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
@@ -404,41 +267,14 @@ class LitPoseApp(LightningFlow):
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
 
-        if self.landing_ui.st_mode == "demo":
-            return [
-                landing_tab,
-                train_tab,
-                # train_status_tab,
-                # diagnostics_prep_tab,
-                # fo_tab,
-                # st_frame_tab,
-                # st_video_tab,
-            ]
-
-        # elif self.landing_ui.st_mode == "project":
-        # if not self.extract_ui.proj_dir:
-        #     # need to create/load new project before moving on to other tabs
-        #     return [
-        #         # landing_tab,
-        #         project_tab,
-        #     ]
-        # else:
-        #     # show all tabs
-        #     return [
-        #         # landing_tab,
-        #         project_tab,
-        #         extract_tab,
-        #         annotate_tab,
-        #         train_tab,
-        #         train_status_tab,
-        #         diagnostics_prep_tab,
-        #         fo_tab,
-        #         # st_frame_tab,
-        #         # st_video_tab,
-        #     ]
-
-        else:
-            return [landing_tab]
+        return [
+            train_tab,
+            # train_status_tab,
+            # diagnostics_prep_tab,
+            # fo_tab,
+            # st_frame_tab,
+            # st_video_tab,
+        ]
 
 
 app = LightningApp(LitPoseApp())

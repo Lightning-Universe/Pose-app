@@ -28,18 +28,18 @@ class DiagnosticsUI(LightningFlow):
         )
 
         # streamlit labeled worker
-        self.st_frame_work = LitBashWork(
-            cloud_compute=CloudCompute("default"),
-            cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-            drive_name=drive_name,
-        )
+        # self.st_frame_work = LitBashWork(
+        #     cloud_compute=CloudCompute("default"),
+        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
+        #     drive_name=drive_name,
+        # )
 
-        # streamlit video worker
-        self.st_video_work = LitBashWork(
-            cloud_compute=CloudCompute("default"),
-            cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-            drive_name=drive_name,
-        )
+        # # streamlit video worker
+        # self.st_video_work = LitBashWork(
+        #     cloud_compute=CloudCompute("default"),
+        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
+        #     drive_name=drive_name,
+        # )
 
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
