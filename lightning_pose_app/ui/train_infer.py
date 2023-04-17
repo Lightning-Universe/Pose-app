@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from lightning import LightningFlow
-from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
 import os
@@ -12,9 +11,7 @@ import time
 
 from lightning_pose_app.utilities import StreamlitFrontend
 
-
 st.set_page_config(layout="wide")
-IS_RUNNING_IN_CLOUD = is_running_in_cloud()
 
 
 class TrainUI(LightningFlow):
@@ -223,19 +220,8 @@ def _render_streamlit_fn(state: AppState):
             """
         )
 
-        # st_submit_button_update = st.button(
-        #     "Update models",
-        #     disabled=state.run_script_update_models,
-        # )
-        # if state.run_script_update_models:
-        #     st.warning(f"waiting for updates to finish")
-        # st.text(state.run_script_update_models)
-        # if st_submit_button_update:
-        #     st.text("Request submitted!")
-        #     state.run_script_update_models = True  # must the last to prevent race condition
-        #     st.text(state.run_script_update_models)
-
-        model_dir = st.selectbox("Choose model to run inference", sorted(state.trained_models, reverse=True))
+        model_dir = st.selectbox(
+            "Choose model to run inference", sorted(state.trained_models, reverse=True))
 
         # upload video files
         video_dir = os.path.join(state.proj_dir, "videos")

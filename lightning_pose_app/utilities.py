@@ -25,7 +25,7 @@ def dict_to_args(script_args_dict: dict) -> str:
 
 
 class StreamlitFrontend(LitStreamlitFrontend):
-    """VSC requires output to auto forward port"""
+    """Provide helpful print statements for where streamlit tabs are forwarded."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

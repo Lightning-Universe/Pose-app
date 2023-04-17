@@ -75,11 +75,7 @@ class ProjectDataIO(LightningWork):
             print(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
-        print(f"putting {file_or_dir} to drive")
-        drive_files = self.drive.list(os.path.dirname(file_or_dir))
-        # TODO: this is bad! will not overwrite files. just a hack for now
-        if os.path.basename(file_or_dir) not in drive_files:
-            self.drive.put(file_or_dir)
+        self.drive.put(file_or_dir)
         # clean up the local object
         if remove_local:
             if os.path.isfile(file_or_dir):

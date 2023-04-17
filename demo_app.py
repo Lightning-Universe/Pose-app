@@ -40,7 +40,7 @@ class LitPoseApp(LightningFlow):
         # paths
         # -----------------------------
         config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
-        data_dir = "data"  # relative to self.drive
+        self.data_dir = "data"  # relative to self.drive
 
         # load default config and pass to project manager
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
@@ -49,18 +49,19 @@ class LitPoseApp(LightningFlow):
         # flows and works
         # -----------------------------
         # landing tab (flow)
-        # self.landing_ui = LandingUI()
+        self.landing_ui = LandingUI()
 
         # project manager (work) and tab (flow)
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
-            data_dir=data_dir,
+            data_dir=self.data_dir,
             default_config_dict=default_config_dict,
         )
-        # self.project_ui = ProjectUI(data_dir=data_dir)
 
         # training tab (flow)
         self.train_ui = TrainUI(drive_name=drive_name)
+        self.train_ui.n_labeled_frames = 10
+        self.train_ui.n_total_frames = 10
 
         # diagnostics tab (flow + work)
         self.diagnostics_ui = DiagnosticsUI(drive_name=drive_name)
@@ -78,14 +79,6 @@ class LitPoseApp(LightningFlow):
             cloud_compute=CloudCompute("gpu"),
             drive_name=drive_name,
         )
-
-    # @property
-    # def ready(self) -> bool:
-    #     """Return true once all works have an assigned url"""
-    #     return all([
-    #         self.my_tb.url != "",
-    #         self.my_work.url != "",
-    #         self.label_studio.label_studio.url != ""])
 
     def start_tensorboard(self, logdir):
         """run tensorboard"""
@@ -168,7 +161,7 @@ class LitPoseApp(LightningFlow):
         if os.environ.get("TESTING_LAI"):
             print("⚡ Lightning Pose App! ⚡")
 
-        # don't interfere /w train; since all Works use the same filesystem when running locally,
+        # don't interfere w/ train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
         if not is_running_in_cloud() and self.train_ui.run_script_train:
@@ -181,12 +174,12 @@ class LitPoseApp(LightningFlow):
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
-        self.diagnostics_ui.run(action="find_fiftyone_datasets")
+        # self.diagnostics_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
         # init background services once
         # -------------------------------------------------------------
-        self.diagnostics_ui.run(action="start_fiftyone")
+        # self.diagnostics_ui.run(action="start_fiftyone")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
@@ -197,16 +190,16 @@ class LitPoseApp(LightningFlow):
         # update paths if we know which project we're working with
         self.project_io.run(action="update_paths", project_name="demo")
 
-        # here we copy the toy dataset config file that comes packaged with the lightning-pose repo and
-        # move it to a new directory that is consistent with the project structure the app expects
+        # here we copy the toy dataset config file that comes packaged with the lightning-pose repo 
+        # and move it to a new directory that is consistent with the project structure the app 
+        # expects
         # we then write that newly copied config file to the Drive so other Works have access
-        toy_config_file_src = os.path.join(os.getcwd(), lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
-        toy_config_file_dst = os.path.join(os.getcwd(), "data", "demo", "model_config_demo.yaml")  # TODO: don't hard-code "data"
+        toy_config_file_src = os.path.join(
+            os.getcwd(), lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
+        toy_config_file_dst = os.path.join(self.data_dir, "demo", "model_config_demo.yaml")
         self.project_io._copy_file(toy_config_file_src, toy_config_file_dst)
-        # self.project_io._put_to_drive_remove_local(toy_config_file_dst, remove_local=False)
-        self.project_io.run(action="put_file_to_drive", file_or_dir=toy_config_file_dst, remove_local=False)
-        # load project configuration from defaults
-        self.project_io.run(action="load_project_defaults")
+        self.project_io.run(
+            action="put_file_to_drive", file_or_dir=toy_config_file_dst, remove_local=False)
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
@@ -250,24 +243,28 @@ class LitPoseApp(LightningFlow):
         # initialize diagnostics on button press
         # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
-            self.diagnostics_ui.run(action="build_fiftyone_dataset")
+            pass
+            # self.diagnostics_ui.run(action="build_fiftyone_dataset")
             # self.diagnostics_ui.run(action="start_st_frame")
             # self.diagnostics_ui.run(action="start_st_video")
             self.diagnostics_ui.run_script = False
 
     def configure_layout(self):
 
+        # landing_tab = {"name": "Hello", "content": self.landing_ui}
+
         # training tabs
-        train_tab = {"name": "Train/Infer", "content": self.train_ui}
-        train_status_tab = {"name": "Train Status", "content": self.tensorboard}
+        train_tab = {"name": "Train Infer", "content": self.train_ui}
+        # train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
-        fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
+        # diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
+        # fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
 
         return [
+            # landing_tab,
             train_tab,
             # train_status_tab,
             # diagnostics_prep_tab,
