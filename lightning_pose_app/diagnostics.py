@@ -3,6 +3,7 @@ from lightning.app.utilities.state import AppState
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_dir
@@ -28,18 +29,18 @@ class DiagnosticsUI(LightningFlow):
         )
 
         # streamlit labeled worker
-        # self.st_frame_work = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-        #     drive_name=drive_name,
-        # )
+        self.st_frame_work = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+            cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
+            drive_name=drive_name,
+        )
 
-        # # streamlit video worker
-        # self.st_video_work = LitBashWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     cloud_build_config=StreamlitBuildConfig(),  # this may not be necessary
-        #     drive_name=drive_name,
-        # )
+        # streamlit video worker
+        self.st_video_work = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+            cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
+            drive_name=drive_name,
+        )
 
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
@@ -113,85 +114,45 @@ class DiagnosticsUI(LightningFlow):
     def start_st_frame(self):
         """run streamlit for labeled frames"""
 
-        # set labeled csv
-        csv_file = os.path.join(self.proj_dir, "CollectedData.csv")
-        labeled_csv_args = f"--labels_csv={csv_file}"
-
-        # set prediction files (hard code some paths for now)
-        prediction_file_args = ""
+        # set model folders
+        model_folder_args = ""
         for model_dir in self.st_model_dirs:
-            abs_file = os.path.join(self.proj_dir, "models", model_dir, "predictions.csv")
-            prediction_file_args += f" --prediction_files={abs_file}"
+            abs_file = os.path.join(self.proj_dir, "models", model_dir)
+            model_folder_args += f" --model_folders={abs_file}"
 
         # set model names
         model_name_args = ""
         for name in self.st_model_display_names:
             model_name_args += f" --model_names={name}"
 
-        # set data config (take config from first selected model)
-        cfg_file = os.path.join(
-            self.proj_dir, "models", self.st_model_dirs[0], ".hydra", "config.yaml")
-
-        # replace relative paths of example dataset
-        cfg = yaml.safe_load(open(cfg_file))
-        if not os.path.isabs(cfg["data"]["data_dir"]):
-            cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
-                lightning_pose_dir, cfg["data"]["data_dir"]))
-        # resave file
-        yaml.safe_dump(cfg, open(cfg_file, "w"))
-
-        data_cfg_args = f" --data_cfg={cfg_file}"
-
         cmd = "streamlit run lightning_pose/apps/labeled_frame_diagnostics.py" \
-              + " --server.address {host} --server.port {port}" \
+              + " --server.address $host --server.port $port" \
               + " -- " \
-              + " " + labeled_csv_args \
-              + " " + prediction_file_args \
-              + " " + model_name_args \
-              + " " + data_cfg_args
+              + " " + model_folder_args \
+              + " " + model_name_args
+
         self.st_frame_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
 
     def start_st_video(self):
         """run streamlit for videos"""
 
-        # start with random video in predictions directory
-        video_file = os.listdir(os.path.join(
-            self.proj_dir, "models", self.di, "video_preds"))[0]
-
-        # set prediction files (hard code some paths for now)
-        # select random video
-        prediction_file_args = ""
+        # set model folders
+        model_folder_args = ""
         for model_dir in self.st_model_dirs:
-            abs_file = os.path.join(
-                self.proj_dir, "models", model_dir, "video_preds", video_file)
-            prediction_file_args += f" --prediction_files={abs_file}"
+            abs_file = os.path.join(self.proj_dir, "models", model_dir)
+            model_folder_args += f" --model_folders={abs_file}"
 
         # set model names
         model_name_args = ""
         for name in self.st_model_display_names:
             model_name_args += f" --model_names={name}"
 
-        # set data config (take config from first selected model)
-        cfg_file = os.path.join(
-            self.proj_dir, "models", self.st_model_dirs[0], ".hydra", "config.yaml")
-
-        # replace relative paths of example dataset
-        cfg = yaml.safe_load(open(cfg_file))
-        if not os.path.isabs(cfg["data"]["data_dir"]):
-            # data_dir = cfg["data"]["data_dir"]
-            cfg["data"]["data_dir"] = os.path.abspath(os.path.join(
-                lightning_pose_dir, cfg["data"]["data_dir"]))
-        # resave file
-        yaml.safe_dump(cfg, open(cfg_file, "w"))
-
-        data_cfg_args = f" --data_cfg={cfg_file}"
-
         cmd = "streamlit run lightning_pose/apps/video_diagnostics.py" \
-              + " --server.address {host} --server.port {port}" \
+              + " --server.address $host --server.port $port" \
               + " -- " \
-              + " " + prediction_file_args \
-              + " " + model_name_args \
-              + " " + data_cfg_args
+              + " " + model_folder_args \
+              + " " + model_name_args
+
         self.st_video_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
 
     def run(self, action, **kwargs):
@@ -267,8 +228,8 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    f = st.checkbox(label="TESTING", value=False)
-    
+    # f = st.checkbox(label="TESTING", value=False)    
+
     # hard-code two models for now
     st_model_dirs = [None for _ in range(2)]
     st_model_display_names = [None for _ in range(2)]
@@ -292,7 +253,8 @@ def _render_streamlit_fn(state: AppState):
     # make model dirs absolute paths
     for i in range(2):
         if st_model_dirs[i] and not os.path.isabs(st_model_dirs[i]):
-            st_model_dirs[i] = os.path.join(os.getcwd(), state.proj_dir, "models", st_model_dirs[i])
+            st_model_dirs[i] = os.path.join(
+                os.getcwd(), state.proj_dir, "models", st_model_dirs[i])
 
     # dataset names
     existing_datasets = state.fiftyone_datasets
@@ -309,7 +271,8 @@ def _render_streamlit_fn(state: AppState):
     if ((st_dataset_name is None) 
             or (st_dataset_name == "") 
             or state.run_script
-            or (st_model_dirs[0] is None or st_model_dirs[1] is None)
+            or (st_model_dirs[0] is None)
+            or (st_model_dirs[1] is None)
         ):
         button_disabled = True
     else:
@@ -317,14 +280,14 @@ def _render_streamlit_fn(state: AppState):
 
     # build dataset
     st_submit_button = st.button("Initialize diagnostics", disabled=button_disabled)
-    
+    # st_submit_button = st.form_submit_button(
+    #     "Initialize diagnostics", disabled=state.run_script)
+
+    # print updates to users
     if state.run_script:
         st.warning(f"waiting for existing dataset creation to finish")
-    if st_model_dirs[0] is None or st_model_dirs[1] is None:
-        st.warning(f"select at least one model to continue")
-    if (st_dataset_name is None) or (st_dataset_name == ""):
+    if st_dataset_name in existing_datasets:
         st.warning(f"enter a unique dataset name to continue")
-
     if state.submit_count > 0 and not state.run_script:
         proceed_str = "Diagnostics are ready to view in the next tabs."
         proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
@@ -351,6 +314,7 @@ def _render_streamlit_fn(state: AppState):
         script_args_append += f" eval.fiftyone.launch_app_from_script=false"
         state.st_script_args_append = script_args_append
 
+        st.text("Request submitted!")
         state.run_script = True  # must the last to prevent race condition
 
         # force rerun to update warnings

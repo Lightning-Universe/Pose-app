@@ -28,6 +28,8 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 # - figure out what to do with landing tab/current markdown
 # - "waiting for existing training to finish" message doesn't disappear
 # - "waiting for existing dataset creation to finish" message doesn't disappear
+# - update fiftyone dataset names properly
+# - be able to update names on streamlit video w/o errors
 
 
 class LitPoseApp(LightningFlow):
@@ -268,13 +270,10 @@ class LitPoseApp(LightningFlow):
         # initialize diagnostics on button press from DiagnosticsUI
         # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
-            print("--- TEST A ----")
             self.diagnostics_ui.run(action="build_fiftyone_dataset")
-            # self.diagnostics_ui.run(action="start_st_frame")
-            # self.diagnostics_ui.run(action="start_st_video")
-            print("--- TEST B ----")
+            self.diagnostics_ui.run(action="start_st_frame")
+            self.diagnostics_ui.run(action="start_st_video")
             self.diagnostics_ui.run_script = False
-            print("--- TEST C ----")
 
     def configure_layout(self):
 
@@ -287,8 +286,8 @@ class LitPoseApp(LightningFlow):
         # diagnostics tabs
         diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
         fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
-        # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
-        # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
+        st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame_work}
+        st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video_work}
 
         return [
             # landing_tab,
@@ -296,8 +295,8 @@ class LitPoseApp(LightningFlow):
             train_status_tab,
             diagnostics_prep_tab,
             fo_tab,
-            # st_frame_tab,
-            # st_video_tab,
+            st_frame_tab,
+            st_video_tab,
         ]
 
 
