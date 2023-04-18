@@ -204,18 +204,21 @@ class LitPoseApp(LightningFlow):
 
         # write demo data to the Drive so other Works have access (run once)
         if not self.demo_data_transferred:
+            # we call the run method twice with two sets of arguments so the run cache will always
+            # be overwritten; therefore if we put these two calls outside of the boolean flag they
+            # will be continuously called as the app is running
             # update config file
             self.project_io.run(
                 action="update_project_config",
                 new_vals_dict={"data": {  # TODO: will this work on cloud?
-                    "data_dir": os.path.join(os.getcwd(), self.data_dir, self.proj_name)}
+                    "data_dir": os.path.join(os.getcwd(), self.project_io.proj_dir)}
                 },
             )
-            # put config file onto Drive
+            # put demo data onto Drive
             self.project_io.run(
                 action="put_file_to_drive", 
-                file_or_dir=os.path.join(self.data_dir, self.proj_name), 
-                remove_local=False
+                file_or_dir=self.project_io.proj_dir, 
+                remove_local=False,
             )
             print("Demo data transferred to Drive")
             self.demo_data_transferred = True
@@ -262,14 +265,16 @@ class LitPoseApp(LightningFlow):
             self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
-        # initialize diagnostics on button press
+        # initialize diagnostics on button press from DiagnosticsUI
         # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
-            pass
+            print("--- TEST A ----")
             self.diagnostics_ui.run(action="build_fiftyone_dataset")
             # self.diagnostics_ui.run(action="start_st_frame")
             # self.diagnostics_ui.run(action="start_st_video")
+            print("--- TEST B ----")
             self.diagnostics_ui.run_script = False
+            print("--- TEST C ----")
 
     def configure_layout(self):
 

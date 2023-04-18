@@ -60,7 +60,7 @@ class DiagnosticsUI(LightningFlow):
         self.st_script_args = """
             eval.fiftyone.dataset_to_create="images"
             eval.fiftyone.build_speed="fast"
-            eval.fiftyone.remote=false
+            eval.fiftyone.remote=true
         """
         self.st_script_args_append = None
         self.st_model_display_names = None
@@ -100,7 +100,12 @@ class DiagnosticsUI(LightningFlow):
               + " " + self.st_script_args \
               + " " + "eval.fiftyone.dataset_to_create=images" \
               + " " + "+eval.fiftyone.n_dirs_back=6"  # hack
-        self.fiftyone.run(cmd, cwd=lightning_pose_dir, timer=self.st_dataset_name)
+        self.fiftyone.run(
+            cmd, 
+            cwd=lightning_pose_dir, 
+            timer=self.st_dataset_name,
+            inputs=[os.path.join(self.proj_dir, self.config_name)],
+        )
 
         # add dataset name to list for user to see
         self.fiftyone_datasets.append(self.st_dataset_name)
@@ -235,6 +240,9 @@ def set_script_args(model_dirs: [str], script_args: str):
 def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset"""
 
+    # force rerun to update page
+    # st_autorefresh(interval=2000, key="refresh_page")
+
     st.markdown(
         """
         ## Prepare diagnostics
@@ -259,6 +267,8 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
+    f = st.checkbox(label="TESTING", value=False)
+    
     # hard-code two models for now
     st_model_dirs = [None for _ in range(2)]
     st_model_display_names = [None for _ in range(2)]
@@ -296,11 +306,18 @@ def _render_streamlit_fn(state: AppState):
     st_script_args, script_args_dict = set_script_args(
         model_dirs=st_model_dirs, script_args=state.st_script_args)
 
+    if ((st_dataset_name is None) 
+            or (st_dataset_name == "") 
+            or state.run_script
+            or (st_model_dirs[0] is None or st_model_dirs[1] is None)
+        ):
+        button_disabled = True
+    else:
+        button_disabled = False
+
     # build dataset
-    st_submit_button = st.button(
-        "Initialize diagnostics",
-        disabled=True if ((st_dataset_name is None) or (st_dataset_name == "") or state.run_script)
-        else False)
+    st_submit_button = st.button("Initialize diagnostics", disabled=button_disabled)
+    
     if state.run_script:
         st.warning(f"waiting for existing dataset creation to finish")
     if st_model_dirs[0] is None or st_model_dirs[1] is None:
@@ -308,12 +325,18 @@ def _render_streamlit_fn(state: AppState):
     if (st_dataset_name is None) or (st_dataset_name == ""):
         st.warning(f"enter a unique dataset name to continue")
 
-    # Lightning way of returning the parameters
+    if state.submit_count > 0 and not state.run_script:
+        proceed_str = "Diagnostics are ready to view in the next tabs."
+        proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+        st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+
+    # this will only be run once when the user clicks the button; 
+    # on the following pass the button click will be set to False again
     if st_submit_button:
 
         state.submit_count += 1
 
-        # save streamlit options to flow object
+        # save streamlit options to flow object only on button click
         state.st_dataset_name = st_dataset_name
         state.st_model_display_names = st_model_display_names
         state.st_model_dirs = st_model_dirs
@@ -330,5 +353,5 @@ def _render_streamlit_fn(state: AppState):
 
         state.run_script = True  # must the last to prevent race condition
 
-        # force rerun
+        # force rerun to update warnings
         st_autorefresh(interval=2000, key="refresh_diagnostics_submitted")
