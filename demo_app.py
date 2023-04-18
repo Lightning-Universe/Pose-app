@@ -26,6 +26,8 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 # - figure out what to do about inference
 # - figure out what to do with landing tab/current markdown
+# - "waiting for existing training to finish" message doesn't disappear
+# - "waiting for existing dataset creation to finish" message doesn't disappear
 
 
 class LitPoseApp(LightningFlow):
@@ -62,8 +64,8 @@ class LitPoseApp(LightningFlow):
 
         # training tab (flow)
         self.train_ui = TrainUI(drive_name=drive_name)
-        self.train_ui.n_labeled_frames = 10
-        self.train_ui.n_total_frames = 10
+        self.train_ui.n_labeled_frames = 90  # hard-code these values for now
+        self.train_ui.n_total_frames = 90
 
         # diagnostics tab (flow + work)
         self.diagnostics_ui = DiagnosticsUI(drive_name=drive_name)
@@ -90,7 +92,7 @@ class LitPoseApp(LightningFlow):
         # structure the app expects
         # later we will write that newly copied data to the Drive so other Works have access
 
-        # config file
+        # copy config file
         toy_config_file_src = os.path.join(
             lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
         toy_config_file_dst = os.path.join(self.data_dir, self.proj_name, "model_config_demo.yaml")
@@ -181,8 +183,6 @@ class LitPoseApp(LightningFlow):
 
     def run(self):
 
-        print("--------- HERE 0 -----------")
-
         # for unit testing purposes
         if os.environ.get("TESTING_LAI"):
             print("⚡ Lightning Pose App! ⚡")
@@ -193,16 +193,6 @@ class LitPoseApp(LightningFlow):
         if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
 
-        # write demo data to the Drive so other Works have access (run once)
-        if not self.demo_data_transferred:
-            self.project_io.run(
-                action="put_file_to_drive", 
-                file_or_dir=os.path.join(self.data_dir, self.proj_name), 
-                remove_local=False
-            )
-            print("Demo data transferred to Drive")
-            self.demo_data_transferred = True
-
         # -------------------------------------------------------------
         # update project data
         # -------------------------------------------------------------
@@ -212,21 +202,38 @@ class LitPoseApp(LightningFlow):
         self.diagnostics_ui.proj_dir = self.project_io.proj_dir
         self.diagnostics_ui.config_name = self.project_io.config_name
 
+        # write demo data to the Drive so other Works have access (run once)
+        if not self.demo_data_transferred:
+            # update config file
+            self.project_io.run(
+                action="update_project_config",
+                new_vals_dict={"data": {  # TODO: will this work on cloud?
+                    "data_dir": os.path.join(os.getcwd(), self.data_dir, self.proj_name)}
+                },
+            )
+            # put config file onto Drive
+            self.project_io.run(
+                action="put_file_to_drive", 
+                file_or_dir=os.path.join(self.data_dir, self.proj_name), 
+                remove_local=False
+            )
+            print("Demo data transferred to Drive")
+            self.demo_data_transferred = True
+
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_io.model_dir)
-        # self.diagnostics_ui.run(action="start_fiftyone")
+        self.diagnostics_ui.run(action="start_fiftyone")
 
         # find previously trained models for project, expose to training and diagnostics UIs
-        # self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
+        self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
-        # self.diagnostics_ui.run(action="find_fiftyone_datasets")
-        print("--------- HERE 1 -----------")
+        self.diagnostics_ui.run(action="find_fiftyone_datasets")
+
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
         if self.train_ui.run_script_train:
-            print("--------- HERE 2 -----------")
             self.train_models()
             # have tensorboard pull the new data
             self.tensorboard.run(
@@ -259,7 +266,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
             pass
-            # self.diagnostics_ui.run(action="build_fiftyone_dataset")
+            self.diagnostics_ui.run(action="build_fiftyone_dataset")
             # self.diagnostics_ui.run(action="start_st_frame")
             # self.diagnostics_ui.run(action="start_st_video")
             self.diagnostics_ui.run_script = False
@@ -273,8 +280,8 @@ class LitPoseApp(LightningFlow):
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        # diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
-        # fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
+        diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
+        fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
 
@@ -282,8 +289,8 @@ class LitPoseApp(LightningFlow):
             # landing_tab,
             train_tab,
             train_status_tab,
-            # diagnostics_prep_tab,
-            # fo_tab,
+            diagnostics_prep_tab,
+            fo_tab,
             # st_frame_tab,
             # st_video_tab,
         ]

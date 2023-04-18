@@ -281,8 +281,7 @@ def _render_streamlit_fn(state: AppState):
 
     # make model dirs absolute paths
     for i in range(2):
-        # TODO: this might be empty
-        if not os.path.isabs(st_model_dirs[i]):
+        if st_model_dirs[i] and not os.path.isabs(st_model_dirs[i]):
             st_model_dirs[i] = os.path.join(os.getcwd(), state.proj_dir, "models", st_model_dirs[i])
 
     # dataset names
