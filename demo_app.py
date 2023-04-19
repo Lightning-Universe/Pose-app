@@ -29,7 +29,6 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 # - streamlit issues (thomas is looking into this)
 #   - "waiting for existing training to finish" message doesn't disappear
 #   - "waiting for existing dataset creation to finish" message doesn't disappear
-# - be able to update names on streamlit video w/o errors
 # - slider for threshold in labeled streamlit app
 
 
