@@ -26,10 +26,11 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 # - figure out what to do about inference
 # - figure out what to do with landing tab/current markdown
-# - "waiting for existing training to finish" message doesn't disappear
-# - "waiting for existing dataset creation to finish" message doesn't disappear
-# - update fiftyone dataset names properly
+# - streamlit issues (thomas is looking into this)
+#   - "waiting for existing training to finish" message doesn't disappear
+#   - "waiting for existing dataset creation to finish" message doesn't disappear
 # - be able to update names on streamlit video w/o errors
+# - slider for threshold in labeled streamlit app
 
 
 class LitPoseApp(LightningFlow):
@@ -228,7 +229,6 @@ class LitPoseApp(LightningFlow):
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_io.model_dir)
         self.diagnostics_ui.run(action="start_fiftyone")
-
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 

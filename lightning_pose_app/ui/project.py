@@ -80,17 +80,14 @@ class ProjectDataIO(LightningWork):
             print(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
-        print("======================")
         print(f"put to drive {file_or_dir}")
         if os.path.isfile(file_or_dir):
-            print("put file")
+            # print("put file")
             self.drive.put(file_or_dir)
         elif os.path.isdir(file_or_dir):
-            print("put dir")
+            # print("put dir")
             files_local = os.listdir(file_or_dir)
-            print(files_local)
             existing_files = self.drive.list(file_or_dir)
-            print(existing_files)
             for file_or_dir_local in files_local:
                 rel_path = os.path.join(file_or_dir, file_or_dir_local)
                 if rel_path not in existing_files:

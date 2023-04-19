@@ -26,6 +26,7 @@ class DiagnosticsUI(LightningFlow):
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # get fiftyone
             drive_name=drive_name,
+            wait_seconds_after_run=1,
         )
 
         # streamlit labeled worker
@@ -80,7 +81,9 @@ class DiagnosticsUI(LightningFlow):
         # seems lke overkill? the datasets are quick to make and users probably don't care so much
         # about these datasets; can return to this later
         cmd = "fiftyone datasets list"
-        self.fiftyone.run(cmd)
+        self.fiftyone.run(cmd, save_stdout=True)
+        print(self.fiftyone.last_args())
+        print(cmd)
         if self.fiftyone.last_args() == cmd:
             names = []
             for x in self.fiftyone.stdout:
@@ -157,7 +160,7 @@ class DiagnosticsUI(LightningFlow):
 
     def run(self, action, **kwargs):
 
-        if action == "find_fiftyone_datsets":
+        if action == "find_fiftyone_datasets":
             self.find_fiftyone_datasets()
         elif action == "start_fiftyone":
             self.start_fiftyone()
@@ -285,7 +288,8 @@ def _render_streamlit_fn(state: AppState):
 
     # print updates to users
     if state.run_script:
-        st.warning(f"waiting for existing dataset creation to finish")
+        st.warning(f"waiting for existing dataset creation to finish; "
+                   f"proceed to next tab (may take 30 seconds to update)")
     if st_dataset_name in existing_datasets:
         st.warning(f"enter a unique dataset name to continue")
     if state.submit_count > 0 and not state.run_script:
