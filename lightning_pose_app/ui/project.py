@@ -36,8 +36,13 @@ class ProjectDataIO(LightningWork):
         self.data_dir = data_dir
 
         self.initialized_projects = []
-        self.proj_defaults = {}
-
+        self.proj_defaults = {
+            "st_n_views": 0,
+            "st_keypoints": [],
+            "st_n_keypoints": 0,
+            "st_pcasv_columns": [],
+            "st_pcamv_columns": [],
+        }
         self.proj_dir = None
         self.config_name = None
         self.config_file = None
@@ -74,14 +79,62 @@ class ProjectDataIO(LightningWork):
         else:
             print(f"loading local version of {file_or_dir}")
 
-    def _put_to_drive_remove_local(self, file_or_dir):
-        print(f"putting {file_or_dir} to drive")
-        self.drive.put(file_or_dir)
-        # clean up the local object
+    def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
+        print(f"put to drive {file_or_dir}")
         if os.path.isfile(file_or_dir):
-            os.remove(file_or_dir)
-        else:
-            shutil.rmtree(file_or_dir)
+            # print("put file")
+            self.drive.put(file_or_dir)
+        elif os.path.isdir(file_or_dir):
+            # print("put dir")
+            files_local = os.listdir(file_or_dir)
+            existing_files = self.drive.list(file_or_dir)
+            for file_or_dir_local in files_local:
+                rel_path = os.path.join(file_or_dir, file_or_dir_local)
+                if rel_path not in existing_files:
+                    self.drive.put(rel_path)
+                else:
+                    print(f"{rel_path} already exists on Drive! not updating")
+        # clean up the local object
+        if remove_local:
+            if os.path.isfile(file_or_dir):
+                os.remove(file_or_dir)
+            else:
+                shutil.rmtree(file_or_dir)
+
+    @staticmethod
+    def _copy_file(src_path, dst_path):
+        """Copy a file from the source path to the destination path."""
+        try:
+            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+            if not os.path.isfile(dst_path):
+                shutil.copy(src_path, dst_path)
+                print(f"File copied from {src_path} to {dst_path}")
+            else:
+                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
+        except IOError as e:
+            print(f"Unable to copy file. {e}")
+
+    def _copy_dir(self, src_path, dst_path):
+        """Copy a directory from the source path to the destination path."""
+        try:
+            os.makedirs(dst_path, exist_ok=True)
+            src_files_or_dirs = os.listdir(src_path)
+            for src_file_or_dir in src_files_or_dirs:
+                if os.path.isfile(os.path.join(src_path, src_file_or_dir)):
+                    self._copy_file(
+                        os.path.join(src_path, src_file_or_dir),
+                        os.path.join(dst_path, src_file_or_dir),
+                    )
+                else:
+                    src_dir = os.path.join(src_path, src_file_or_dir)
+                    dst_dir = os.path.join(dst_path, src_file_or_dir)
+                    if not os.path.isdir(dst_dir):
+                        shutil.copytree(src_dir, dst_dir)
+                        print(f"Directory copied from {src_dir} to {dst_dir}")
+                    else:
+                        print(f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
+        except IOError as e:
+            print(f"Unable to copy directory. {e}")
 
     def find_initialized_projects(self):
         # for some reason adding "component_name" arg isn't working
@@ -211,40 +264,36 @@ class ProjectDataIO(LightningWork):
         if self.config_file:
             self._get_from_drive_if_not_local(self.config_file)
 
-        # check to see if config exists; set default values if not
-        if (self.config_file is None) or (not os.path.exists(self.config_file)):
-            # reset values
-            st_n_views = 0
-            st_keypoints = []
-            st_n_keypoints = 0
-            st_pcasv_columns = []
-            st_pcamv_columns = []
-        else:
+        # check to see if config exists
+        if self.config_file and os.path.exists(self.config_file):
             # set values from config
             config_dict = yaml.safe_load(open(self.config_file))
+
             st_keypoints = config_dict["data"]["keypoints"]
             st_n_keypoints = config_dict["data"]["num_keypoints"]
             st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
             st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
             st_n_views = 1 if st_pcamv_columns is None else len(st_pcamv_columns)
 
-        self.proj_defaults = {
-            "st_n_views": st_n_views,
-            "st_keypoints": st_keypoints,
-            "st_n_keypoints": st_n_keypoints,
-            "st_pcasv_columns": st_pcasv_columns,
-            "st_pcamv_columns": st_pcamv_columns,
-        }
+            self.proj_defaults = {
+                "st_n_views": st_n_views,
+                "st_keypoints": st_keypoints,
+                "st_n_keypoints": st_n_keypoints,
+                "st_pcasv_columns": st_pcasv_columns,
+                "st_pcamv_columns": st_pcamv_columns,
+            }
 
     def update_trained_models_list(self, **kwargs):
 
         if self.model_dir:
             trained_models = []
-            dirs = self.drive.list(self.model_dir)
-            for dir in dirs:
-                dirs_ = self.drive.list(dir)
-                for dir_ in dirs_:
-                    trained_models.append('/'.join(dir_.split('/')[-2:]))
+            # this returns a list of model training days
+            dirs_day = self.drive.list(self.model_dir)
+            # loop over days and find HH-MM-SS
+            for dir_day in dirs_day:
+                dirs_time = self.drive.list(dir_day)
+                for dir_time in dirs_time:
+                    trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
 
     def run(self, action, **kwargs):
@@ -263,6 +312,8 @@ class ProjectDataIO(LightningWork):
             self.load_project_defaults(**kwargs)
         elif action == "update_trained_models_list":
             self.update_trained_models_list(**kwargs)
+        elif action == "put_file_to_drive":
+            self._put_to_drive_remove_local(**kwargs)
 
 
 class ProjectUI(LightningFlow):

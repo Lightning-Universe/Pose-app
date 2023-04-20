@@ -43,10 +43,10 @@ class TensorboardBuildConfig(BuildConfig):
         ]
 
 
-class StreamlitBuildConfig(BuildConfig):
+# class StreamlitBuildConfig(BuildConfig):
 
-    @staticmethod
-    def build_commands() -> List[str]:
-        return [
-            "pip install -e ."
-        ]
+#     @staticmethod
+#     def build_commands() -> List[str]:
+#         return [
+#             "pip install -e ."
+#         ]

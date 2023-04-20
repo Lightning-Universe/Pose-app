@@ -71,11 +71,3 @@ def _render_streamlit_fn(state: AppState):
         state.st_proceed_str = proceed_str.format(state.st_action)
     if state.st_mode == "project":
         st.markdown(proceed_fmt % state.st_proceed_str, unsafe_allow_html=True)
-
-    # button_new = st.button("Load project")
-    # if button_new:
-    #     state.st_mode = "project"
-    #     state.st_action = "manage your project"
-    #     state.st_proceed_str = proceed_str.format(state.st_action)
-    # if state.st_mode == "project":
-    #     st.markdown(proceed_fmt % state.st_proceed_str, unsafe_allow_html=True)

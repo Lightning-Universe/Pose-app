@@ -53,6 +53,8 @@ class LitPoseApp(LightningFlow):
             default_config_dict=default_config_dict,
         )
         self.project_ui = ProjectUI(data_dir=data_dir)
+        for key, val in self.project_io.proj_defaults.items():
+            setattr(self.project_ui, key, val)
 
         # extract frames tab (flow)
         self.extract_ui = ExtractFramesUI(drive_name=drive_name)
@@ -185,6 +187,7 @@ class LitPoseApp(LightningFlow):
                 if video in self.inference.keys() and self.inference[video].work_is_done_inference:
                     # kill work
                     print(f"killing work from video {video}")
+                    self.inference[video].stop()
                     del self.inference[video]
 
         print("--------------------")
@@ -242,12 +245,13 @@ class LitPoseApp(LightningFlow):
         # update paths if we know which project we're working with
         self.project_io.run(
             action="update_paths", project_name=self.project_ui.st_project_name)
+        # TODO: the following lines can be deleted once it is checked they're no longer necessary
         # load project configuration from defaults
-        self.project_io.run(
-            action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
+        # self.project_io.run(
+        #     action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
         # copy project defaults into UI
-        for key, val in self.project_io.proj_defaults.items():
-            setattr(self.project_ui, key, val)
+        # for key, val in self.project_io.proj_defaults.items():
+        #     setattr(self.project_ui, key, val)
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
@@ -349,7 +353,7 @@ class LitPoseApp(LightningFlow):
                 inputs=[self.project_io.model_dir],
             )
             self.project_io.update_models = True
-            self.train_ui.run_script = False
+            self.train_ui.run_script_train = False
 
         # set the new outputs for UIs
         if self.project_io.update_models:
@@ -403,9 +407,31 @@ class LitPoseApp(LightningFlow):
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
 
-        # if self.landing_ui.st_mode == "demo":
+        if self.landing_ui.st_mode == "demo":
+            return [
+                landing_tab,
+                train_tab,
+                # train_status_tab,
+                # diagnostics_prep_tab,
+                # fo_tab,
+                # st_frame_tab,
+                # st_video_tab,
+            ]
+
+        # elif self.landing_ui.st_mode == "project":
+        # if not self.extract_ui.proj_dir:
+        #     # need to create/load new project before moving on to other tabs
         #     return [
-        #         landing_tab,
+        #         # landing_tab,
+        #         project_tab,
+        #     ]
+        # else:
+        #     # show all tabs
+        #     return [
+        #         # landing_tab,
+        #         project_tab,
+        #         extract_tab,
+        #         annotate_tab,
         #         train_tab,
         #         train_status_tab,
         #         diagnostics_prep_tab,
@@ -413,31 +439,9 @@ class LitPoseApp(LightningFlow):
         #         # st_frame_tab,
         #         # st_video_tab,
         #     ]
-        #
-        # elif self.landing_ui.st_mode == "project":
-        if not self.extract_ui.proj_dir:
-            # need to create/load new project before moving on to other tabs
-            return [
-                # landing_tab,
-                project_tab,
-            ]
-        else:
-            # show all tabs
-            return [
-                # landing_tab,
-                project_tab,
-                extract_tab,
-                annotate_tab,
-                train_tab,
-                train_status_tab,
-                diagnostics_prep_tab,
-                fo_tab,
-                # st_frame_tab,
-                # st_video_tab,
-            ]
 
-        # else:
-        #     return [landing_tab]
+        else:
+            return [landing_tab]
 
 
 app = LightningApp(LitPoseApp())
