@@ -13,10 +13,11 @@ import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.diagnostics import DiagnosticsUI
 from lightning_pose_app.litpose import LitPose
+from lightning_pose_app.ui.fiftyone import FiftyoneUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectDataIO
+from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
@@ -69,8 +70,12 @@ class LitPoseApp(LightningFlow):
         self.train_ui.n_labeled_frames = 90  # hard-code these values for now
         self.train_ui.n_total_frames = 90
 
-        # diagnostics tab (flow + work)
-        self.diagnostics_ui = DiagnosticsUI(drive_name=drive_name)
+        # fiftyone tab (flow + work)
+        self.fiftyone_ui = FiftyoneUI(drive_name=drive_name)
+
+        # streamlit tabs (flow + work)
+        self.streamlit_frame = StreamlitAppLightningPose(drive_name=drive_name, app_type="frame")
+        self.streamlit_video = StreamlitAppLightningPose(drive_name=drive_name, app_type="video")
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
@@ -181,7 +186,7 @@ class LitPoseApp(LightningFlow):
         self.project_io.run(action="update_trained_models_list", timer=timer)
         if self.project_io.trained_models:
             self.train_ui.trained_models = self.project_io.trained_models
-            self.diagnostics_ui.trained_models = self.project_io.trained_models
+            self.fiftyone_ui.trained_models = self.project_io.trained_models
 
     def run(self):
 
@@ -201,8 +206,10 @@ class LitPoseApp(LightningFlow):
         # update paths if we know which project we're working with
         self.project_io.run(action="update_paths", project_name=self.proj_name)
         self.train_ui.proj_dir = self.project_io.proj_dir
-        self.diagnostics_ui.proj_dir = self.project_io.proj_dir
-        self.diagnostics_ui.config_name = self.project_io.config_name
+        self.streamlit_frame.proj_dir = self.project_io.proj_dir
+        self.streamlit_video.proj_dir = self.project_io.proj_dir
+        self.fiftyone_ui.proj_dir = self.project_io.proj_dir
+        self.fiftyone_ui.config_name = self.project_io.config_name
 
         # write demo data to the Drive so other Works have access (run once)
         if not self.demo_data_transferred:
@@ -227,12 +234,14 @@ class LitPoseApp(LightningFlow):
 
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_io.model_dir)
-        self.diagnostics_ui.run(action="start_fiftyone")
+        self.fiftyone_ui.run(action="start_fiftyone")
+        self.streamlit_frame.run()
+        self.streamlit_video.run()
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
-        self.diagnostics_ui.run(action="find_fiftyone_datasets")
+        self.fiftyone_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
         # train models on ui button press
@@ -266,16 +275,11 @@ class LitPoseApp(LightningFlow):
             self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
-        # initialize diagnostics on button press from DiagnosticsUI
+        # build fiftyone dataset on button press from FiftyoneUI
         # -------------------------------------------------------------
-        if self.diagnostics_ui.run_script:
-            print("-------------- before build fiftyone dataset")
-            self.diagnostics_ui.run(action="build_fiftyone_dataset")
-            print("-------------- before start streamlit labeled")
-            self.diagnostics_ui.run(action="start_st_frame")
-            print("-------------- before start streamlit video")
-            self.diagnostics_ui.run(action="start_st_video")
-            self.diagnostics_ui.run_script = False
+        if self.fiftyone_ui.run_script:
+            self.fiftyone_ui.run(action="build_fiftyone_dataset")
+            self.fiftyone_ui.run_script = False
 
     def configure_layout(self):
 
@@ -286,16 +290,16 @@ class LitPoseApp(LightningFlow):
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
-        fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
-        st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame_work}
-        st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video_work}
+        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
+        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
+        st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
+        st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
 
         return [
             # landing_tab,
             train_tab,
             train_status_tab,
-            diagnostics_prep_tab,
+            fo_prep_tab,
             fo_tab,
             st_frame_tab,
             st_video_tab,

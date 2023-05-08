@@ -10,7 +10,7 @@ from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_
 from lightning_pose_app.utilities import args_to_dict, dict_to_args, StreamlitFrontend
 
 
-class DiagnosticsUI(LightningFlow):
+class FiftyoneUI(LightningFlow):
     """UI to run Fiftyone and Streamlit apps."""
 
     def __init__(
@@ -21,28 +21,9 @@ class DiagnosticsUI(LightningFlow):
     ):
         super().__init__(*args, **kwargs)
 
-        # fiftyone worker
-        self.fiftyone = LitBashWork(
+        self.work = LitBashWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # get fiftyone
-            drive_name=drive_name,
-            wait_seconds_after_run=1,
-            wait_seconds_after_kill=1,
-        )
-
-        # streamlit labeled worker
-        self.st_frame_work = LitBashWork(
-            cloud_compute=CloudCompute("default"),
-            cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
-            drive_name=drive_name,
-            wait_seconds_after_run=1,
-            wait_seconds_after_kill=1,
-        )
-
-        # streamlit video worker
-        self.st_video_work = LitBashWork(
-            cloud_compute=CloudCompute("default"),
-            cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
             drive_name=drive_name,
             wait_seconds_after_run=1,
             wait_seconds_after_kill=1,
@@ -70,10 +51,10 @@ class DiagnosticsUI(LightningFlow):
             eval.fiftyone.remote=true
         """
         self.st_script_args_append = None
-        self.st_model_display_names = None
         self.st_submit = False
         self.st_dataset_name = None
-        self.st_model_dirs = None
+        # self.st_model_dirs = None
+        # self.st_model_display_names = None
 
     def start_fiftyone(self):
         """run fiftyone"""
@@ -120,50 +101,6 @@ class DiagnosticsUI(LightningFlow):
         # add dataset name to list for user to see
         self.fiftyone_datasets.append(self.st_dataset_name)
 
-    def start_st_frame(self):
-        """run streamlit for labeled frames"""
-
-        # set model folders
-        model_folder_args = ""
-        for model_dir in self.st_model_dirs:
-            abs_file = os.path.join(self.proj_dir, "models", model_dir)
-            model_folder_args += f" --model_folders={abs_file}"
-
-        # set model names
-        model_name_args = ""
-        for name in self.st_model_display_names:
-            model_name_args += f" --model_names={name}"
-
-        cmd = "streamlit run lightning_pose/apps/labeled_frame_diagnostics.py" \
-              + " --server.address $host --server.port $port" \
-              + " -- " \
-              + " " + model_folder_args \
-              + " " + model_name_args
-
-        self.st_frame_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False, kill_pid=True)
-
-    def start_st_video(self):
-        """run streamlit for videos"""
-
-        # set model folders
-        model_folder_args = ""
-        for model_dir in self.st_model_dirs:
-            abs_file = os.path.join(self.proj_dir, "models", model_dir)
-            model_folder_args += f" --model_folders={abs_file}"
-
-        # set model names
-        model_name_args = ""
-        for name in self.st_model_display_names:
-            model_name_args += f" --model_names={name}"
-
-        cmd = "streamlit run lightning_pose/apps/video_diagnostics.py" \
-              + " --server.address $host --server.port $port" \
-              + " -- " \
-              + " " + model_folder_args \
-              + " " + model_name_args
-
-        self.st_video_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False, kill_pid=True)
-
     def run(self, action, **kwargs):
 
         if action == "find_fiftyone_datasets":
@@ -172,10 +109,6 @@ class DiagnosticsUI(LightningFlow):
             self.start_fiftyone()
         elif action == "build_fiftyone_dataset":
             self.build_fiftyone_dataset()
-        elif action == "start_st_frame":
-            self.start_st_frame()
-        elif action == "start_st_video":
-            self.start_st_video()
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -289,8 +222,6 @@ def _render_streamlit_fn(state: AppState):
 
     # build dataset
     st_submit_button = st.button("Initialize diagnostics", disabled=button_disabled)
-    # st_submit_button = st.form_submit_button(
-    #     "Initialize diagnostics", disabled=state.run_script)
 
     # print updates to users
     if state.run_script:
@@ -311,8 +242,8 @@ def _render_streamlit_fn(state: AppState):
 
         # save streamlit options to flow object only on button click
         state.st_dataset_name = st_dataset_name
-        state.st_model_display_names = st_model_display_names
-        state.st_model_dirs = st_model_dirs
+        # state.st_model_display_names = st_model_display_names
+        # state.st_model_dirs = st_model_dirs
         state.st_script_args = st_script_args
 
         # set key-value pairs that will be used as script args
