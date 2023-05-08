@@ -27,6 +27,7 @@ class DiagnosticsUI(LightningFlow):
             cloud_build_config=LitPoseBuildConfig(),  # get fiftyone
             drive_name=drive_name,
             wait_seconds_after_run=1,
+            wait_seconds_after_kill=1,
         )
 
         # streamlit labeled worker
@@ -34,6 +35,8 @@ class DiagnosticsUI(LightningFlow):
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
             drive_name=drive_name,
+            wait_seconds_after_run=1,
+            wait_seconds_after_kill=1,
         )
 
         # streamlit video worker
@@ -41,6 +44,8 @@ class DiagnosticsUI(LightningFlow):
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
             drive_name=drive_name,
+            wait_seconds_after_run=1,
+            wait_seconds_after_kill=1,
         )
 
         # control runners
@@ -82,16 +87,17 @@ class DiagnosticsUI(LightningFlow):
         # about these datasets; can return to this later
         cmd = "fiftyone datasets list"
         self.fiftyone.run(cmd, save_stdout=True)
-        print(self.fiftyone.last_args())
-        print(cmd)
         if self.fiftyone.last_args() == cmd:
             names = []
+            print(self.fiftyone.stdout)
             for x in self.fiftyone.stdout:
                 if x.endswith("No datasets found"):
                     continue
                 if x.startswith("Migrating database"):
                     continue
                 if x.endswith("python"):
+                    continue
+                if x in names:
                     continue
                 names.append(x)
             self.fiftyone_datasets = names
@@ -134,7 +140,7 @@ class DiagnosticsUI(LightningFlow):
               + " " + model_folder_args \
               + " " + model_name_args
 
-        self.st_frame_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
+        self.st_frame_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False, kill_pid=True)
 
     def start_st_video(self):
         """run streamlit for videos"""
@@ -156,7 +162,7 @@ class DiagnosticsUI(LightningFlow):
               + " " + model_folder_args \
               + " " + model_name_args
 
-        self.st_video_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
+        self.st_video_work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False, kill_pid=True)
 
     def run(self, action, **kwargs):
 

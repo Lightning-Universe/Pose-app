@@ -1,3 +1,4 @@
+import errno
 from functools import partial
 import lightning.app as L
 from lightning.app.storage.drive import Drive
@@ -5,6 +6,7 @@ from lightning.app.utilities.app_helpers import _collect_child_process_pids
 import os
 import shlex
 import signal
+import socket
 from string import Template
 import subprocess
 import threading

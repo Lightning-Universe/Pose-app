@@ -269,8 +269,11 @@ class LitPoseApp(LightningFlow):
         # initialize diagnostics on button press from DiagnosticsUI
         # -------------------------------------------------------------
         if self.diagnostics_ui.run_script:
+            print("-------------- before build fiftyone dataset")
             self.diagnostics_ui.run(action="build_fiftyone_dataset")
+            print("-------------- before start streamlit labeled")
             self.diagnostics_ui.run(action="start_st_frame")
+            print("-------------- before start streamlit video")
             self.diagnostics_ui.run(action="start_st_video")
             self.diagnostics_ui.run_script = False
 
