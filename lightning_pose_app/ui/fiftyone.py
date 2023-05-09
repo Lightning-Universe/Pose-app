@@ -53,8 +53,7 @@ class FiftyoneUI(LightningFlow):
         self.st_script_args_append = None
         self.st_submit = False
         self.st_dataset_name = None
-        # self.st_model_dirs = None
-        # self.st_model_display_names = None
+        self.submit_success = False
 
     def start_fiftyone(self):
         """run fiftyone"""
@@ -120,7 +119,6 @@ def set_script_args(model_dirs: [str], script_args: str):
 
     # enrich the args
     # eval.video_file_to_plot="</ABSOLUTE/PATH/TO/VIDEO.mp4>" \
-
     # eval.hydra_paths=["</ABSOLUTE/PATH/TO/HYDRA/DIR/1>","</ABSOLUTE/PATH/TO/HYDRA/DIR/1>"] \
     # eval.fiftyone.model_display_names=["<NAME_FOR_MODEL_1>","<NAME_FOR_MODEL_2>"]
     # eval.pred_csv_files_to_plot=["</ABSOLUTE/PATH/TO/PREDS_1.csv>","</ABSOLUTE/PATH/TO/PREDS_2.csv>"]
@@ -144,22 +142,16 @@ def _render_streamlit_fn(state: AppState):
     """Create Fiftyone Dataset"""
 
     # force rerun to update page
-    # st_autorefresh(interval=2000, key="refresh_page")
+    st_autorefresh(interval=2000, key="refresh_page")
 
     st.markdown(
         """
-        ## Prepare diagnostics
+        ## Prepare Fiftyone diagnostics
 
         Choose two models for evaluation.
 
-        If you just trained models these will be provided as defaults, but can be updated by using 
-        the drop-down menus.
-
-        Click 'Prepare' to begin preparation of the diagnostics. These diagnostics will be 
-        displayed in the following three tabs:
-        * Labeled Preds: view model predictions and ground truth on all images using FiftyOne
-        * Labeled Diagnostics: view metrics on labeled frames in streamlit
-        * Video Diagnostics: view metrics on unlabeled videos in streamlit
+        Click 'Initialize fiftyone' to begin preparation of the Fiftyone dataset. 
+        These diagnostics will be displayed in the following 'Fiftyone' tab.
 
         """
     )
@@ -170,70 +162,93 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    # f = st.checkbox(label="TESTING", value=False)    
-
     # hard-code two models for now
     st_model_dirs = [None for _ in range(2)]
     st_model_display_names = [None for _ in range(2)]
 
-    # select first model (supervised)
-    tmp = st.selectbox("Select Model 1", sorted(state.trained_models, reverse=True))
-    st_model_dirs[0] = tmp
-    tmp = st.text_input("Display name for Model 1")
-    st_model_display_names[0] = tmp
+    # ---------------------------------------------------------
+    # collect input from users
+    # ---------------------------------------------------------
+    with st.form(key="fiftyone_form", clear_on_submit=True):
 
-    # select second model (semi-supervised)
-    options = sorted(state.trained_models, reverse=True)
-    if st_model_dirs[0]:
-        options.remove(st_model_dirs[0])
+        col0, col1 = st.columns(2)
 
-    tmp = st.selectbox("Select Model 2", options)
-    st_model_dirs[1] = tmp
-    tmp = st.text_input("Display name for Model 2")
-    st_model_display_names[1] = tmp
+        with col0:
 
-    # make model dirs absolute paths
-    for i in range(2):
-        if st_model_dirs[i] and not os.path.isabs(st_model_dirs[i]):
-            st_model_dirs[i] = os.path.join(
-                os.getcwd(), state.proj_dir, "models", st_model_dirs[i])
+            # select first model (supervised)
+            options1 = sorted(state.trained_models, reverse=True)
+            tmp = st.selectbox("Select Model 1", options=options1, disabled=state.run_script)
+            st_model_dirs[0] = tmp
+            tmp = st.text_input(
+                "Display name for Model 1", value="model_1", disabled=state.run_script)
+            st_model_display_names[0] = tmp
 
-    # dataset names
-    existing_datasets = state.fiftyone_datasets
-    st.write(f"Existing Fifityone datasets:\n{', '.join(existing_datasets)}")
-    st_dataset_name = st.text_input("Choose dataset name other than the above existing names")
-    if st_dataset_name in existing_datasets:
-        st.error(f"{st_dataset_name} exists. Please choose a new name.")
-        st_dataset_name = None
+        with col1:
 
-    # parse
-    st_script_args, script_args_dict = set_script_args(
-        model_dirs=st_model_dirs, script_args=state.st_script_args)
+            # select second model (semi-supervised)
+            options2 = sorted(state.trained_models, reverse=True)
+            if st_model_dirs[0]:
+                options2.remove(st_model_dirs[0])
 
-    if ((st_dataset_name is None) 
-            or (st_dataset_name == "") 
-            or state.run_script
-            or (st_model_dirs[0] is None)
-            or (st_model_dirs[1] is None)
-        ):
-        button_disabled = True
-    else:
-        button_disabled = False
+            tmp = st.selectbox("Select Model 2", options=options2, disabled=state.run_script)
+            st_model_dirs[1] = tmp
+            tmp = st.text_input(
+                "Display name for Model 2", value="model_2", disabled=state.run_script)
+            st_model_display_names[1] = tmp
 
-    # build dataset
-    st_submit_button = st.button("Initialize diagnostics", disabled=button_disabled)
+        # make model dirs absolute paths
+        for i in range(2):
+            if st_model_dirs[i] and not os.path.isabs(st_model_dirs[i]):
+                st_model_dirs[i] = os.path.join(
+                    os.getcwd(), state.proj_dir, "models", st_model_dirs[i])
 
-    # print updates to users
+        # dataset names
+        existing_datasets = state.fiftyone_datasets
+        st.write(f"Existing Fifityone datasets:\n{', '.join(existing_datasets)}")
+        st_dataset_name = st.text_input(
+            "Choose dataset name other than the above existing names", disabled=state.run_script)
+
+        # parse
+        st_script_args, script_args_dict = set_script_args(
+            model_dirs=st_model_dirs, script_args=state.st_script_args)
+
+        # build dataset
+        st_submit_button = st.form_submit_button("Initialize fiftyone", disabled=state.run_script)
+
+    # ---------------------------------------------------------
+    # check user input
+    # ---------------------------------------------------------
+    if st_model_display_names[0] is None \
+            or st_model_display_names[1] is None \
+            or st_model_display_names[0] == st_model_display_names[1]:
+        st_submit_button = False
+        state.submit_success = False
+        st.warning(f"Must choose two unique model display names")
+    if st_model_dirs[0] is None or st_model_dirs[1] is None:
+        st_submit_button = False
+        state.submit_success = False
+        st.warning(f"Must choose two models to continue")
+    if st_submit_button and \
+            (st_dataset_name in existing_datasets
+             or st_dataset_name is None
+             or st_dataset_name == ""):
+        st_submit_button = False
+        state.submit_success = False
+        st.warning(f"Enter a unique dataset name to continue")
     if state.run_script:
-        st.warning(f"waiting for existing dataset creation to finish; "
-                   f"proceed to next tab (may take 30 seconds to update)")
-    if st_dataset_name in existing_datasets:
-        st.warning(f"enter a unique dataset name to continue")
-    if state.submit_count > 0 and not state.run_script:
-        proceed_str = "Diagnostics are ready to view in the next tabs."
+        st.warning(f"Waiting for existing dataset creation to finish "
+                   f"(may take 30 seconds to update)")
+    if state.submit_count > 0 \
+            and not state.run_script \
+            and not st_submit_button \
+            and state.submit_success:
+        proceed_str = "Diagnostics are ready to view in the following tab."
         proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
         st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
+    # ---------------------------------------------------------
+    # build fiftyone dataset
+    # ---------------------------------------------------------
     # this will only be run once when the user clicks the button; 
     # on the following pass the button click will be set to False again
     if st_submit_button:
@@ -242,8 +257,6 @@ def _render_streamlit_fn(state: AppState):
 
         # save streamlit options to flow object only on button click
         state.st_dataset_name = st_dataset_name
-        # state.st_model_display_names = st_model_display_names
-        # state.st_model_dirs = st_model_dirs
         state.st_script_args = st_script_args
 
         # set key-value pairs that will be used as script args
@@ -255,7 +268,13 @@ def _render_streamlit_fn(state: AppState):
         script_args_append += f" eval.fiftyone.launch_app_from_script=false"
         state.st_script_args_append = script_args_append
 
+        # reset form
+        st_dataset_name = None
+        st_model_dirs = [None for _ in range(2)]
+        st_model_display_names = [None for _ in range(2)]
+
         st.text("Request submitted!")
+        state.submit_success = True
         state.run_script = True  # must the last to prevent race condition
 
         # force rerun to update warnings
