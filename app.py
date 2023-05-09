@@ -13,12 +13,13 @@ import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.diagnostics import DiagnosticsUI
 from lightning_pose_app.litpose import LitPose
+from lightning_pose_app.ui.fiftyone import FiftyoneUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
+from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
@@ -62,8 +63,12 @@ class LitPoseApp(LightningFlow):
         # training tab (flow)
         self.train_ui = TrainUI(drive_name=drive_name)
 
-        # diagnostics tab (flow + work)
-        self.diagnostics_ui = DiagnosticsUI(drive_name=drive_name)
+        # fiftyone tab (flow + work)
+        self.fiftyone_ui = FiftyoneUI(drive_name=drive_name)
+
+        # streamlit tabs (flow + work)
+        self.streamlit_frame = StreamlitAppLightningPose(drive_name=drive_name, app_type="frame")
+        self.streamlit_video = StreamlitAppLightningPose(drive_name=drive_name, app_type="video")
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
@@ -202,7 +207,7 @@ class LitPoseApp(LightningFlow):
         self.project_io.run(action="update_trained_models_list", timer=timer)
         if self.project_io.trained_models:
             self.train_ui.trained_models = self.project_io.trained_models
-            self.diagnostics_ui.trained_models = self.project_io.trained_models
+            self.fiftyone_ui.trained_models = self.project_io.trained_models
 
     def run(self):
 
@@ -227,17 +232,19 @@ class LitPoseApp(LightningFlow):
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # find previously constructed fiftyone datasets
-        self.diagnostics_ui.run(action="find_fiftyone_datasets")
+        self.fiftyone_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
         # init background services once
         # -------------------------------------------------------------
         self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
-        self.diagnostics_ui.run(action="start_fiftyone")
+        self.fiftyone_ui.run(action="start_fiftyone")
         if self.project_io.model_dir is not None:
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_io.model_dir)
+            self.streamlit_frame.run()
+            self.streamlit_video.run()
 
         # -------------------------------------------------------------
         # update project data (project may not exist yet)
@@ -263,8 +270,10 @@ class LitPoseApp(LightningFlow):
                 action="update_paths", project_name=self.project_ui.st_project_name)
             self.extract_ui.proj_dir = self.project_io.proj_dir
             self.train_ui.proj_dir = self.project_io.proj_dir
-            self.diagnostics_ui.proj_dir = self.project_io.proj_dir
-            self.diagnostics_ui.config_name = self.project_io.config_name
+            self.streamlit_frame.proj_dir = self.project_io.proj_dir
+            self.streamlit_video.proj_dir = self.project_io.proj_dir
+            self.fiftyone_ui.proj_dir = self.project_io.proj_dir
+            self.fiftyone_ui.config_name = self.project_io.config_name
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_io.proj_dir, proj_name=self.project_ui.st_project_name)
@@ -381,13 +390,11 @@ class LitPoseApp(LightningFlow):
             self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------
-        # initialize diagnostics on button press
+        # build fiftyone dataset on button press from FiftyoneUI
         # -------------------------------------------------------------
-        if self.diagnostics_ui.run_script:
-            self.diagnostics_ui.run(action="build_fiftyone_dataset")
-            # self.diagnostics_ui.run(action="start_st_frame")
-            # self.diagnostics_ui.run(action="start_st_video")
-            self.diagnostics_ui.run_script = False
+        if self.fiftyone_ui.run_script:
+            self.fiftyone_ui.run(action="build_fiftyone_dataset")
+            self.fiftyone_ui.run_script = False
 
     def configure_layout(self):
 
@@ -402,17 +409,17 @@ class LitPoseApp(LightningFlow):
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        diagnostics_prep_tab = {"name": "Prepare Diagnostics", "content": self.diagnostics_ui}
-        fo_tab = {"name": "Labeled Preds", "content": self.diagnostics_ui.fiftyone}
-        # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.diagnostics_ui.st_frame}
-        # st_video_tab = {"name": "Video Diagnostics", "content": self.diagnostics_ui.st_video}
+        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
+        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
+        # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
+        # st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
 
         if self.landing_ui.st_mode == "demo":
             return [
                 landing_tab,
                 train_tab,
                 # train_status_tab,
-                # diagnostics_prep_tab,
+                # fo_prep_tab,
                 # fo_tab,
                 # st_frame_tab,
                 # st_video_tab,
@@ -434,7 +441,7 @@ class LitPoseApp(LightningFlow):
         #         annotate_tab,
         #         train_tab,
         #         train_status_tab,
-        #         diagnostics_prep_tab,
+        #         fo_prep_tab,
         #         fo_tab,
         #         # st_frame_tab,
         #         # st_video_tab,
