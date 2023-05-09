@@ -39,13 +39,13 @@ class StreamlitAppLightningPose(LightningFlow):
         self.proj_dir = None
 
 
-    def run(self, action, **kwargs):
+    def run(self, **kwargs):
 
         if kwargs.get("model_dir", None):
             model_dir = kwargs["model_dir"]
         else:
-            model_dir = os.path.join(self.proj_dir, "models")
-        model_dir_args += f" --model_dir={model_dir}"
+            model_dir = os.path.join(os.getcwd(), self.proj_dir, "models")
+        model_dir_args = f" --model_dir={model_dir}"
 
         cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
               + " --server.address $host --server.port $port" \

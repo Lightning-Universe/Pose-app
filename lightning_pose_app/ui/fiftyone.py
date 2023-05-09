@@ -59,7 +59,7 @@ class FiftyoneUI(LightningFlow):
     def start_fiftyone(self):
         """run fiftyone"""
         cmd = "fiftyone app launch --address $host --port $port --remote"
-        self.fiftyone.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
+        self.work.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
 
     def find_fiftyone_datasets(self):
         """get existing fiftyone datasets"""
@@ -67,11 +67,11 @@ class FiftyoneUI(LightningFlow):
         # seems lke overkill? the datasets are quick to make and users probably don't care so much
         # about these datasets; can return to this later
         cmd = "fiftyone datasets list"
-        self.fiftyone.run(cmd, save_stdout=True)
-        if self.fiftyone.last_args() == cmd:
+        self.work.run(cmd, save_stdout=True)
+        if self.work.last_args() == cmd:
             names = []
-            print(self.fiftyone.stdout)
-            for x in self.fiftyone.stdout:
+            print(self.work.stdout)
+            for x in self.work.stdout:
                 if x.endswith("No datasets found"):
                     continue
                 if x.startswith("Migrating database"):
@@ -91,7 +91,7 @@ class FiftyoneUI(LightningFlow):
               + " " + self.st_script_args \
               + " " + "eval.fiftyone.dataset_to_create=images" \
               + " " + "+eval.fiftyone.n_dirs_back=6"  # hack
-        self.fiftyone.run(
+        self.work.run(
             cmd, 
             cwd=lightning_pose_dir, 
             timer=self.st_dataset_name,
