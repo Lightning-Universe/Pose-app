@@ -96,17 +96,9 @@ def _render_streamlit_fn(state: AppState):
         st.markdown(
             """
             ## Train models
-            This tab presents options for training two models:
-            * fully supervised model
-            * semi-supervised model
-            
-            Default settings are provided, but can be updated by expanding the 'Change Defaults' 
-            drop-down menu below.
-             
-            Click 'Train models' to launch the training job.
             
             If you have already trained models, you will be able to select those models for further 
-            analysis in the next tab 
+            analysis in the following tabs
             (see the 'Existing Models' drop-down menu to see a list of already trained models).
             
             """
@@ -117,9 +109,9 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_train_ui")
 
         # TODO: update with st_radial
-        st.text(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
+        st.write(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
 
-        st.selectbox("Models", sorted(state.trained_models, reverse=True))
+        st.selectbox("Existing models", sorted(state.trained_models, reverse=True))
 
         st.markdown(
             """
@@ -215,7 +207,7 @@ def _render_streamlit_fn(state: AppState):
         st.markdown(
             """
             ## Run inference
-            This tab allows you to upload new videos and run inference with a trained model.
+            Upload new videos and run inference with a trained model.
 
             """
         )

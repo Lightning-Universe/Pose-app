@@ -232,13 +232,14 @@ class LitPoseApp(LightningFlow):
             print("Demo data transferred to Drive")
             self.demo_data_transferred = True
 
-        # start background services (only run once)
-        self.start_tensorboard(logdir=self.project_io.model_dir)
-        self.fiftyone_ui.run(action="start_fiftyone")
-        self.streamlit_frame.run()
-        self.streamlit_video.run()
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
+        
+        # start background services (only run once)
+        self.start_tensorboard(logdir=self.project_io.model_dir)
+        self.streamlit_frame.run()
+        self.streamlit_video.run()
+        self.fiftyone_ui.run(action="start_fiftyone")
 
         # find previously constructed fiftyone datasets
         self.fiftyone_ui.run(action="find_fiftyone_datasets")
@@ -290,19 +291,19 @@ class LitPoseApp(LightningFlow):
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
-        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
+        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
+        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
 
         return [
             # landing_tab,
             train_tab,
             train_status_tab,
-            fo_prep_tab,
-            fo_tab,
             st_frame_tab,
             st_video_tab,
+            fo_prep_tab,
+            fo_tab,
         ]
 
 

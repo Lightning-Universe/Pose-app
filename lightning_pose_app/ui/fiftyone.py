@@ -58,7 +58,7 @@ class FiftyoneUI(LightningFlow):
     def start_fiftyone(self):
         """run fiftyone"""
         cmd = "fiftyone app launch --address $host --port $port --remote"
-        self.work.run(cmd, wait_for_exit=False, cwd=lightning_pose_dir)
+        self.work.run(cmd, wait_for_exit=True, cwd=lightning_pose_dir)
 
     def find_fiftyone_datasets(self):
         """get existing fiftyone datasets"""
@@ -150,9 +150,6 @@ def _render_streamlit_fn(state: AppState):
 
         Choose two models for evaluation.
 
-        Click 'Initialize fiftyone' to begin preparation of the Fiftyone dataset. 
-        These diagnostics will be displayed in the following 'Fiftyone' tab.
-
         """
     )
 
@@ -213,6 +210,10 @@ def _render_streamlit_fn(state: AppState):
             model_dirs=st_model_dirs, script_args=state.st_script_args)
 
         # build dataset
+        st.markdown("""
+            Click to begin preparation of the Fiftyone dataset. 
+            These diagnostics will be displayed in the following 'Fiftyone' tab.
+            """)
         st_submit_button = st.form_submit_button("Initialize fiftyone", disabled=state.run_script)
 
     # ---------------------------------------------------------
