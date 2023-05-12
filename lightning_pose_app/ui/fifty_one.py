@@ -107,7 +107,7 @@ class FiftyoneWork(LightningWork):
             self.build_fiftyone_dataset(**kwargs)
 
 
-class FiftyoneUI(LightningFlow):
+class FiftyoneConfigUI(LightningFlow):
     """UI to run Fiftyone and Streamlit apps."""
 
     def __init__(

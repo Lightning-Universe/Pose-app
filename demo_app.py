@@ -14,7 +14,7 @@ import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.litpose import LitPose
-from lightning_pose_app.ui.fifty_one import FiftyoneUI
+from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectDataIO
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
@@ -68,7 +68,7 @@ class LitPoseApp(LightningFlow):
         self.train_ui.n_total_frames = 90
 
         # fiftyone tab (flow + work)
-        self.fiftyone_ui = FiftyoneUI(drive_name=drive_name)
+        self.fiftyone_ui = FiftyoneConfigUI(drive_name=drive_name)
 
         # streamlit tabs (flow + work)
         self.streamlit_frame = StreamlitAppLightningPose(drive_name=drive_name, app_type="frame")
