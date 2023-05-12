@@ -1,9 +1,6 @@
-import fiftyone as fo
 from lightning import CloudCompute, LightningFlow, LightningWork
 from lightning.app.storage.drive import Drive
 from lightning.app.utilities.state import AppState
-from lightning_pose.utils.fiftyone import FiftyOneFactory, check_dataset
-from omegaconf import DictConfig
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -26,6 +23,7 @@ class FiftyoneWork(LightningWork):
     def start_fiftyone(self):
         """run fiftyone"""
         if not self.fiftyone_launched:
+            import fiftyone as fo
             fo.launch_app(
                 dataset=None,
                 remote=True,
@@ -39,6 +37,7 @@ class FiftyoneWork(LightningWork):
         # NOTE: we could migrate the fiftyone database back and forth between the Drive but this
         # seems lke overkill? the datasets are quick to make and users probably don't care so much
         # about these datasets; can return to this later
+        import fiftyone as fo
         out = fo.list_datasets()
         datasets = []
         for x in out:
@@ -59,6 +58,9 @@ class FiftyoneWork(LightningWork):
 
         if dataset_name in self.fiftyone_datasets:
             return
+
+        from lightning_pose.utils.fiftyone import FiftyOneFactory, check_dataset
+        from omegaconf import DictConfig
         
         # pull models (relative path)
         for model_dir in model_dirs:
@@ -91,6 +93,11 @@ class FiftyoneWork(LightningWork):
         self.fiftyone_datasets.append(dataset_name)
 
     def run(self, action, **kwargs):
+
+        # these functions require fiftyone and/or lighting-pose to be installed
+        # each function imports the necessary functions directly
+        # if imports are at the top of this module errors will arise in the orchestrator when 
+        # importing from this module since the proper packages are not yet installed (cloud only)
 
         if action == "start_fiftyone":
             self.start_fiftyone(**kwargs)
