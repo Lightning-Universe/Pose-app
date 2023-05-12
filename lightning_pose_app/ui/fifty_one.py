@@ -26,7 +26,6 @@ class FiftyoneWork(LightningWork):
     def start_fiftyone(self):
         """run fiftyone"""
         if not self.fiftyone_launched:
-            print("------- starting fiftyone")
             fo.launch_app(
                 dataset=None,
                 remote=True,
@@ -42,7 +41,6 @@ class FiftyoneWork(LightningWork):
         # about these datasets; can return to this later
         out = fo.list_datasets()
         datasets = []
-        print(out)
         for x in out:
             if x.endswith("No datasets found"):
                 continue
@@ -50,7 +48,7 @@ class FiftyoneWork(LightningWork):
                 continue
             if x.endswith("python"):
                 continue
-            if x in names:
+            if x in datasets:
                 continue
             datasets.append(x)
         self.fiftyone_datasets = datasets
@@ -59,6 +57,9 @@ class FiftyoneWork(LightningWork):
             self, config_file: str, dataset_name: str, model_dirs: list, model_names: list,
         ):
 
+        if dataset_name in self.fiftyone_datasets:
+            return
+        
         # pull models (relative path)
         for model_dir in model_dirs:
             self._drive.get(model_dir, overwrite=True)
@@ -70,9 +71,7 @@ class FiftyoneWork(LightningWork):
         cfg = DictConfig(yaml.safe_load(open(os.path.join(os.getcwd(), config_file), "r")))
 
         # edit config (add fiftyone key before making DictConfig, otherwise error)
-        # model_names = ','.join([f"'{x}'" for x in model_names])
         model_dirs_abs = [os.path.join(os.getcwd(), x) for x in model_dirs]
-        # model_dirs_abs_list = ','.join([f"'{x}'" for x in model_dirs_abs])
         cfg.eval.fiftyone.build_speed = "fast"
         cfg.eval.fiftyone.n_dirs_back = 6  # hack
         cfg.eval.fiftyone.dataset_name = dataset_name

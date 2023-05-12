@@ -9,11 +9,12 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
+    "lightning-pose",
     "streamlit",
-    "streamlit_autorefresh",
-    "watchdog",
     "streamlit-ace",
+    "streamlit_autorefresh",
     "virtualenv",
+    "watchdog",
 ]
 
 setup(

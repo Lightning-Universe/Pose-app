@@ -19,7 +19,7 @@ from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectDataIO
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
-from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
+from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir, LitPoseBuildConfig
 
 
 # TODO
@@ -27,9 +27,6 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 # - figure out what to do about inference
 # - figure out what to do with landing tab/current markdown
-# - streamlit issues (thomas is looking into this)
-#   - "waiting for existing training to finish" message doesn't disappear
-#   - "waiting for existing dataset creation to finish" message doesn't disappear
 # - slider for threshold in labeled streamlit app
 
 
@@ -242,7 +239,6 @@ class LitPoseApp(LightningFlow):
         self.fiftyone_ui.run(action="start_fiftyone")
 
         # find previously constructed fiftyone datasets
-        print("------- finding fiftyone datasets out")
         self.fiftyone_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
