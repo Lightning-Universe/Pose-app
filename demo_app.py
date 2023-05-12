@@ -276,7 +276,6 @@ class LitPoseApp(LightningFlow):
         # build fiftyone dataset on button press from FiftyoneUI
         # -------------------------------------------------------------
         if self.fiftyone_ui.run_script:
-            print("------- build fiftyone dataset")
             self.fiftyone_ui.run(action="build_fiftyone_dataset")
             self.fiftyone_ui.run_script = False
 
