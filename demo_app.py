@@ -234,14 +234,16 @@ class LitPoseApp(LightningFlow):
 
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
-        
+
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_io.model_dir)
         self.streamlit_frame.run()
         self.streamlit_video.run()
+        print("------- starting fiftyone")
         self.fiftyone_ui.run(action="start_fiftyone")
 
         # find previously constructed fiftyone datasets
+        print("------- finding fiftyone datasets")
         self.fiftyone_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
@@ -279,6 +281,7 @@ class LitPoseApp(LightningFlow):
         # build fiftyone dataset on button press from FiftyoneUI
         # -------------------------------------------------------------
         if self.fiftyone_ui.run_script:
+            print("------- build fiftyone dataset")
             self.fiftyone_ui.run(action="build_fiftyone_dataset")
             self.fiftyone_ui.run_script = False
 
