@@ -14,7 +14,7 @@ import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.litpose import LitPose
-from lightning_pose_app.ui.fiftyone import FiftyoneUI
+from lightning_pose_app.ui.fifty_one import FiftyoneUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectDataIO
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
@@ -239,11 +239,10 @@ class LitPoseApp(LightningFlow):
         self.start_tensorboard(logdir=self.project_io.model_dir)
         self.streamlit_frame.run()
         self.streamlit_video.run()
-        print("------- starting fiftyone")
         self.fiftyone_ui.run(action="start_fiftyone")
 
         # find previously constructed fiftyone datasets
-        print("------- finding fiftyone datasets")
+        print("------- finding fiftyone datasets out")
         self.fiftyone_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
