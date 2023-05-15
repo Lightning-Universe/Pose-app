@@ -45,6 +45,7 @@ class TrainUI(LightningFlow):
 
         # updated externally by top-level flow
         self.trained_models = []
+        self.curr_epoch = 0
 
         # input to the UI (train)
         self.max_epochs = max_epochs
@@ -61,7 +62,6 @@ class TrainUI(LightningFlow):
         self.st_loss_pcamv = None
         self.st_loss_pcasv = None
         self.st_loss_temp = None
-        self.st_script_args = None
         self.st_semi_losses = None
         self.st_datetimes = None
         self.st_train_complete_flag = None
@@ -91,6 +91,13 @@ def _render_streamlit_fn(state: AppState):
         </style>
     """, unsafe_allow_html=True)
 
+    # constantly refresh so that:
+    # - labeled frames are updated
+    # - training progress is updated
+    if (state.n_labeled_frames != state.n_total_frames) \
+            or state.run_script_train:
+        st_autorefresh(interval=2000, key="refresh_train_ui")
+
     with train_tab:
 
         st.markdown(
@@ -103,10 +110,6 @@ def _render_streamlit_fn(state: AppState):
             
             """
         )
-
-        # constantly refresh so that labeled frames are updated
-        if state.n_labeled_frames != state.n_total_frames:
-            st_autorefresh(interval=2000, key="refresh_train_ui")
 
         # TODO: update with st_radial
         st.write(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
@@ -141,8 +144,15 @@ def _render_streamlit_fn(state: AppState):
         st_train_semisuper = st.checkbox("Semi-supervised", value=state.train_semisuper)
 
         st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
+
+        # give user training updates
         if state.run_script_train:
-            st.warning("waiting for existing training to finish")
+            if state.st_train_super:
+                p = state.st_max_epochs if state.st_train_complete_flag["super"] else state.curr_epoch
+                st.progress( float(p) / float(state.st_max_epochs), "Supervised progress")
+            if state.st_train_semisuper:
+                p = state.st_max_epochs if state.st_train_complete_flag["semisuper"] else state.curr_epoch
+                st.progress( float(p) / float(state.st_max_epochs), "Semi-supervised progress")
 
         # Lightning way of returning the parameters
         if st_submit_button_train:
@@ -154,53 +164,40 @@ def _render_streamlit_fn(state: AppState):
         if st_submit_button_train:
 
             # save streamlit options to flow object
-            state.st_max_epochs = st_max_epochs
+            state.st_max_epochs = int(st_max_epochs)
             state.st_train_super = st_train_super
             state.st_train_semisuper = st_train_semisuper
             state.st_loss_pcamv = st_loss_pcamv
             state.st_loss_pcasv = st_loss_pcasv
             state.st_loss_temp = st_loss_temp
 
-            # construct semi-supervised loss string
-            semi_losses = "["
+            # construct semi-supervised loss list
+            semi_losses = []
             if st_loss_pcamv:
-                semi_losses += "pca_multiview,"
+                semi_losses.append("pca_multiview")
             if st_loss_pcasv:
-                semi_losses += "pca_singleview,"
+                semi_losses.append("pca_singleview")
             if st_loss_temp:
-                semi_losses += "temporal,"
-            semi_losses = semi_losses[:-1] + "]"
+                semi_losses.append("temporal")
             state.st_semi_losses = semi_losses
 
-            # set key-value pairs that will be used as script args
-            st_script_args = {}
+            # set model times
             st_datetimes = {}
             for i in range(2):
-                tmp = ""
-                tmp += f" training.max_epochs={st_max_epochs}"
-                tmp += f" training.profiler=null"
-                tmp += f" training.log_every_n_steps=1"  # for debugging
-                tmp += f" eval.predict_vids_after_training=true"
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-                if i == 0:
-                    # supervised model
-                    st_script_args["super"] = tmp + " 'model.losses_to_use=[]'"
+                if i == 0:  # supervised model
                     st_datetimes["super"] = dtime
                     time.sleep(1)  # allow date/time to update
-                if i == 1:
-                    # semi-supervised model
-                    st_script_args["semisuper"] = tmp + f" 'model.losses_to_use={semi_losses}'"
+                if i == 1:  # semi-supervised model
                     st_datetimes["semisuper"] = dtime
 
             # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
-            state.st_script_args = st_script_args
             state.st_datetimes = st_datetimes
             state.st_train_complete_flag = {"super": False, "semisuper": False}
             st.text("Model training launched!")
             state.run_script_train = True  # must the last to prevent race condition
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
-            # TODO: show training progress
 
     with infer_tab:
 

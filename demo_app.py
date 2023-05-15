@@ -85,6 +85,7 @@ class LitPoseApp(LightningFlow):
         # lightning pose: work for frame extraction and model training
         self.litpose = LitPose(
             cloud_compute=CloudCompute("gpu"),
+            cloud_build_config=LitPoseBuildConfig(),
             drive_name=drive_name,
         )
 
@@ -118,15 +119,19 @@ class LitPoseApp(LightningFlow):
 
         # check to see if we're in demo mode or not
         base_dir = os.path.join(os.getcwd(), self.project_io.proj_dir)
-        if self.project_io.config_name is not None:
-            config_cmd = f" --config-path={base_dir}" \
-                         f" --config-name={self.project_io.config_name}" \
-                         f" data.data_dir={base_dir}" \
-                         f" data.video_dir={os.path.join(base_dir, 'unlabeled_videos')}" \
-                         f" eval.test_videos_directory={os.path.join(base_dir, 'unlabeled_videos')}"
-        else:
-            config_cmd = \
-                " eval.test_videos_directory=toy_datasets/toymouseRunningData/unlabeled_videos"
+        cfg_overrides = {
+            "data": {
+                "data_dir": base_dir,
+                "video_dir": os.path.join(base_dir, 'unlabeled_videos'),
+            },
+            "eval": {
+                "test_videos_directory": os.path.join(base_dir, 'unlabeled_videos'),
+                "predict_vids_after_training": True,
+            },
+            "training": {
+                "max_epochs": self.train_ui.st_max_epochs,
+            }   
+        }
 
         # list files needed from Drive
         inputs = [
@@ -138,44 +143,27 @@ class LitPoseApp(LightningFlow):
         outputs = [self.project_io.model_dir]
 
         # train supervised model
-        if self.train_ui.st_train_super \
-                and not self.train_ui.st_train_complete_flag["super"]:
-            hydra_srun = os.path.join(
-                base_dir, "models", self.train_ui.st_datetimes["super"])
-            hydra_mrun = os.path.join(
-                base_dir, "models/multirun", self.train_ui.st_datetimes["super"])
-            cmd = "python scripts/train_hydra.py" \
-                  + config_cmd \
-                  + " " + self.train_ui.st_script_args["super"] \
-                  + f" hydra.run.dir={hydra_srun}" \
-                  + f" hydra.sweep.dir={hydra_mrun}"
-            self.litpose.work.run(
-                cmd,
-                cwd=lightning_pose_dir,
-                inputs=inputs,
-                outputs=outputs,
+        if self.train_ui.st_train_super and not self.train_ui.st_train_complete_flag["super"]:
+            cfg_overrides["model"] = {"losses_to_use": []}
+            self.train_ui.curr_epoch = self.litpose.progress
+            self.litpose.run(
+                action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
+                results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes["super"])
             )
             self.train_ui.st_train_complete_flag["super"] = True
+            self.litpose.progress = 0
+            self.train_ui.curr_epoch = 0
 
         # train semi-supervised model
-        if self.train_ui.st_train_semisuper \
-                and not self.train_ui.st_train_complete_flag["semisuper"]:
-            hydra_srun = os.path.join(
-                base_dir, "models", self.train_ui.st_datetimes["semisuper"])
-            hydra_mrun = os.path.join(
-                base_dir, "models/multirun", self.train_ui.st_datetimes["semisuper"])
-            cmd = "python scripts/train_hydra.py" \
-                  + config_cmd \
-                  + " " + self.train_ui.st_script_args["semisuper"] \
-                  + f" hydra.run.dir={hydra_srun}" \
-                  + f" hydra.sweep.dir={hydra_mrun}"
-            self.litpose.work.run(
-                cmd,
-                cwd=lightning_pose_dir,
-                inputs=inputs,
-                outputs=outputs,
+        if self.train_ui.st_train_semisuper and not self.train_ui.st_train_complete_flag["semisuper"]:
+            cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_semi_losses}
+            self.litpose.run(
+                action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
+                results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes["semisuper"])
             )
             self.train_ui.st_train_complete_flag["semisuper"] = True
+            self.litpose.progress = 0
+            self.train_ui.curr_epoch = 0
 
         self.train_ui.count += 1
 
