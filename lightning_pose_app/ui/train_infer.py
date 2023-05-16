@@ -117,7 +117,7 @@ def _render_streamlit_fn(state: AppState):
         # max epochs
         st_max_epochs = expander.text_input(
             "Max training epochs (supervised and semi-supervised)",
-            value=10,
+            value=20,
         )
 
         # unsupervised losses (semi-supervised only)
@@ -142,14 +142,14 @@ def _render_streamlit_fn(state: AppState):
                 if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
                     status = state.st_train_status[m]
                     if status == "initialized":
-                        p = 0
+                        p = 0.0
                     elif status == "active":
                         p = state.progress
                     elif status == "complete":
-                        p = 100
+                        p = 100.0
                     else:
                         st.text(status)
-                    st.progress(p, f"{m} progress ({status})")
+                    st.progress(p / 100.0, f"{m} progress ({status})")
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) and st_train_semisuper:

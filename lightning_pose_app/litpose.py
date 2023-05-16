@@ -19,7 +19,7 @@ import yaml
 #         self.state.__setattr__(self.key, old_val + 1)
 
 
-class ProgressCallback(Callback):
+class TrainingProgress(Callback):
 
     def __init__(self, work):
         self.work = work
@@ -34,7 +34,7 @@ class ProgressCallback(Callback):
                 self.work.progress = round(progress, 4)
         elif round(progress, 4) - self.work.progress >= self.progress_delta:
             if progress > 100:
-                self.work.progress = 100
+                self.work.progress = 100.0
             else:
                 self.work.progress = round(progress, 4)
 
@@ -51,7 +51,7 @@ class LitPose(LightningWork):
         super().__init__(*args, **kwargs)
 
         self.pwd = os.getcwd()
-        self.progress = 0
+        self.progress = 0.0
 
         self._drive = Drive(drive_name, component_name=component_name)
 

@@ -154,8 +154,8 @@ class LitPoseApp(LightningFlow):
                     results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
                 )
                 self.train_ui.st_train_status[m] = "complete"
-                self.litpose.progress = 0
-                self.train_ui.progress = 0
+                self.litpose.progress = 0.0
+                self.train_ui.progress = 0.0
 
         self.train_ui.count += 1
 
