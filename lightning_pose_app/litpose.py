@@ -53,46 +53,62 @@ class LitPose(LightningWork):
     def put_to_drive(self, outputs):
         for o in outputs:
             print(f"drive try put {o}")
-            # make sure dir end with / so that put works correctly
-            if os.path.isdir(o):
+            # make sure dir ends with / so that put works correctly
+            if o[-1] != "/":
                 o = os.path.join(o, "")
-            # check to make sure file exists locally
-            if not os.path.exists(o):
-                continue
             self._drive.put(o)
             print(f"drive success put {o}")
 
-    # def start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
+    def start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
 
-    #     print(f"launching extraction for video {video_files[0]}")
-    #     self.work_is_done_extract_frames = False
+        import numpy as np
+        from lightning_pose.utils.video_ops import select_frame_idxs, export_frames
 
-    #     print(f"launching extraction for video {video_files[0]}")
-    #     self.work_is_done_extract_frames = False
+        self.work_is_done_extract_frames = False
 
-    #     # set videos to select frames from
-    #     vid_file_args = ""
-    #     for vid_file in video_files:
-    #         vid_file_ = os.path.join(os.getcwd(), vid_file)
-    #         vid_file_args += f" --video_files={vid_file_}"
+        # pull videos from drive
+        self.get_from_drive(video_files)
 
-    #     data_dir = os.path.join(os.getcwd(), proj_dir, "labeled-data")
+        data_dir_rel = os.path.join(proj_dir, "labeled-data")
+        data_dir = os.path.join(os.getcwd(), data_dir_rel)
+        n_digits = 8
+        extension = "png"
+        context_frames = 2
 
-    #     cmd = "python" \
-    #           + " scripts/extract_frames.py" \
-    #           + vid_file_args \
-    #           + f" --data_dir={data_dir}" \
-    #           + f" --n_frames_per_video={n_frames_per_video}" \
-    #           + f" --context_frames=2" \
-    #           + f" --export_idxs_as_csv"
-    #     self.work.run(
-    #         cmd,
-    #         wait_for_exit=True,
-    #         cwd=lightning_pose_dir,
-    #         inputs=video_files,
-    #         outputs=[os.path.join(proj_dir, "labeled-data")],
-    #     )
-    #     self.work_is_done_extract_frames = True
+        for video_file in video_files:
+
+            video_file_abs = os.path.join(os.getcwd(), video_file)
+
+            print(f"============== extracting frames from {video_file} ================")
+            print("video file exist? %s" % ("YES" if os.path.exists(video_file_abs) else "NO"))
+
+            video_name = os.path.splitext(os.path.basename(video_file))[0]
+            save_dir = os.path.join(data_dir, video_name)
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+
+            idxs_selected = select_frame_idxs(
+                video_file=video_file_abs, resize_dims=64, n_clusters=n_frames_per_video)
+
+            # save csv file inside same output directory
+            frames_to_label = np.array([
+                "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
+            np.savetxt(
+                os.path.join(save_dir, "selected_frames.csv"),
+                np.sort(frames_to_label),
+                delimiter=",",
+                fmt="%s"
+            )
+
+            export_frames(
+                video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected, 
+                format=extension, n_digits=n_digits, context_frames=context_frames)
+
+        # push extracted frames to drive
+        self.put_to_drive(data_dir_rel)
+
+        # update flag
+        self.work_is_done_extract_frames = True
 
     def train(self, inputs, outputs, cfg_overrides, results_dir):
         
@@ -115,6 +131,8 @@ class LitPose(LightningWork):
             calculate_train_batches,
             compute_metrics,
         )
+
+        self.work_is_done_training = False
 
         # ----------------------------------------------------------------------------------
         # Pull data from drive
@@ -289,18 +307,18 @@ class LitPose(LightningWork):
                     continue
 
         # ----------------------------------------------------------------------------------
-        # Push results to drive
+        # Push results to drive, clean up
         # ----------------------------------------------------------------------------------
-        self.put_to_drive(outputs)
-
         os.chdir(self.pwd)
+        self.put_to_drive(outputs)  # IMPORTANT! must come after changing directories
+        self.work_is_done_training = True
 
-    # def run_inference(self, model, video):
-    #     import time
-    #     self.work_is_done_inference = False
-    #     print(f"launching inference for video {video} using model {model}")
-    #     time.sleep(5)
-    #     self.work_is_done_inference = True
+    def run_inference(self, model, video):
+        import time
+        self.work_is_done_inference = False
+        print(f"launching inference for video {video} using model {model}")
+        time.sleep(5)
+        self.work_is_done_inference = True
 
     def run(self, action=None, **kwargs):
 

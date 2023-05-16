@@ -21,7 +21,6 @@ class TrainUI(LightningFlow):
         self,
         *args,
         drive_name,
-        max_epochs=200,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -35,6 +34,11 @@ class TrainUI(LightningFlow):
         self.run_script_train = False
         # self.run_script_update_models = False
         self.run_script_infer = False
+
+        # for controlling messages to user
+        self.submit_count_train = 0
+
+        # for controlling when models are broadcast to other flows/workers
         self.count = 0
 
         # save parameters for later run
@@ -47,24 +51,11 @@ class TrainUI(LightningFlow):
         self.trained_models = []
         self.curr_epoch = 0
 
-        # input to the UI (train)
-        self.max_epochs = max_epochs
-        self.train_super = True
-        self.train_semisuper = True
-        self.loss_pcamv = True
-        self.loss_pcasv = True
-        self.loss_temp = True
-
-        # output from the UI (train)
+        # output from the UI (train; all will be dicts with keys=models, except st_max_epochs)
         self.st_max_epochs = None
-        self.st_train_super = None
-        self.st_train_semisuper = None
-        self.st_loss_pcamv = None
-        self.st_loss_pcasv = None
-        self.st_loss_temp = None
-        self.st_semi_losses = None
-        self.st_datetimes = None
-        self.st_train_complete_flag = None
+        self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
+        self.st_losses = {}
+        self.st_datetimes = {}
 
         # output from the UI (infer)
         self.st_inference_model = None
@@ -126,50 +117,61 @@ def _render_streamlit_fn(state: AppState):
         # max epochs
         st_max_epochs = expander.text_input(
             "Max training epochs (supervised and semi-supervised)",
-            value=state.max_epochs,
+            value=10,
         )
 
         # unsupervised losses (semi-supervised only)
         expander.write("Select losses for semi-supervised model")
-        st_loss_pcamv = expander.checkbox("PCA Multiview", value=state.loss_pcamv)
-        st_loss_pcasv = expander.checkbox("PCA Singleview", value=state.loss_pcasv)
-        st_loss_temp = expander.checkbox("Temporal", value=state.loss_temp)
+        st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
+        st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
+        st_loss_temp = expander.checkbox("Temporal", value=True)
 
         st.markdown(
             """
             #### Select models to train
             """
         )
-        st_train_super = st.checkbox("Supervised", value=state.train_super)
-        st_train_semisuper = st.checkbox("Semi-supervised", value=state.train_semisuper)
+        st_train_super = st.checkbox("Supervised", value=True)
+        st_train_semisuper = st.checkbox("Semi-supervised", value=True)
 
         st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
 
         # give user training updates
         if state.run_script_train:
-            if state.st_train_super:
-                p = state.st_max_epochs if state.st_train_complete_flag["super"] else state.curr_epoch
-                st.progress( float(p) / float(state.st_max_epochs), "Supervised progress")
-            if state.st_train_semisuper:
-                p = state.st_max_epochs if state.st_train_complete_flag["semisuper"] else state.curr_epoch
-                st.progress( float(p) / float(state.st_max_epochs), "Semi-supervised progress")
+            for m in ["super", "semisuper"]:
+                if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
+                    status = state.st_train_status[m]
+                    if status == "initialized":
+                        p = 0
+                    elif status == "active":
+                        p = state.curr_epoch
+                    elif status == "complete":
+                        p = state.st_max_epochs
+                    else:
+                        st.text(status)
+                    st.progress(float(p) / float(state.st_max_epochs), f"{m} progress ({status})")
 
-        # Lightning way of returning the parameters
         if st_submit_button_train:
-
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) and st_train_semisuper:
-                st.warning("must select at least one semi-supervised loss if training that model")
+                st.warning("Must select at least one semi-supervised loss if training that model")
                 st_submit_button_train = False
+
+        if state.submit_count_train > 0 \
+                and not state.run_script_train \
+                and not st_submit_button_train:
+            proceed_str = "Training complete; see diagnostics in the following tabs."
+            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
         if st_submit_button_train:
 
             # save streamlit options to flow object
+            state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
-            state.st_train_super = st_train_super
-            state.st_train_semisuper = st_train_semisuper
-            state.st_loss_pcamv = st_loss_pcamv
-            state.st_loss_pcasv = st_loss_pcasv
-            state.st_loss_temp = st_loss_temp
+            state.st_train_status = {
+                "super": "initialized" if st_train_super else "none", 
+                "semisuper": "initialized" if st_train_semisuper else "none",
+            }
 
             # construct semi-supervised loss list
             semi_losses = []
@@ -179,7 +181,7 @@ def _render_streamlit_fn(state: AppState):
                 semi_losses.append("pca_singleview")
             if st_loss_temp:
                 semi_losses.append("temporal")
-            state.st_semi_losses = semi_losses
+            state.st_losses = {"super": [], "semisuper": semi_losses}
 
             # set model times
             st_datetimes = {}
@@ -193,7 +195,6 @@ def _render_streamlit_fn(state: AppState):
 
             # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
             state.st_datetimes = st_datetimes
-            state.st_train_complete_flag = {"super": False, "semisuper": False}
             st.text("Model training launched!")
             state.run_script_train = True  # must the last to prevent race condition
             # force rerun to show "waiting for existing..." message

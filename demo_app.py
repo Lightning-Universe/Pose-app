@@ -140,30 +140,22 @@ class LitPoseApp(LightningFlow):
             os.path.join(self.project_io.proj_dir, "unlabeled_videos"),
             os.path.join(self.project_io.proj_dir, "CollectedData_.csv"),
         ]
-        outputs = [self.project_io.model_dir]
 
-        # train supervised model
-        if self.train_ui.st_train_super and not self.train_ui.st_train_complete_flag["super"]:
-            cfg_overrides["model"] = {"losses_to_use": []}
-            self.train_ui.curr_epoch = self.litpose.progress
-            self.litpose.run(
-                action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
-                results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes["super"])
-            )
-            self.train_ui.st_train_complete_flag["super"] = True
-            self.litpose.progress = 0
-            self.train_ui.curr_epoch = 0
-
-        # train semi-supervised model
-        if self.train_ui.st_train_semisuper and not self.train_ui.st_train_complete_flag["semisuper"]:
-            cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_semi_losses}
-            self.litpose.run(
-                action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
-                results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes["semisuper"])
-            )
-            self.train_ui.st_train_complete_flag["semisuper"] = True
-            self.litpose.progress = 0
-            self.train_ui.curr_epoch = 0
+        # train models
+        for m in ["super", "semisuper"]:
+            status = self.train_ui.st_train_status[m]
+            if status == "initialized" or status == "active":
+                self.train_ui.st_train_status[m] = "active"
+                outputs = [os.path.join(self.project_io.model_dir, self.train_ui.st_datetimes[m], "")]
+                cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
+                self.train_ui.curr_epoch = self.litpose.progress
+                self.litpose.run(
+                    action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
+                    results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
+                )
+                self.train_ui.st_train_status[m] = "complete"
+                self.litpose.progress = 0
+                self.train_ui.curr_epoch = 0
 
         self.train_ui.count += 1
 
