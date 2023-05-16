@@ -1,21 +1,42 @@
 from lightning import LightningWork
 from lightning.app.storage.drive import Drive
 from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
 import os
 import yaml
 
 
-class TrainingProgress(Callback):
+# class TrainingProgress(Callback):
+#
+#     def __init__(self, state, key="progress"):
+#         super().__init__()
+#         self.state = state
+#         self.key = key
+#
+#     def on_train_epoch_end(self, *args, **kwargs):
+#         old_val = self.state.__getattr__(self.key)
+#         self.state.__setattr__(self.key, old_val + 1)
 
-    def __init__(self, state, key="progress"):
-        super().__init__()
-        self.state = state
-        self.key = key
-    
-    def on_train_epoch_end(self, *args, **kwargs):
-        old_val = self.state.__getattr__(self.key)
-        self.state.__setattr__(self.key, old_val + 1)
+
+class ProgressCallback(Callback):
+
+    def __init__(self, work):
+        self.work = work
+        self.progress_delta = 0.5
+
+    @rank_zero_only
+    def on_train_batch_end(self, trainer, *args, **kwargs) -> None:
+        progress = 100 * (trainer.fit_loop.total_batch_idx + 1) / float(
+            trainer.estimated_stepping_batches)
+        if self.work.progress is None:
+            if progress > self.progress_delta:
+                self.work.progress = round(progress, 4)
+        elif round(progress, 4) - self.work.progress >= self.progress_delta:
+            if progress > 100:
+                self.work.progress = 100
+            else:
+                self.work.progress = round(progress, 4)
 
 
 class LitPose(LightningWork):
@@ -197,7 +218,7 @@ class LitPose(LightningWork):
         # early stopping, learning rate monitoring, model checkpointing, backbone unfreezing
         callbacks = get_callbacks(cfg)
         # add callback to log progress
-        callbacks.append(TrainingProgress(self, "progress"))
+        callbacks.append(TrainingProgress(self))
 
         # calculate number of batches for both labeled and unlabeled data per epoch
         limit_train_batches = calculate_train_batches(cfg, dataset)

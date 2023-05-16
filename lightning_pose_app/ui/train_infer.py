@@ -49,7 +49,7 @@ class TrainUI(LightningFlow):
 
         # updated externally by top-level flow
         self.trained_models = []
-        self.curr_epoch = 0
+        self.progress = 0
 
         # output from the UI (train; all will be dicts with keys=models, except st_max_epochs)
         self.st_max_epochs = None
@@ -144,12 +144,12 @@ def _render_streamlit_fn(state: AppState):
                     if status == "initialized":
                         p = 0
                     elif status == "active":
-                        p = state.curr_epoch
+                        p = state.progress
                     elif status == "complete":
-                        p = state.st_max_epochs
+                        p = 100
                     else:
                         st.text(status)
-                    st.progress(float(p) / float(state.st_max_epochs), f"{m} progress ({status})")
+                    st.progress(p, f"{m} progress ({status})")
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) and st_train_semisuper:

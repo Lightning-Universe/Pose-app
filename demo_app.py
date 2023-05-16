@@ -148,14 +148,14 @@ class LitPoseApp(LightningFlow):
                 self.train_ui.st_train_status[m] = "active"
                 outputs = [os.path.join(self.project_io.model_dir, self.train_ui.st_datetimes[m], "")]
                 cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
-                self.train_ui.curr_epoch = self.litpose.progress
+                self.train_ui.progress = self.litpose.progress
                 self.litpose.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
                     results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
                 )
                 self.train_ui.st_train_status[m] = "complete"
                 self.litpose.progress = 0
-                self.train_ui.curr_epoch = 0
+                self.train_ui.progress = 0
 
         self.train_ui.count += 1
 
