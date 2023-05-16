@@ -91,21 +91,18 @@ def _render_streamlit_fn(state: AppState):
 
     with train_tab:
 
-        st.markdown(
-            """
-            ## Train models
-            
-            If you have already trained models, you will be able to select those models for further 
-            analysis in the following tabs
-            (see the 'Existing Models' drop-down menu to see a list of already trained models).
-            
-            """
-        )
+        # add a sidebar to show the labeling progress
+        # Calculate percentage of frames labeled
+        labeling_progress = state.n_labeled_frames / state.n_total_frames
+        st.sidebar.markdown('### Labeling Progress')
+        st.sidebar.progress(labeling_progress)
+        st.sidebar.write(f"You have labeled {state.n_labeled_frames} out of {state.n_total_frames} frames.")
 
-        # TODO: update with st_radial
-        st.write(f"Note: you have labeled {state.n_labeled_frames} / {state.n_total_frames} frames")
+        st.sidebar.markdown("""### Existing models""")
+        st.sidebar.selectbox("Browse", sorted(state.trained_models, reverse=True))
+        st.sidebar.write("Proceed to next tabs to analyze your previously trained models.")
 
-        st.selectbox("Existing models", sorted(state.trained_models, reverse=True))
+        st.header("Train Networks")
 
         st.markdown(
             """
@@ -202,13 +199,7 @@ def _render_streamlit_fn(state: AppState):
 
     with infer_tab:
 
-        st.markdown(
-            """
-            ## Run inference
-            Upload new videos and run inference with a trained model.
-
-            """
-        )
+        st.header("Predict on New Videos")
 
         model_dir = st.selectbox(
             "Choose model to run inference", sorted(state.trained_models, reverse=True))
