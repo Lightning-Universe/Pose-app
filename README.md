@@ -31,15 +31,6 @@ cd Pose-app
 pip install -e .
 ```
 
-Finally, install the `lightning-pose` repo _inside_ the `Pose-app` repo:
-
-```bash
-cd ~/Pose-app
-git clone https://github.com/danbider/lightning-pose
-cd lightning-pose
-pip install -e .
-```
-
 ## Run the app on the cloud
 
 Once the environment has been set up, running the app on the cloud is easy! Launch with the
@@ -53,8 +44,15 @@ lightning run app demo_app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,u
 
 Running the app locally requires a few additional installs.
 
+First, install the `lightning-pose` repo in editable mode (the code has already been downloaded):
+
+```bash
+cd ~/Pose-app/lightning-pose
+pip install -e .
+```
+
 Install LabelStudio:
-from `/path/to/Pose-app`, run
+from `~/Pose-app`, run
 
 ```bash
 virtualenv ~/venv-label-studio
