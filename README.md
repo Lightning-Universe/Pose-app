@@ -26,7 +26,7 @@ Next, install the `Pose-app` repo:
 
 ```bash
 cd ~
-git clone https://github.com/Lightning-Universe/Pose-app
+git clone --recursive https://github.com/Lightning-Universe/Pose-app
 cd Pose-app
 pip install -e .
 ```

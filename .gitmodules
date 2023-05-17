@@ -1,0 +1,3 @@
+[submodule "lightning-pose"]
+	path = lightning-pose
+	url = https://github.com/danbider/lightning-pose
