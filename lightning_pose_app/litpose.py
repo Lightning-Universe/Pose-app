@@ -7,18 +7,6 @@ import os
 import yaml
 
 
-# class TrainingProgress(Callback):
-#
-#     def __init__(self, state, key="progress"):
-#         super().__init__()
-#         self.state = state
-#         self.key = key
-#
-#     def on_train_epoch_end(self, *args, **kwargs):
-#         old_val = self.state.__getattr__(self.key)
-#         self.state.__setattr__(self.key, old_val + 1)
-
-
 class TrainingProgress(Callback):
 
     def __init__(self, work):
