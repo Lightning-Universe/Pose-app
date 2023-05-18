@@ -46,13 +46,6 @@ lightning run app demo_app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,u
 
 Running the app locally requires a few additional installs.
 
-First, install the `lightning-pose` repo in editable mode (the code has already been downloaded):
-
-```bash
-cd ~/Pose-app/lightning-pose
-pip install -e .
-```
-
 Install LabelStudio:
 from `~/Pose-app`, run
 
