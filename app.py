@@ -27,6 +27,9 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 class LitPoseApp(LightningFlow):
 
     def __init__(self):
+
+        raise Exception("app.py needs to be updated with new components!")
+        
         super().__init__()
 
         # shared data for apps; NOTE: this is hard-coded in the run_inference method below too

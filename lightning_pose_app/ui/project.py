@@ -576,14 +576,6 @@ def _render_streamlit_fn(state: AppState):
         st.markdown("")
         st.markdown("")
         st.markdown("##### Export project configuration")
-        # give user slightly different info depending on where they are in their workflow
-        if state.st_project_loaded:
-            st.markdown("""Click on the button below to update project configuration.""")
-        else:
-            st.markdown("""
-                Click on the button below to create a new project; you will then be able to start
-                labeling data and train models!
-            """)
 
         need_update_pcamv = False
         if st_pcamv_columns is not None and len(st_pcamv_columns) > 0:

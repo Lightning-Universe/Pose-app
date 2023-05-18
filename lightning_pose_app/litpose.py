@@ -7,18 +7,6 @@ import os
 import yaml
 
 
-# class TrainingProgress(Callback):
-#
-#     def __init__(self, state, key="progress"):
-#         super().__init__()
-#         self.state = state
-#         self.key = key
-#
-#     def on_train_epoch_end(self, *args, **kwargs):
-#         old_val = self.state.__getattr__(self.key)
-#         self.state.__setattr__(self.key, old_val + 1)
-
-
 class TrainingProgress(Callback):
 
     def __init__(self, work):
@@ -126,7 +114,7 @@ class LitPose(LightningWork):
                 format=extension, n_digits=n_digits, context_frames=context_frames)
 
         # push extracted frames to drive
-        self.put_to_drive(data_dir_rel)
+        self.put_to_drive([data_dir_rel])
 
         # update flag
         self.work_is_done_extract_frames = True
