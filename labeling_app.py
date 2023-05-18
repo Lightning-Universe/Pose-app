@@ -21,7 +21,6 @@ from lightning_pose_app.build_configs import lightning_pose_dir, LitPoseBuildCon
 class LitPoseApp(LightningFlow):
 
     def __init__(self):
-
         super().__init__()
 
         # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
