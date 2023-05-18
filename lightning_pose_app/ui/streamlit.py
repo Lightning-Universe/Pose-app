@@ -45,6 +45,10 @@ class StreamlitAppLightningPose(LightningFlow):
             model_dir = kwargs["model_dir"]
         else:
             model_dir = os.path.join(os.getcwd(), self.proj_dir, "models")
+            
+        # create model dir if it does not exist
+        os.makedirs(model_dir, exist_ok=True)
+        
         model_dir_args = f" --model_dir={model_dir}"
 
         cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \

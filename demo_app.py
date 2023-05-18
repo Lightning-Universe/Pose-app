@@ -110,6 +110,17 @@ class LitPoseApp(LightningFlow):
 
         self.demo_data_transferred = False
 
+    @property
+    def ready(self) -> bool:
+        """Return true once all works have an assigned url"""
+        return all([
+            self.project_io.url != "",
+            self.fiftyone_ui.work.url != "",
+            self.streamlit_frame.work.url != "",
+            self.streamlit_video.work.url != "",
+            self.litpose.url != "",
+        ])
+
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
