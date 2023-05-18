@@ -29,6 +29,8 @@ cd ~
 git clone --recursive https://github.com/Lightning-Universe/Pose-app
 cd Pose-app
 pip install -e .
+cd lightning-pose
+pip install -e .
 ```
 
 ## Run the app on the cloud
