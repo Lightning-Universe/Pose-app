@@ -255,6 +255,10 @@ def _render_streamlit_fn(state: AppState):
         st_submit_button = False
         state.submit_success = False
         st.warning(f"Must choose two models to continue")
+    if st_model_dirs[0] == st_model_dirs[1]:
+        st_submit_button = False
+        state.submit_success = False
+        st.warning(f"Must choose two unique models to continue")
     if st_submit_button and \
             (st_dataset_name in existing_datasets
              or st_dataset_name is None

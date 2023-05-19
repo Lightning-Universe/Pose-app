@@ -140,8 +140,9 @@ class LitPoseApp(LightningFlow):
                 "predict_vids_after_training": True,
             },
             "training": {
+                "imgaug": "dlc",
                 "max_epochs": self.train_ui.st_max_epochs,
-            }   
+            }
         }
 
         # list files needed from Drive

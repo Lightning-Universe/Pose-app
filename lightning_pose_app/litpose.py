@@ -14,9 +14,8 @@ class TrainingProgress(Callback):
         self.progress_delta = 0.5
 
     @rank_zero_only
-    def on_train_batch_end(self, trainer, *args, **kwargs) -> None:
-        progress = 100 * (trainer.fit_loop.total_batch_idx + 1) / float(
-            trainer.estimated_stepping_batches)
+    def on_train_epoch_end(self, trainer, *args, **kwargs) -> None:
+        progress = 100 * (trainer.current_epoch + 1) / float(trainer.max_epochs)
         if self.work.progress is None:
             if progress > self.progress_delta:
                 self.work.progress = round(progress, 4)
@@ -168,6 +167,8 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
         # Set up data/model objects
         # ----------------------------------------------------------------------------------
+
+        pretty_print_cfg(cfg)
 
         data_dir, video_dir = return_absolute_data_paths(data_cfg=cfg.data)
 
