@@ -110,16 +110,16 @@ class LitPoseApp(LightningFlow):
 
         self.demo_data_transferred = False
 
-    @property
-    def ready(self) -> bool:
-        """Return true once all works have an assigned url"""
-        return all([
-            self.project_io.url != "",
-            self.fiftyone_ui.work.url != "",
-            self.streamlit_frame.work.url != "",
-            self.streamlit_video.work.url != "",
-            self.litpose.url != "",
-        ])
+    # @property
+    # def ready(self) -> bool:
+    #     """Return true once all works have an assigned url"""
+    #     return all([
+    #         self.project_io.url != "",
+    #         self.fiftyone_ui.work.url != "",
+    #         self.streamlit_frame.work.url != "",
+    #         self.streamlit_video.work.url != "",
+    #         self.litpose.url != "",
+    #     ])
 
     def start_tensorboard(self, logdir):
         """run tensorboard"""
@@ -225,8 +225,8 @@ class LitPoseApp(LightningFlow):
 
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_io.model_dir)
-        self.streamlit_frame.run()
-        self.streamlit_video.run()
+        self.streamlit_frame.run(action="initialize")
+        self.streamlit_video.run(action="initialize")
         self.fiftyone_ui.run(action="start_fiftyone")
 
         # find previously constructed fiftyone datasets
@@ -237,13 +237,17 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.train_ui.run_script_train:
             self.train_models()
+            inputs = [self.project_io.model_dir]
             # have tensorboard pull the new data
             self.tensorboard.run(
                 "null command",
                 cwd=os.getcwd(),
                 input_output_only=True,  # pull inputs from Drive, but do not run commands
-                inputs=[self.project_io.model_dir],
+                inputs=inputs,
             )
+            # have streamlit pull the new data
+            self.streamlit_frame.run(action="pull_models", inputs=inputs)
+            self.streamlit_video.run(action="pull_models", inputs=inputs)
             self.project_io.update_models = True
             self.train_ui.run_script_train = False
 

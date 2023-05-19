@@ -34,26 +34,44 @@ class StreamlitAppLightningPose(LightningFlow):
 
         self.app_type = app_type
         self.script_name = script_name
+        self.is_initialized = False
 
         # params updated externally by top-level flow
         self.proj_dir = None
 
+    def initialize(self, **kwargs):
 
-    def run(self, **kwargs):
+        if not self.is_initialized:
 
-        if kwargs.get("model_dir", None):
-            model_dir = kwargs["model_dir"]
-        else:
-            model_dir = os.path.join(os.getcwd(), self.proj_dir, "models")
-            
-        # create model dir if it does not exist
-        os.makedirs(model_dir, exist_ok=True)
+            self.is_initialized = True
+
+            if kwargs.get("model_dir", None):
+                model_dir = kwargs["model_dir"]
+            else:
+                model_dir = os.path.join(os.getcwd(), self.proj_dir, "models")
         
-        model_dir_args = f" --model_dir={model_dir}"
+            model_dir_args = f" --model_dir={model_dir} --make_dir"
 
-        cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
-              + " --server.address $host --server.port $port" \
-              + " -- " \
-              + " " + model_dir_args
+            cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
+                + " --server.address $host --server.port $port" \
+                + " -- " \
+                + " " + model_dir_args
 
-        self.work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
+            self.work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
+
+    def pull_models(self, **kwargs):
+        inputs = kwargs.get("inputs", None)
+        if inputs:
+            self.work.run(
+                "null command",
+                cwd=os.getcwd(),
+                input_output_only=True,  # pull inputs from Drive, but do not run commands
+                inputs=inputs,
+            )
+
+    def run(self, action, **kwargs):
+
+        if action == "initialize":
+            self.initialize(**kwargs)
+        elif action == "pull_models":
+            self.pull_models(**kwargs)
