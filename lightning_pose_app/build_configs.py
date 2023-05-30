@@ -16,7 +16,6 @@ class LitPoseBuildConfig(BuildConfig):
             "sudo apt-get update",
             "sudo apt-get install -y ffmpeg libsm6 libxext6",
             f"pip install -e {lightning_pose_dir}",
-            f"pip install botocore==1.27.59",
         ]
 
 

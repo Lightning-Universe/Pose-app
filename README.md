@@ -53,8 +53,8 @@ from `~/Pose-app`, run
 virtualenv ~/venv-label-studio
 source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
 source ~/venv-label-studio/bin/activate; conda install libffi==3.3; deactivate
-source ~/venv-label-studio/bin/activate; pip install label-studio label-studio-sdk; deactivate
 source ~/venv-label-studio/bin/activate; pip install -e .; deactivate
+source ~/venv-label-studio/bin/activate; pip install label-studio label-studio-sdk; deactivate
 ```
 
 (note that `libffi` install may downgrade python, but this is fine.)
