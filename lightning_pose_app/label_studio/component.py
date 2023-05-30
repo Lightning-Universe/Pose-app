@@ -24,7 +24,11 @@ class LitLabelStudio(LightningFlow):
             drive_name=drive_name,
             component_name="label_studio",
         )
-        self.count = 0
+        self.counts = {
+            "import_database": 0,
+            "start_label_studio": 0,
+            "create_new_project": 0,
+        }
         self.label_studio_url = f"http://localhost:{self.label_studio.port}"
         self.username = "user@localhost"
         self.password = "pw"
@@ -56,6 +60,9 @@ class LitLabelStudio(LightningFlow):
     def import_database(self):
         # pull database from Drive if it exists
         # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
+        if self.counts["import_database"] > 0:
+            return
+
         self.label_studio.run(
             "null command",
             venv_name=label_studio_venv,
@@ -65,9 +72,11 @@ class LitLabelStudio(LightningFlow):
             wait_for_exit=True,
         )
 
+        self.counts["import_database"] += 1
+
     def start_label_studio(self):
 
-        if self.count > 0:
+        if self.counts["start_label_studio"] > 0:
             return
 
         # start label-studio on the default port 8080
@@ -90,7 +99,7 @@ class LitLabelStudio(LightningFlow):
             },
         )
 
-        self.count += 1
+        self.counts["start_label_studio"] += 1
 
     def update_paths(self, proj_dir, proj_name):
 
@@ -111,6 +120,9 @@ class LitLabelStudio(LightningFlow):
             self.proj_dir, "label_studio_tasks.pkl")
 
     def create_new_project(self):
+
+        if self.counts["create_new_project"] > 0:
+            return
 
         # build script command
         script_path = os.path.join(
@@ -136,6 +148,8 @@ class LitLabelStudio(LightningFlow):
                 self.filenames["label_studio_metadata"],
             ],
         )
+
+        self.counts["create_new_project"] += 1
 
     def update_tasks(self, videos=[]):
         """Update tasks after new video frames have been extracted."""

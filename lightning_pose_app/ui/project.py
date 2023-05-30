@@ -319,7 +319,7 @@ class ProjectDataIO(LightningWork):
 class ProjectUI(LightningFlow):
     """UI to set up project."""
 
-    def __init__(self, *args, data_dir, **kwargs):
+    def __init__(self, *args, data_dir, debug=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         # control runners
@@ -346,6 +346,9 @@ class ProjectUI(LightningFlow):
         self.st_project_name = None
         self.st_project_loaded = False
         self.st_new_vals = None
+
+        # if True, do not expose project options to user, hard-code instead
+        self.debug = debug
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -433,7 +436,7 @@ def _render_streamlit_fn(state: AppState):
     # user input for data config
     # ----------------------------------------------------
 
-    DEBUG = True
+    DEBUG = state.debug
 
     if DEBUG and enter_data:
         st_n_views = 2

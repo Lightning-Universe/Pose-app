@@ -46,7 +46,10 @@ class LitPoseApp(LightningFlow):
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
         )
-        self.project_ui = ProjectUI(data_dir=self.data_dir)
+        self.project_ui = ProjectUI(
+            data_dir=self.data_dir,
+            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
+        )
         for key, val in self.project_io.proj_defaults.items():
             setattr(self.project_ui, key, val)
 
