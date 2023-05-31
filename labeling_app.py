@@ -1,7 +1,7 @@
 """Main loop for lightning pose app
 
 To run from the command line (inside the conda environment named "lai" here):
-(lai) user@machine: lightning run app app.py
+(lai) user@machine: lightning run app labeling_app.py
 
 """
 
@@ -25,8 +25,6 @@ class LitPoseApp(LightningFlow):
 
         # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
         drive_name = "lit://lpa"
-
-        self.proj_name = "demo"
 
         # -----------------------------
         # paths
@@ -93,7 +91,6 @@ class LitPoseApp(LightningFlow):
         # update project data (user has clicked button in project UI)
         # -------------------------------------------------------------
         if self.project_ui.run_script:
-
             # update paths now that we know which project we're working with
             self.project_io.run(
                 action="update_paths", project_name=self.project_ui.st_project_name)

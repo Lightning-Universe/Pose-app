@@ -38,7 +38,7 @@ class ProjectDataIO(LightningWork):
         self.initialized_projects = []
         self.proj_defaults = {
             "st_n_views": 0,
-            "st_keypoints": [],
+            "st_keypoints_": [],
             "st_n_keypoints": 0,
             "st_pcasv_columns": [],
             "st_pcamv_columns": [],
@@ -277,7 +277,7 @@ class ProjectDataIO(LightningWork):
 
             self.proj_defaults = {
                 "st_n_views": st_n_views,
-                "st_keypoints": st_keypoints,
+                "st_keypoints_": st_keypoints,
                 "st_n_keypoints": st_n_keypoints,
                 "st_pcasv_columns": st_pcasv_columns,
                 "st_pcamv_columns": st_pcamv_columns,
@@ -336,7 +336,7 @@ class ProjectUI(LightningFlow):
 
         # input from ProjectIO
         self.st_n_views = 0
-        self.st_keypoints = []
+        self.st_keypoints_ = []
         self.st_n_keypoints = 0
         self.st_pcasv_columns = []
         self.st_pcamv_columns = []
@@ -349,6 +349,10 @@ class ProjectUI(LightningFlow):
 
         # if True, do not expose project options to user, hard-code instead
         self.debug = debug
+
+    @property
+    def st_keypoints(self):
+        return np.unique(self.st_keypoints_).tolist()
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -399,7 +403,7 @@ def _render_streamlit_fn(state: AppState):
     # set defaults; these are automatically updated in the main Flow from ProjectDataIO once the
     # config file is specified
     st_n_views = state.st_n_views
-    st_keypoints = state.st_keypoints
+    st_keypoints = state.st_keypoints_
     st_n_keypoints = state.st_n_keypoints
     st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
     st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
@@ -639,7 +643,7 @@ def _render_streamlit_fn(state: AppState):
             state.st_new_vals = st_new_vals
 
             state.st_n_views = st_n_views
-            state.st_keypoints = st_new_vals["data"]["keypoints"]
+            state.st_keypoints_ = st_new_vals["data"]["keypoints"]
             state.st_n_keypoints = st_n_keypoints
             state.st_pcasv_columns = st_new_vals["data"]["columns_for_singleview_pca"]
             state.st_pcamv_columns = st_new_vals["data"]["mirrored_column_matches"]
