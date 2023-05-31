@@ -21,6 +21,7 @@ from lightning_pose_app.build_configs import lightning_pose_dir, LitPoseBuildCon
 class LitPoseApp(LightningFlow):
 
     def __init__(self):
+
         super().__init__()
 
         # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
@@ -46,7 +47,7 @@ class LitPoseApp(LightningFlow):
         )
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
-            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
         for key, val in self.project_io.proj_defaults.items():
             setattr(self.project_ui, key, val)
@@ -152,7 +153,7 @@ class LitPoseApp(LightningFlow):
                 self.extract_ui.run_script = False
 
         # -------------------------------------------------------------
-        # check labeling task and export new labels
+        # periodically check labeling task and export new labels
         # -------------------------------------------------------------
         if self.project_ui.count > 0:
             t_elapsed = 15  # seconds

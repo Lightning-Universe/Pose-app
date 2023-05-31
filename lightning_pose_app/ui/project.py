@@ -9,6 +9,7 @@ import os
 import shutil
 from streamlit_autorefresh import st_autorefresh
 from PIL import Image
+import time
 import streamlit as st
 import yaml
 
@@ -273,7 +274,7 @@ class ProjectDataIO(LightningWork):
             st_n_keypoints = config_dict["data"]["num_keypoints"]
             st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
             st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
-            st_n_views = 1 if st_pcamv_columns is None else len(st_pcamv_columns)
+            st_n_views = 1 if len(st_pcamv_columns) == 0 else len(st_pcamv_columns)
 
             self.proj_defaults = {
                 "st_n_views": st_n_views,
@@ -364,15 +365,13 @@ def _render_streamlit_fn(state: AppState):
     # landing
     # ----------------------------------------------------
 
-    st.markdown(
-        """
-        ## Manage Lightning Pose project
-        """
-    )
+    st.markdown(""" ## Manage Lightning Pose project """)
 
     st_mode = st.radio(
-        "Create new project or load existing?",
-        options=["Create new project", "Load existing project"]
+        "",
+        options=["Create new project", "Load existing project"],
+        disabled=state.st_project_loaded,
+        index=1 if (state.st_project_loaded and not state.create_new_project) else 0,
     )
 
     st.text(f"Available projects: {state.initialized_projects}")
@@ -381,80 +380,97 @@ def _render_streamlit_fn(state: AppState):
         "Enter project name",
         value="" if not state.st_project_loaded else state.st_project_name)
 
-    if st_project_name and st_mode == "Load existing project":
-        if st_project_name not in state.initialized_projects:
-            st.error(f"No project named {st_project_name} found; "
-                     f"available projects are {state.initialized_projects}")
-        else:
-            project_loaded = st.button(
-                "Load project",
-                disabled=True if not st_project_name != "" else False
-            )
-            if project_loaded:
-                # specify config file
-                config_file = os.path.join(
-                    state.data_dir, st_project_name, f"model_config_{st_project_name}.yaml")
-                # update project manager
-                state.config_file = config_file
-                state.st_submits += 1
-                state.st_project_name = st_project_name
-                state.st_project_loaded = True
-
-    # set defaults; these are automatically updated in the main Flow from ProjectDataIO once the
-    # config file is specified
-    st_n_views = state.st_n_views
-    st_keypoints = state.st_keypoints_
-    st_n_keypoints = state.st_n_keypoints
-    st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
-    st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
-
+    # ----------------------------------------------------
+    # determine project status - load existing, create new
+    # ----------------------------------------------------
+    # we'll only allow config updates once the user has defined an allowable project name
     if st_project_name:
-        if st_mode == "Load existing project" and state.st_project_loaded:
-            enter_data = True
-            # let user know they're data has been loaded
-            proceed_str = "Project loaded successfully! You may proceed to subsequent tabs."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
-            if state.st_submits == 1:
-                # signal to lightning app that project has been loaded; this will populate other
-                # UIs with relevant project info
-                state.run_script = True
-                state.st_submits += 1
-        elif (st_mode == "Create new project") and (st_project_name in state.initialized_projects):
-            st.error(f"A project named {st_project_name} already exists; "
-                     f"choose a unique project name or select `Load existing project` above")
-            enter_data = False
-        elif st_mode == "Create new project" and st_project_name != "":
-            enter_data = True
-            state.create_new_project = True
-        else:
-            enter_data = False
+        if st_mode == "Load existing project":
+            if st_project_name not in state.initialized_projects:
+                # catch user error
+                st.error(f"No project named {st_project_name} found; "
+                         f"available projects are {state.initialized_projects}")
+                enter_data = False
+            elif state.st_project_loaded:
+                # keep entering data after project has been loaded
+                enter_data = True
+            else:
+                # load project for first time
+                project_loaded = st.button(
+                    "Load project",
+                    disabled=True if not st_project_name != "" else False
+                )
+                enter_data = False
+                if project_loaded:
+                    # specify config file
+                    config_file = os.path.join(
+                        state.data_dir, st_project_name, f"model_config_{st_project_name}.yaml")
+                    # update project manager
+                    state.config_file = config_file
+                    state.st_submits += 1
+                    state.st_project_name = st_project_name
+                    state.st_project_loaded = True
+                    # let user know their data has been loaded
+                    proceed_str = "Project loaded successfully! You may proceed to following tabs."
+                    proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+                    st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+                    enter_data = True
+                    if state.st_submits == 1:
+                        # signal to lightning app that project has been loaded; this will
+                        # - trigger loading of project config
+                        # - populate other UIs with relevant project info
+                        state.run_script = True
+                        state.st_submits += 1  # prevent this block from running again
+                        time.sleep(2)  # allow main event loop to catch up
+                        st.experimental_rerun()  # update everything
+        elif st_mode == "Create new project":
+            if state.st_project_loaded:
+                # when coming back to tab from another
+                enter_data = True
+            elif st_project_name in state.initialized_projects:
+                # catch user error
+                st.error(f"A project named {st_project_name} already exists; "
+                         f"choose a unique project name or select `Load existing project` above")
+                enter_data = False
+            elif st_project_name != "":
+                # allow creation of new project
+                enter_data = True
+                state.create_new_project = True
+            else:
+                # catch remaining errors
+                enter_data = False
     else:
+        # cannot enter data until project name has been entered
         enter_data = False
-
-    # add some whitespace
-    st.markdown("")
-    st.markdown("")
 
     # ----------------------------------------------------
     # user input for data config
     # ----------------------------------------------------
 
-    DEBUG = state.debug
+    # set defaults; these values are:
+    # - used as field defaults below
+    # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
+    st_n_views = state.st_n_views
+    st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+    st_n_keypoints = state.st_n_keypoints
+    st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
+    st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
 
-    if DEBUG and enter_data:
+    if state.debug and enter_data:
+        # hard-code params for debugging, skip manual entry
         st_n_views = 2
         st_keypoints = ["nose_top", "nose_bottom"]
         st_n_keypoints = len(st_keypoints)
         st_pcasv_columns = [0, 1]
-        st_n_bodyparts = 1
         st_pcamv_columns = np.array([[0], [1]], dtype=np.int32)
         pcamv_ready = True
 
-    elif not DEBUG:
+    elif not state.debug:
 
         # camera views
         if enter_data:
+            st.markdown("")
+            st.markdown("")
             st.markdown("##### Camera views")
             n_views = st.text_input(
                 "Enter number of camera views:",
@@ -485,12 +501,10 @@ def _render_streamlit_fn(state: AppState):
                 ```
                 It is also possible to track keypoints that are only present in a subset of the views,
                 such as the keypoint `corner1_top` above.
-    
-                The order in which you list the keypoints here determines the labeling order.
             """
             st.markdown(keypoint_instructions)
             keypoints = st.text_area(
-                "Enter keypoint names (one per line):",
+                "Enter keypoint names (one per line, determines labeling order):",
                 disabled=not enter_data,
                 value="" if not state.st_project_loaded else "\n".join(st_keypoints),
             )
@@ -502,7 +516,7 @@ def _render_streamlit_fn(state: AppState):
             st.markdown("")
 
         # pca singleview
-        if len(st_keypoints) > 1:
+        if st_n_keypoints > 1:
             st.markdown("##### Select subset of keypoints for Pose PCA")
             st.markdown("""
                 **Instructions**:
@@ -516,13 +530,13 @@ def _render_streamlit_fn(state: AppState):
                     kp,
                     disabled=not enter_data,
                     value=False if not state.st_project_loaded else (k in st_pcasv_columns),
-
+                    key=f"pca_singleview_{kp}",
                 )
             st_pcasv_columns = list(np.where(pcasv_selected)[0])
             st.markdown("")
 
         # pca multiview
-        if len(st_keypoints) > 1 and st_n_views > 1:
+        if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
             st.markdown("""
@@ -530,10 +544,6 @@ def _render_streamlit_fn(state: AppState):
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
                 The subset should be keypoints that are usually visible in all camera views.
             """)
-            # pcasv_selected = [False for _ in st_keypoints]
-            # for k, kp in enumerate(st_keypoints):
-            #     pcasv_selected[k] = st.checkbox(kp, disabled=not enter_data)
-            # st.markdown("")
             n_bodyparts = st.text_input(
                 "Enter number of body parts visible in all views:",
                 value="" if not state.st_project_loaded else str(len(st_pcamv_columns[0])),
@@ -568,16 +578,20 @@ def _render_streamlit_fn(state: AppState):
 
             st.markdown("")
         else:
-            st_n_bodyparts = 0
+            st_n_bodyparts = st_n_keypoints
 
         # construct config file
-        if (len(st_keypoints) > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
-                or (len(st_keypoints) > 1 and st_n_views == 1):
+        if (st_n_keypoints > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
+                or (st_n_keypoints > 1 and st_n_views == 1):
             pcamv_ready = True
         else:
             pcamv_ready = False
 
-    if len(st_keypoints) > 1 and st_n_views > 0 and pcamv_ready:
+    # ----------------------------------------------------
+    # export data
+    # ----------------------------------------------------
+
+    if st_n_keypoints > 1 and st_n_views > 0 and pcamv_ready:
 
         st.markdown("")
         st.markdown("")
@@ -609,14 +623,13 @@ def _render_streamlit_fn(state: AppState):
             # need to convert all elements to int instead of np.int, streamlit can't cache ow
             st_new_vals["data"]["columns_for_singleview_pca"] = [int(t) for t in st_pcasv_columns]
         else:
-            st_new_vals["data"]["columns_for_singleview_pca"] = None
+            st_new_vals["data"]["columns_for_singleview_pca"] = []
 
         if st_pcamv_columns is not None and len(st_pcamv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow
             st_new_vals["data"]["mirrored_column_matches"] = st_pcamv_columns.tolist()
-            # [[int(t_) for t_ in t] for t in st_pcamv_columns]
         else:
-            st_new_vals["data"]["mirrored_column_matches"] = None
+            st_new_vals["data"]["mirrored_column_matches"] = []
 
         if state.st_project_loaded:
             st_submit_button = st.button("Update project", disabled=need_update_pcamv)

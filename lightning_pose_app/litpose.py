@@ -132,7 +132,7 @@ class LitPose(LightningWork):
 
             # check 1: does file exist?
             video_file_exists = os.path.exists(video_file_abs)
-            print("video file exist? %s" % ("YES" if video_file_exists else "NO"))
+            print(f"video file exists? {video_file_exists}")
             if not video_file_exists:
                 continue
 
