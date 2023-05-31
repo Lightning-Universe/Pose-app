@@ -47,11 +47,11 @@ class LitPose(LightningWork):
         self.work_is_done_inference = True
         self.count = 0
 
-    def get_from_drive(self, inputs):
+    def get_from_drive(self, inputs, component_name=None):
         for i in inputs:
             print(f"drive get {i}")
             try:  # file may not be ready
-                self._drive.get(i, overwrite=True)
+                self._drive.get(i, overwrite=True, component_name=component_name)
                 print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
             except Exception as e:
                 print(e)
@@ -67,15 +67,56 @@ class LitPose(LightningWork):
             self._drive.put(o)
             print(f"drive success put {o}")
 
+    def reformat_videos(self, video_files=None, **kwargs):
+
+        from lightning_pose.utils.video_ops import check_codec_format, reencode_video
+
+        # pull videos from Drive; these will come from "root." component
+        self.get_from_drive(video_files, component_name="root.")
+
+        video_files_new = []
+        for video_file in video_files:
+
+            video_file_abs = os.path.join(os.getcwd(), video_file)
+
+            # check 1: does file exist?
+            video_file_exists = os.path.exists(video_file_abs)
+            if not video_file_exists:
+                continue
+
+            # check 2: is file in the correct format for DALI?
+            video_file_correct_codec = check_codec_format(video_file_abs)
+            ext = os.path.splitext(os.path.basename(video_file))[1]
+            video_file_new = video_file.replace(f"_tmp{ext}", ".mp4")
+            video_file_abs_new = os.path.join(os.getcwd(), video_file_new)
+            if not video_file_correct_codec:
+                print("re-encoding video to be compatable with Lightning Pose video reader")
+                reencode_video(video_file_abs, video_file_abs_new)
+                # remove local version of old video
+                os.remove(video_file_abs)
+                # cannot remove Drive version of old video, created by other Work
+                # push new video to Drive
+                # self._drive.put(video_file_abs_new)  # TODO: this is needed for cloud right?
+                # record
+                video_files_new.append(video_file_new)
+            else:
+                # rename
+                os.rename(video_file_abs, video_file_abs_new)
+                # record
+                video_files_new.append(video_file_new)
+
+        return video_files_new
+
     def start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
 
         import numpy as np
         from lightning_pose.utils.video_ops import select_frame_idxs, export_frames
+        from lightning_pose.utils.video_ops import check_codec_format
 
         self.work_is_done_extract_frames = False
 
-        # pull videos from drive
-        self.get_from_drive(video_files)
+        # pull videos from drive; these will come from "litpose"
+        self.get_from_drive(video_files, component_name="litpose")
 
         data_dir_rel = os.path.join(proj_dir, "labeled-data")
         data_dir = os.path.join(os.getcwd(), data_dir_rel)
@@ -88,8 +129,18 @@ class LitPose(LightningWork):
             video_file_abs = os.path.join(os.getcwd(), video_file)
 
             print(f"============== extracting frames from {video_file} ================")
-            print("video file exist? %s" % ("YES" if os.path.exists(video_file_abs) else "NO"))
 
+            # check 1: does file exist?
+            video_file_exists = os.path.exists(video_file_abs)
+            print("video file exist? %s" % ("YES" if video_file_exists else "NO"))
+            if not video_file_exists:
+                continue
+
+            # check 2: is file in the correct format for DALI?
+            video_file_correct_codec = check_codec_format(video_file_abs)
+            print(f"video file codec and pix format correct? {video_file_correct_codec}")
+
+            # create folder to save images
             video_name = os.path.splitext(os.path.basename(video_file))[0]
             save_dir = os.path.join(data_dir, video_name)
             if not os.path.exists(save_dir):
@@ -333,6 +384,8 @@ class LitPose(LightningWork):
     def run(self, action=None, **kwargs):
 
         if action == "start_extract_frames":
+            video_files_new = self.reformat_videos(**kwargs)
+            kwargs["video_files"] = video_files_new
             self.start_extract_frames(**kwargs)
         elif action == "train":
             self.train(**kwargs)

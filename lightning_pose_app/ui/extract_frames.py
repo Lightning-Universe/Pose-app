@@ -61,9 +61,10 @@ def _render_streamlit_fn(state: AppState):
     for uploaded_file in uploaded_files:
         # read it
         bytes_data = uploaded_file.read()
-        # name it
+        # name it (append "_"
         filename = uploaded_file.name.replace(" ", "_")
-        # filepath = os.path.join(state.drive.root_folder, filename)
+        ext = os.path.splitext(filename)[1]
+        filename = filename.replace(ext, f"_tmp{ext}")
         filepath = os.path.join(video_dir, filename)
         st_videos.append(filepath)
         # write the content of the file to the path
