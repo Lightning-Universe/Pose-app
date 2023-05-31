@@ -73,6 +73,19 @@ class LitPoseApp(LightningFlow):
             database_dir=os.path.join(self.data_dir, "labelstudio_db"),
         )
 
+    def extract_frames(self, video_files, proj_dir, n_frames_per_video):
+        for video_file in video_files:
+            status = self.extract_ui.st_extract_status[video_file]
+            if status == "initialized" or status == "active":
+                self.extract_ui.st_extract_status[video_file] = "active"
+                self.litpose.run(
+                    action="start_extract_frames",
+                    video_files=[video_file],
+                    proj_dir=proj_dir,
+                    n_frames_per_video=n_frames_per_video,
+                )
+                self.extract_ui.st_extract_status[video_file] = "complete"
+
     def run(self):
 
         # for unit testing purposes
@@ -144,8 +157,7 @@ class LitPoseApp(LightningFlow):
         # extract frames for labeling from uploaded videos
         # -------------------------------------------------------------
         if self.extract_ui.proj_dir and self.extract_ui.run_script:
-            self.litpose.run(
-                action="start_extract_frames",
+            self.extract_frames(
                 video_files=self.extract_ui.st_video_files,
                 proj_dir=self.extract_ui.proj_dir,
                 n_frames_per_video=self.extract_ui.st_n_frames_per_video,
