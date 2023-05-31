@@ -25,9 +25,6 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 # TODO
 # - ProjectDataIO._put_to_drive_remove_local does NOT overwrite directories already on Drive - this is bad!
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
-# - figure out what to do about inference
-# - figure out what to do with landing tab/current markdown
-# - slider for threshold in labeled streamlit app
 
 
 class LitPoseApp(LightningFlow):

@@ -58,16 +58,16 @@ class LitPose(LightningWork):
                 print(f"did not load {i} from drive")
                 pass
 
-    def put_to_drive(self, outputs):
+    def put_to_drive(self, outputs, directory=True):
         for o in outputs:
             print(f"drive try put {o}")
             # make sure dir ends with / so that put works correctly
-            if o[-1] != "/":
+            if directory and o[-1] != "/":
                 o = os.path.join(o, "")
             self._drive.put(o)
             print(f"drive success put {o}")
 
-    def reformat_videos(self, video_files=None, **kwargs):
+    def _reformat_videos(self, video_files=None, **kwargs):
 
         from lightning_pose.utils.video_ops import check_codec_format, reencode_video
 
@@ -93,10 +93,8 @@ class LitPose(LightningWork):
                 print("re-encoding video to be compatable with Lightning Pose video reader")
                 reencode_video(video_file_abs, video_file_abs_new)
                 # remove local version of old video
-                os.remove(video_file_abs)
                 # cannot remove Drive version of old video, created by other Work
-                # push new video to Drive
-                # self._drive.put(video_file_abs_new)  # TODO: this is needed for cloud right?
+                os.remove(video_file_abs)
                 # record
                 video_files_new.append(video_file_new)
             else:
@@ -105,9 +103,12 @@ class LitPose(LightningWork):
                 # record
                 video_files_new.append(video_file_new)
 
+            # push possibly reformated, renamed videos to Drive
+            self.put_to_drive(video_files_new, directory=False)
+
         return video_files_new
 
-    def start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
+    def _start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
 
         import numpy as np
         from lightning_pose.utils.video_ops import select_frame_idxs, export_frames
@@ -169,7 +170,7 @@ class LitPose(LightningWork):
         # update flag
         self.work_is_done_extract_frames = True
 
-    def train(self, inputs, outputs, cfg_overrides, results_dir):
+    def _train(self, inputs, outputs, cfg_overrides, results_dir):
         
         from omegaconf import DictConfig
         from lightning_pose.utils import pretty_print_str, pretty_print_cfg
@@ -374,7 +375,7 @@ class LitPose(LightningWork):
         self.put_to_drive(outputs)  # IMPORTANT! must come after changing directories
         self.work_is_done_training = True
 
-    def run_inference(self, model, video):
+    def _run_inference(self, model, video):
         import time
         self.work_is_done_inference = False
         print(f"launching inference for video {video} using model {model}")
@@ -384,10 +385,10 @@ class LitPose(LightningWork):
     def run(self, action=None, **kwargs):
 
         if action == "start_extract_frames":
-            video_files_new = self.reformat_videos(**kwargs)
+            video_files_new = self._reformat_videos(**kwargs)
             kwargs["video_files"] = video_files_new
-            self.start_extract_frames(**kwargs)
+            self._start_extract_frames(**kwargs)
         elif action == "train":
-            self.train(**kwargs)
+            self._train(**kwargs)
         elif action == "run_inference":
-            self.run_inference(**kwargs)
+            self._run_inference(**kwargs)

@@ -71,3 +71,9 @@ In order to run the application locally, run the following commands:
 cd ~/Pose-app
 lightning run app demo_app.py
 ```
+
+If you need to increase the file size limit for uploading videos, set the following environment
+variable (in units of MB, so 2000 is equivalent to 2GB)
+```
+lightning run app demo_app.py --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=2000
+```

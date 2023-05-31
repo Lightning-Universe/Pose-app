@@ -16,6 +16,7 @@ class LitLabelStudio(LightningFlow):
         proj_dir=None,
         **kwargs
     ) -> None:
+
         super().__init__(*args, **kwargs)
 
         self.label_studio = LitBashWork(
@@ -57,7 +58,7 @@ class LitLabelStudio(LightningFlow):
     def proj_dir_local(self):
         return os.path.join(os.getcwd(), self.proj_dir)
 
-    def import_database(self):
+    def _import_database(self):
         # pull database from Drive if it exists
         # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
         if self.counts["import_database"] > 0:
@@ -74,7 +75,7 @@ class LitLabelStudio(LightningFlow):
 
         self.counts["import_database"] += 1
 
-    def start_label_studio(self):
+    def _start_label_studio(self):
 
         if self.counts["start_label_studio"] > 0:
             return
@@ -101,7 +102,7 @@ class LitLabelStudio(LightningFlow):
 
         self.counts["start_label_studio"] += 1
 
-    def update_paths(self, proj_dir, proj_name):
+    def _update_paths(self, proj_dir, proj_name):
 
         self.proj_dir = proj_dir
         self.proj_name = proj_name
@@ -119,7 +120,7 @@ class LitLabelStudio(LightningFlow):
         self.filenames["label_studio_tasks"] = os.path.join(
             self.proj_dir, "label_studio_tasks.pkl")
 
-    def create_new_project(self):
+    def _create_new_project(self):
 
         if self.counts["create_new_project"] > 0:
             return
@@ -151,7 +152,7 @@ class LitLabelStudio(LightningFlow):
 
         self.counts["create_new_project"] += 1
 
-    def update_tasks(self, videos=[]):
+    def _update_tasks(self, videos=[]):
         """Update tasks after new video frames have been extracted."""
 
         # build script command
@@ -175,7 +176,7 @@ class LitLabelStudio(LightningFlow):
             outputs=[],
         )
 
-    def check_labeling_task_and_export(self, timer):
+    def _check_labeling_task_and_export(self, timer):
         """Check for new labels, export to lightning pose format, export database to Drive"""
 
         script_path = os.path.join(
@@ -212,7 +213,7 @@ class LitLabelStudio(LightningFlow):
 
         self.check_labels = True
 
-    def create_labeling_config_xml(self, keypoints):
+    def _create_labeling_config_xml(self, keypoints):
 
         self.keypoints = keypoints
 
@@ -240,16 +241,21 @@ class LitLabelStudio(LightningFlow):
     def run(self, action=None, **kwargs):
 
         if action == "import_database":
-            self.import_database()
+            self._import_database()
         elif action == "start_label_studio":
-            self.start_label_studio()
+            self._start_label_studio()
         elif action == "create_labeling_config_xml":
-            self.create_labeling_config_xml(**kwargs)
+            self._create_labeling_config_xml(**kwargs)
         elif action == "create_new_project":
-            self.create_new_project()
+            self._create_new_project()
         elif action == "update_tasks":
-            self.update_tasks(**kwargs)
+            self._update_tasks(**kwargs)
         elif action == "check_labeling_task_and_export":
-            self.check_labeling_task_and_export(timer=kwargs["timer"])
+            self._check_labeling_task_and_export(timer=kwargs["timer"])
         elif action == "update_paths":
-            self.update_paths(**kwargs)
+            self._update_paths(**kwargs)
+
+    def on_exit(self):
+        # final save to drive
+        print("SAVING DATA ONE LAST TIME")
+        self._check_labeling_task_and_export(timer=0.0)
