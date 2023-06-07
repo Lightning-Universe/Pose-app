@@ -14,7 +14,6 @@ import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
-from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectDataIO
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
@@ -48,10 +47,7 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # flows and works
         # -----------------------------
-        # landing tab (flow)
-        self.landing_ui = LandingUI()
-
-        # project manager (work) and tab (flow)
+        # project manager (work)
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
             data_dir=self.data_dir,
@@ -266,8 +262,6 @@ class LitPoseApp(LightningFlow):
 
     def configure_layout(self):
 
-        # landing_tab = {"name": "Hello", "content": self.landing_ui}
-
         # training tabs
         train_tab = {"name": "Train Infer", "content": self.train_ui}
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
@@ -279,7 +273,6 @@ class LitPoseApp(LightningFlow):
         fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
 
         return [
-            # landing_tab,
             train_tab,
             train_status_tab,
             st_frame_tab,
