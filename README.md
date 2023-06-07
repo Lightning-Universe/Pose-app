@@ -33,22 +33,8 @@ cd lightning-pose
 pip install -e .
 ```
 
-## Run the app on the cloud
-
-Once the environment has been set up, running the app on the cloud is easy! Launch with the
-following command:
-
-```bash
-lightning run app demo_app.py --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-```
-
-## Run the app locally
-
-Running the app locally requires a few additional installs.
-
-Install LabelStudio:
-from `~/Pose-app`, run
-
+If you are planning to run the app on a local computer or from a Lightning Studio, you 
+additionally need to install LabelStudio. From `~/Pose-app`, run
 ```bash
 virtualenv ~/venv-label-studio
 source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
@@ -59,21 +45,35 @@ source ~/venv-label-studio/bin/activate; pip install label-studio label-studio-s
 
 (note that `libffi` install may downgrade python, but this is fine.)
 
-Test
-
+Test:
 ```bash
 source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
 
-In order to run the application locally, run the following commands:
+## Run the apps
 
+We provide three different apps:
+* `demo_app.py`: using provided example data, you can train and evaluate models
+* `labeling_app.py`: stand-alone labeling app where you can upload videos, extract frames, and label using LabelStudio
+* `app.py`: full app that includes labeling, training, and evaluation
+
+### Running locally
+Run any of the above three apps from the command line:
 ```bash
 cd ~/Pose-app
-lightning run app demo_app.py
+lightning run app <app_name.py>
 ```
 
 If you need to increase the file size limit for uploading videos, set the following environment
-variable (in units of MB, so 2000 is equivalent to 2GB)
+variable (in units of MB, so 500 is equivalent to 500MB). We recommend using videos less than 500MB
+for best performance.
 ```
-lightning run app demo_app.py --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=2000
+lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 ```
+
+### Running on cloud
+Running the app on the cloud is easy!
+```bash
+lightning run app <app_name.py> --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+```
+

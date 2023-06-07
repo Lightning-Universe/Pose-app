@@ -39,7 +39,7 @@ class LitPoseApp(LightningFlow):
         # paths
         # -----------------------------
         config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
-        self.data_dir = "data"  # relative to self.drive
+        self.data_dir = "data"  # relative to base of filesystem
 
         # load default config and pass to project manager
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
