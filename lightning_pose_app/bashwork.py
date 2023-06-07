@@ -1,7 +1,7 @@
 import errno
 from functools import partial
 import lightning.app as L
-from lightning.app.storage.drive import Drive
+from lightning.app.storage import FileSystem
 from lightning.app.utilities.app_helpers import _collect_child_process_pids
 import os
 import shlex
@@ -89,8 +89,6 @@ class LitBashWork(L.LightningWork):
         self, *args,
         wait_seconds_after_run=10,
         wait_seconds_after_kill=10,
-        drive_name="lit://lpa",
-        component_name=None,
         **kwargs
     ):
 
@@ -100,7 +98,7 @@ class LitBashWork(L.LightningWork):
         super().__init__(*args, **kwargs)
         self.wait_seconds_after_run = wait_seconds_after_run
         self.wait_seconds_after_kill = wait_seconds_after_kill
-        self._drive = Drive(drive_name, component_name=component_name)
+        self._drive = FileSystem()
 
         self.pid = None
         self.exit_code = None
@@ -142,8 +140,10 @@ class LitBashWork(L.LightningWork):
         for i in inputs:
             print(f"drive get {i}")
             try:  # file may not be ready
-                self._drive.get(i, overwrite=True)
-                print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
+                src = i  # shared
+                dst = self.abspath(i)
+                self._drive.get(src, dst, overwrite=True)
+                print(f"drive data saved at {src}")
             except Exception as e:
                 print(e)
                 print(f"did not load {i} from drive")
@@ -153,11 +153,6 @@ class LitBashWork(L.LightningWork):
         for o in outputs:
             print(f"drive try put {o}")
             # make sure dir end with / so that put works correctly
-            if os.path.isdir(o):
-                o = os.path.join(o, "")
-            # check to make sure file exists locally
-            if not os.path.exists(o):
-                continue
             # delete file if it exists so we can overwrite
             # try:
             #     self._drive.delete(o)
@@ -166,8 +161,24 @@ class LitBashWork(L.LightningWork):
             #     print(f"could not delete {o}")
             #     # file doesn't exist yet
             #     pass
-            self._drive.put(o)
-            print(f"drive success put {o}")
+            src = self.abspath(o)  # local
+            dst = o  # shared
+            if os.path.isdir(src):
+                src = os.path.join(src, "")
+                dst = os.path.join(dst, "")
+            # check to make sure file exists locally
+            if not os.path.exists(src):
+                continue
+            self._drive.put(src, dst)
+            print(f"drive success put {dst}")
+
+    @staticmethod
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
     def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
         with subprocess.Popen(

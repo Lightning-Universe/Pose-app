@@ -27,14 +27,11 @@ class LitPoseApp(LightningFlow):
 
         super().__init__()
 
-        # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
-        drive_name = "lit://lpa"
-
         # -----------------------------
         # paths
         # -----------------------------
         config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
-        self.data_dir = "data"  # relative to self.drive
+        self.data_dir = "/data"  # relative to FileSystem root
 
         # load default config and pass to project manager
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
@@ -44,7 +41,6 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # project manager (work) and tab (flow)
         self.project_io = ProjectDataIO(
-            drive_name=drive_name,
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
         )
@@ -56,20 +52,20 @@ class LitPoseApp(LightningFlow):
             setattr(self.project_ui, key, val)
 
         # extract frames tab (flow)
-        self.extract_ui = ExtractFramesUI(drive_name=drive_name)
+        self.extract_ui = ExtractFramesUI()
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
-            cloud_compute=CloudCompute("default"),
-            drive_name=drive_name,
             database_dir=os.path.join(self.data_dir, "labelstudio_db"),
         )
 
     def extract_frames(self, video_files, proj_dir, n_frames_per_video):
+        # push videos to shared filesystem if not there already
         for video_file in video_files:
             status = self.extract_ui.st_extract_status[video_file]
             if status == "initialized" or status == "active":
                 self.extract_ui.st_extract_status[video_file] = "active"
+                self.extract_ui.run(action="push_video", video_file=video_file)
                 print(self.extract_ui.work.progress)
                 self.extract_ui.work.run(
                     action="extract_frames",

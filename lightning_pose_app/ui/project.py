@@ -1,7 +1,7 @@
 import copy
 import glob
 from lightning import LightningFlow, LightningWork
-from lightning.app.storage.drive import Drive
+from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import math
 import numpy as np
@@ -17,11 +17,20 @@ from lightning_pose_app.utilities import StreamlitFrontend
 
 class ProjectDataIO(LightningWork):
 
-    def __init__(self, *args, drive_name, data_dir, default_config_dict, **kwargs):
+    def __init__(self, *args, data_dir, default_config_dict, **kwargs):
 
         super().__init__(*args, **kwargs)
 
-        self.drive = Drive(drive_name)
+        self._drive = FileSystem()
+
+        # initialize data_dir if it doesn't yet exist
+        if not self._drive.isdir(data_dir):
+            d = self.abspath(data_dir)
+            os.makedirs(d, exist_ok=True)
+            f = os.path.join(d, "tmp.txt")
+            with open(f, "w") as fs:
+                fs.write("tmp")
+            self._drive.put(f, os.path.join(data_dir, "tmp.txt"))
 
         # save default config info for initializing new projects
         self.default_config_dict = default_config_dict
@@ -55,27 +64,16 @@ class ProjectDataIO(LightningWork):
 
     def _get_from_drive_if_not_local(self, file_or_dir):
 
-        if not os.path.exists(file_or_dir):
+        if not os.path.exists(self.abspath(file_or_dir)):
             try:
-                print(f"{file_or_dir} does not exist; getting from drive")
-                # hacky way to see if we're dealing with a directory
-                if not file_or_dir.endswith(".yaml"):
-                    # need to loop over dirs (presumably inside of labeled-data) because for some
-                    # reason Drive.get() will remove a single intermediate directory
-                    dirs = self.drive.list(file_or_dir)
-                    for dir_ in dirs:
-                        print(f"drive try get {dir_}")
-                        self.drive.get(dir_, overwrite=True)
-                        print(f"drive success get {dir_}")
-                else:
-                    # NOTE: making directories is required, otherwise get fails
-                    os.makedirs(os.path.dirname(file_or_dir), exist_ok=True)
-                    print(f"drive try get {file_or_dir}")
-                    self.drive.get(file_or_dir, overwrite=True)
-                    print(f"drive success get {file_or_dir}")
+                print(f"drive try get {file_or_dir}")
+                src = file_or_dir  # shared
+                dst = self.abspath(file_or_dir)  # local
+                self._drive.get(src, dst, overwrite=True)
+                print(f"drive success get {file_or_dir}")
             except Exception as e:
                 print(e)
-                print(f"could not find {file_or_dir} in in {self.drive.root}")
+                print(f"could not find {file_or_dir} in {self.data_dir}")
         else:
             print(f"loading local version of {file_or_dir}")
 
@@ -83,23 +81,35 @@ class ProjectDataIO(LightningWork):
         print(f"put to drive {file_or_dir}")
         if os.path.isfile(file_or_dir):
             # print("put file")
-            self.drive.put(file_or_dir)
+            src = self.abspath(file_or_dir)  # local
+            dst = file_or_dir  # shared
+            self._drive.put(src, dst)
         elif os.path.isdir(file_or_dir):
             # print("put dir")
             files_local = os.listdir(file_or_dir)
-            existing_files = self.drive.list(file_or_dir)
+            existing_files = self._drive.listdir(file_or_dir)
             for file_or_dir_local in files_local:
                 rel_path = os.path.join(file_or_dir, file_or_dir_local)
                 if rel_path not in existing_files:
-                    self.drive.put(rel_path)
+                    src = self.abspath(rel_path)
+                    dst = rel_path
+                    self._drive.put(src, dst)
                 else:
-                    print(f"{rel_path} already exists on Drive! not updating")
+                    print(f"{rel_path} already exists on FileSystem! not updating")
         # clean up the local object
         if remove_local:
-            if os.path.isfile(file_or_dir):
-                os.remove(file_or_dir)
+            if os.path.isfile(self.abspath(file_or_dir)):
+                os.remove(self.abspath(file_or_dir))
             else:
-                shutil.rmtree(file_or_dir)
+                shutil.rmtree(self.abspath(file_or_dir))
+
+    @staticmethod
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
     @staticmethod
     def _copy_file(src_path, dst_path):
@@ -138,9 +148,12 @@ class ProjectDataIO(LightningWork):
 
     def find_initialized_projects(self):
         # for some reason adding "component_name" arg isn't working
-        projects = self.drive.list(self.data_dir)
+        projects = self._drive.listdir(self.data_dir)
         # strip leading dirs
-        projects = [os.path.basename(p) for p in projects if not p.endswith("labelstudio_db")]
+        projects = [os.path.basename(p)
+                    for p in projects
+                    if not (p.endswith("labelstudio_db") or p.endswith(".txt"))
+                    ]
         self.initialized_projects = list(np.unique(projects))
 
     def update_paths(self, project_name, **kwargs):
@@ -176,7 +189,7 @@ class ProjectDataIO(LightningWork):
         else:
             print("loading existing config")
             # load existing config
-            config_dict = yaml.safe_load(open(self.config_file))
+            config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
 
         # update config using new_vals_dict; assume this is a dict of dicts
         # new_vals_dict = {
@@ -193,9 +206,9 @@ class ProjectDataIO(LightningWork):
                     else:
                         config_dict[sconfig_name][key] = val
             # save out updated config file locally
-            if not os.path.exists(self.proj_dir):
-                os.makedirs(self.proj_dir)
-            yaml.dump(config_dict, open(self.config_file, "w"))
+            if not os.path.exists(self.abspath(self.proj_dir)):
+                os.makedirs(self.abspath(self.proj_dir))
+            yaml.dump(config_dict, open(self.abspath(self.config_file), "w"))
 
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
@@ -210,7 +223,7 @@ class ProjectDataIO(LightningWork):
         self._get_from_drive_if_not_local(labeled_data_dir)
 
         # load single frame from labeled data
-        imgs = glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png"))
+        imgs = glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*", "*.png"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
@@ -227,7 +240,7 @@ class ProjectDataIO(LightningWork):
                 }
             })
         else:
-            print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*")))
+            print(glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*")))
             print("did not find labeled data directory in Drive")
 
         # remove local files so that Work is forced to load updated versions from Drive
@@ -241,7 +254,7 @@ class ProjectDataIO(LightningWork):
         self._get_from_drive_if_not_local(metadata_file)
 
         try:
-            proj_details = yaml.safe_load(open(metadata_file, "r"))
+            proj_details = yaml.safe_load(open(self.abspath(metadata_file), "r"))
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
@@ -254,8 +267,8 @@ class ProjectDataIO(LightningWork):
             n_total_frames = None
 
         # remove local file so that Work is forced to load updated versions from Drive
-        if os.path.exists(metadata_file):
-            os.remove(metadata_file)
+        if os.path.exists(self.abspath(metadata_file)):
+            os.remove(self.abspath(metadata_file))
 
         self.n_labeled_frames = n_labeled_frames
         self.n_total_frames = n_total_frames
@@ -267,9 +280,9 @@ class ProjectDataIO(LightningWork):
             self._get_from_drive_if_not_local(self.config_file)
 
         # check to see if config exists
-        if self.config_file and os.path.exists(self.config_file):
+        if self.config_file and os.path.exists(self.abspath(self.config_file)):
             # set values from config
-            config_dict = yaml.safe_load(open(self.config_file))
+            config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
 
             st_keypoints = config_dict["data"]["keypoints"]
             st_n_keypoints = config_dict["data"]["num_keypoints"]
@@ -290,10 +303,10 @@ class ProjectDataIO(LightningWork):
         if self.model_dir:
             trained_models = []
             # this returns a list of model training days
-            dirs_day = self.drive.list(self.model_dir)
+            dirs_day = self._drive.listdir(self.model_dir)
             # loop over days and find HH-MM-SS
             for dir_day in dirs_day:
-                dirs_time = self.drive.list(dir_day)
+                dirs_time = self._drive.listdir(dir_day)
                 for dir_time in dirs_time:
                     trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
