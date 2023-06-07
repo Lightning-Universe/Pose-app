@@ -1,7 +1,7 @@
 """Main loop for lightning pose app
 
 To run from the command line (inside the conda environment named "lai" here):
-(lai) user@machine: lightning run app app.py
+(lai) user@machine: lightning run app demo_app.py
 
 """
 
@@ -13,17 +13,16 @@ import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.litpose import LitPose
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectDataIO
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
-from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir, LitPoseBuildConfig
+from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
 
 # TODO
-# - ProjectDataIO._put_to_drive_remove_local does NOT overwrite directories already on Drive - this is bad!
+# - ProjectDataIO._put_to_drive_remove_local does NOT overwrite directories already on Drive - bad!
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 
 
@@ -59,7 +58,7 @@ class LitPoseApp(LightningFlow):
             default_config_dict=default_config_dict,
         )
 
-        # training tab (flow)
+        # training tab (flow + work)
         self.train_ui = TrainUI(drive_name=drive_name)
         self.train_ui.n_labeled_frames = 90  # hard-code these values for now
         self.train_ui.n_total_frames = 90
@@ -77,13 +76,6 @@ class LitPoseApp(LightningFlow):
             cloud_build_config=TensorboardBuildConfig(),
             drive_name=drive_name,
             component_name="tensorboard",
-        )
-
-        # lightning pose: work for frame extraction and model training
-        self.litpose = LitPose(
-            cloud_compute=CloudCompute("gpu"),
-            cloud_build_config=LitPoseBuildConfig(),
-            drive_name=drive_name,
         )
 
         # -----------------------------
@@ -115,7 +107,7 @@ class LitPoseApp(LightningFlow):
     #         self.fiftyone_ui.work.url != "",
     #         self.streamlit_frame.work.url != "",
     #         self.streamlit_video.work.url != "",
-    #         self.litpose.url != "",
+    #         self.train_ui.work.url != "",
     #     ])
 
     def start_tensorboard(self, logdir):
@@ -157,13 +149,13 @@ class LitPoseApp(LightningFlow):
                 self.train_ui.st_train_status[m] = "active"
                 outputs = [os.path.join(self.project_io.model_dir, self.train_ui.st_datetimes[m], "")]
                 cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
-                self.train_ui.progress = self.litpose.progress
-                self.litpose.run(
+                self.train_ui.progress = self.train_ui.work.progress
+                self.train_ui.work.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
                     results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
                 )
                 self.train_ui.st_train_status[m] = "complete"
-                self.litpose.progress = 0.0
+                self.train_ui.work.progress = 0.0
                 self.train_ui.progress = 0.0
 
         self.train_ui.count += 1

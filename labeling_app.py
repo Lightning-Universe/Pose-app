@@ -11,7 +11,6 @@ import os
 import time
 import yaml
 
-from lightning_pose_app.litpose import LitPose
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
