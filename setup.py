@@ -9,9 +9,12 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
+    "opencv-python",
+    "scikit-learn",
     "streamlit",
     "streamlit-ace",
     "streamlit_autorefresh",
+    "tqdm",
     "virtualenv",
     "watchdog",
 ]
