@@ -1,12 +1,269 @@
-from lightning import LightningFlow
+import cv2
+from lightning import CloudCompute, LightningFlow, LightningWork
 from lightning.app.utilities.state import AppState
 from lightning.app.storage.drive import Drive
 import numpy as np
 import os
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app.utilities import StreamlitFrontend
+
+
+class ExtractFramesWork(LightningWork):
+
+    def __init__(self, *args, drive_name, **kwargs):
+
+        super().__init__(*args, **kwargs)
+        self._drive = Drive(drive_name, component_name="extract_frames_work")
+
+        self.progress = 0.0
+        self.work_is_done_extract_frames = False
+
+    def get_from_drive(self, inputs, component_name=None):
+        for i in inputs:
+            print(f"drive get {i}")
+            try:  # file may not be ready
+                self._drive.get(i, overwrite=True, component_name=component_name)
+                print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
+            except Exception as e:
+                print(e)
+                print(f"did not load {i} from drive")
+                pass
+
+    def put_to_drive(self, outputs, directory=True):
+        for o in outputs:
+            print(f"drive try put {o}")
+            # make sure dir ends with / so that put works correctly
+            if directory and o[-1] != "/":
+                o = os.path.join(o, "")
+            self._drive.put(o)
+            print(f"drive success put {o}")
+
+    def read_nth_frames(self, video_file, n=1, resize_dims=64):
+
+        from tqdm import tqdm
+
+        # Open the video file
+        cap = cv2.VideoCapture(video_file)
+
+        if not cap.isOpened():
+            print(f"Error opening video file {video_file}")
+
+        frames = []
+        frame_counter = 0
+        frame_total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        with tqdm(total=int(frame_total)) as pbar:
+            while cap.isOpened():
+                # Read the next frame
+                ret, frame = cap.read()
+                if ret:
+                    # If the frame was successfully read, then process it
+                    if frame_counter % n == 0:
+                        frame_resize = cv2.resize(frame, (resize_dims, resize_dims))
+                        frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2GRAY)
+                        frames.append(frame_gray.astype(np.float16))
+                    frame_counter += 1
+                    self.progress = round(frame_counter / frame_total, 4) * 100.0
+                    pbar.update(1)
+                else:
+                    # If we couldn't read a frame, we've probably reached the end
+                    break
+
+        # When everything is done, release the video capture object
+        cap.release()
+
+        return np.array(frames)
+
+    def select_frame_idxs(self, video_file, resize_dims=64, n_clusters=20, frame_skip=1):
+
+        frames = self.read_nth_frames(video_file, n=frame_skip, resize_dims=resize_dims)
+        batches = np.reshape(frames, (frames.shape[0], -1))[:-2]  # leave room for context
+        frame_count = batches.shape[0]
+
+        # take temporal diffs
+        print('computing motion energy...')
+        me = np.concatenate([
+            np.zeros((1, batches.shape[1])),
+            np.diff(batches, axis=0)
+        ])
+        # take absolute values and sum over all pixels to get motion energy
+        me = np.sum(np.abs(me), axis=1)
+
+        # find high me frames, defined as those with me larger than nth percentile me
+        prctile = 50 if frame_count < 1e5 else 75  # take fewer frames if there are many
+        idxs_high_me = np.where(me > np.percentile(me, prctile))[0]
+
+        # compute pca over high me frames
+        print('performing pca over high motion energy frames...')
+        pca_obj = PCA(n_components=np.min([batches[idxs_high_me].shape[0], 32]))
+        embedding = pca_obj.fit_transform(X=batches[idxs_high_me])
+        del batches  # free up memory
+
+        # cluster low-d pca embeddings
+        print('performing kmeans clustering...')
+        kmeans_obj = KMeans(n_clusters=n_clusters, n_init="auto")
+        kmeans_obj.fit(X=embedding)
+
+        # find high me frame that is closest to each cluster center
+        # kmeans_obj.cluster_centers_ is shape (n_clusters, n_pcs)
+        centers = kmeans_obj.cluster_centers_.T[None, ...]
+        # embedding is shape (n_frames, n_pcs)
+        dists = np.linalg.norm(embedding[:, :, None] - centers, axis=1)
+        # dists is shape (n_frames, n_clusters)
+        idxs_prototypes_ = np.argmin(dists, axis=0)
+        # now index into high me frames to get overall indices
+        idxs_prototypes = idxs_high_me[idxs_prototypes_]
+
+        return idxs_prototypes
+
+    @staticmethod
+    def export_frames(
+        video_file: str,
+        save_dir: str,
+        frame_idxs: np.ndarray,
+        format: str = "png",
+        n_digits: int = 8,
+        context_frames: int = 0,
+    ):
+        """
+
+        Parameters
+        ----------
+        video_file: absolute path to video file from which to select frames
+        save_dir: absolute path to directory in which selected frames are saved
+        frame_idxs: indices of frames to grab
+        format: only "png" currently supported
+        n_digits: number of digits in image names
+        context_frames: number of frames on either side of selected frame to also save
+
+        """
+
+        cap = cv2.VideoCapture(video_file)
+
+        # expand frame_idxs to include context frames
+        if context_frames > 0:
+            context_vec = np.arange(-context_frames, context_frames + 1)
+            frame_idxs = (frame_idxs.squeeze()[None, :] + context_vec[:, None]).flatten()
+            frame_idxs.sort()
+            frame_idxs = frame_idxs[frame_idxs >= 0]
+            frame_idxs = frame_idxs[frame_idxs < int(cap.get(cv2.CAP_PROP_FRAME_COUNT))]
+            frame_idxs = np.unique(frame_idxs)
+
+        # load frames from video
+        frames = get_frames_from_idxs(cap, frame_idxs)
+
+        # save out frames
+        os.makedirs(save_dir, exist_ok=True)
+        for frame, idx in zip(frames, frame_idxs):
+            cv2.imwrite(
+                filename=os.path.join(save_dir, "img%s.%s" % (str(idx).zfill(n_digits), format)),
+                img=frame[0],
+            )
+
+    def _extract_frames(self, video_file, proj_dir, n_frames_per_video):
+
+        self.work_is_done_extract_frames = False
+
+        # pull videos from drive; these will come from "root."
+        self.get_from_drive([video_file], component_name="root.")
+
+        data_dir_rel = os.path.join(proj_dir, "labeled-data")
+        data_dir = os.path.join(os.getcwd(), data_dir_rel)
+        n_digits = 8
+        extension = "png"
+        context_frames = 2
+
+        video_file_abs = os.path.join(os.getcwd(), video_file)
+
+        print(f"============== extracting frames from {video_file} ================")
+
+        # check: does file exist?
+        video_file_exists = os.path.exists(video_file_abs)
+        print(f"video file exists? {video_file_exists}")
+        if not video_file_exists:
+            print("skipping frame extraction")
+            return
+
+        # create folder to save images
+        video_name = os.path.splitext(os.path.basename(video_file))[0]
+        save_dir = os.path.join(data_dir, video_name)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        # select indices for labeling
+        # reduce image size, even more if there are many frames
+        cap = cv2.VideoCapture(video_file)
+        n_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        cap.release()
+        if n_frames > 1e5:
+            resize_dims = 32
+        else:
+            resize_dims = 64
+        idxs_selected = self.select_frame_idxs(
+            video_file=video_file_abs, resize_dims=resize_dims, n_clusters=n_frames_per_video)
+
+        # save csv file inside same output directory
+        frames_to_label = np.array([
+            "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
+        np.savetxt(
+            os.path.join(save_dir, "selected_frames.csv"),
+            np.sort(frames_to_label),
+            delimiter=",",
+            fmt="%s"
+        )
+
+        # save frames
+        self.export_frames(
+            video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected,
+            format=extension, n_digits=n_digits, context_frames=context_frames)
+
+        # push extracted frames to drive
+        self.put_to_drive([data_dir_rel])
+
+        # update flag
+        self.work_is_done_extract_frames = True
+
+    def run(self, action, **kwargs):
+        if action == "extract_frames":
+            self._extract_frames(**kwargs)
+
+
+def get_frames_from_idxs(cap, idxs):
+    """Helper function to load video segments.
+
+    Parameters
+    ----------
+    cap : cv2.VideoCapture object
+    idxs : array-like
+        frame indices into video
+
+    Returns
+    -------
+    np.ndarray
+        returned frames of shape shape (n_frames, n_channels, ypix, xpix)
+
+    """
+    is_contiguous = np.sum(np.diff(idxs)) == (len(idxs) - 1)
+    n_frames = len(idxs)
+    for fr, i in enumerate(idxs):
+        if fr == 0 or not is_contiguous:
+            cap.set(1, i)
+        ret, frame = cap.read()
+        if ret:
+            if fr == 0:
+                height, width, _ = frame.shape
+                frames = np.zeros((n_frames, 1, height, width), dtype="uint8")
+            frames[fr, 0, :, :] = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            print(
+                "warning! reached end of video; returning blank frames for remainder of "
+                + "requested indices"
+            )
+            break
+    return frames
 
 
 class ExtractFramesUI(LightningFlow):
@@ -19,6 +276,11 @@ class ExtractFramesUI(LightningFlow):
         **kwargs
     ):
         super().__init__(*args, **kwargs)
+
+        self.work = ExtractFramesWork(
+            cloud_compute=CloudCompute("default"),
+            drive_name=drive_name,
+        )
 
         self.drive = Drive(drive_name)
 
@@ -100,12 +362,12 @@ def _render_streamlit_fn(state: AppState):
             if status == "initialized":
                 p = 0.0
             elif status == "active":
-                p = 50.0
+                p = state.work.progress
             elif status == "complete":
                 p = 100.0
             else:
                 st.text(status)
-            st.progress(p / 100.0, f"{vid} progress ({status})")
+            st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
         st.warning(f"waiting for existing extraction to finish")
 
     if state.st_submits > 0 and not st_submit_button and not state.run_script:

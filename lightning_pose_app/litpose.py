@@ -108,68 +108,6 @@ class LitPose(LightningWork):
 
         return video_files_new
 
-    def _start_extract_frames(self, video_files=None, proj_dir=None, n_frames_per_video=20):
-
-        import numpy as np
-        from lightning_pose.utils.video_ops import select_frame_idxs, export_frames
-        from lightning_pose.utils.video_ops import check_codec_format
-
-        self.work_is_done_extract_frames = False
-
-        # pull videos from drive; these will come from "litpose"
-        self.get_from_drive(video_files, component_name="litpose")
-
-        data_dir_rel = os.path.join(proj_dir, "labeled-data")
-        data_dir = os.path.join(os.getcwd(), data_dir_rel)
-        n_digits = 8
-        extension = "png"
-        context_frames = 2
-
-        for video_file in video_files:
-
-            video_file_abs = os.path.join(os.getcwd(), video_file)
-
-            print(f"============== extracting frames from {video_file} ================")
-
-            # check 1: does file exist?
-            video_file_exists = os.path.exists(video_file_abs)
-            print(f"video file exists? {video_file_exists}")
-            if not video_file_exists:
-                continue
-
-            # check 2: is file in the correct format for DALI?
-            video_file_correct_codec = check_codec_format(video_file_abs)
-            print(f"video file codec and pix format correct? {video_file_correct_codec}")
-
-            # create folder to save images
-            video_name = os.path.splitext(os.path.basename(video_file))[0]
-            save_dir = os.path.join(data_dir, video_name)
-            if not os.path.exists(save_dir):
-                os.makedirs(save_dir)
-
-            idxs_selected = select_frame_idxs(
-                video_file=video_file_abs, resize_dims=64, n_clusters=n_frames_per_video)
-
-            # save csv file inside same output directory
-            frames_to_label = np.array([
-                "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
-            np.savetxt(
-                os.path.join(save_dir, "selected_frames.csv"),
-                np.sort(frames_to_label),
-                delimiter=",",
-                fmt="%s"
-            )
-
-            export_frames(
-                video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected, 
-                format=extension, n_digits=n_digits, context_frames=context_frames)
-
-        # push extracted frames to drive
-        self.put_to_drive([data_dir_rel])
-
-        # update flag
-        self.work_is_done_extract_frames = True
-
     def _train(self, inputs, outputs, cfg_overrides, results_dir):
         
         from omegaconf import DictConfig
@@ -383,12 +321,7 @@ class LitPose(LightningWork):
         self.work_is_done_inference = True
 
     def run(self, action=None, **kwargs):
-
-        if action == "start_extract_frames":
-            video_files_new = self._reformat_videos(**kwargs)
-            kwargs["video_files"] = video_files_new
-            self._start_extract_frames(**kwargs)
-        elif action == "train":
+        if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
             self._run_inference(**kwargs)

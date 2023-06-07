@@ -15,7 +15,7 @@ from lightning_pose_app.litpose import LitPose
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
-from lightning_pose_app.build_configs import lightning_pose_dir, LitPoseBuildConfig
+from lightning_pose_app.build_configs import lightning_pose_dir
 
 
 # TODO
@@ -51,20 +51,13 @@ class LitPoseApp(LightningFlow):
         )
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
-            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
         for key, val in self.project_io.proj_defaults.items():
             setattr(self.project_ui, key, val)
 
         # extract frames tab (flow)
         self.extract_ui = ExtractFramesUI(drive_name=drive_name)
-
-        # lightning pose: work for frame extraction and model training
-        self.litpose = LitPose(
-            cloud_compute=CloudCompute("gpu"),
-            cloud_build_config=LitPoseBuildConfig(),
-            drive_name=drive_name,
-        )
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
@@ -78,13 +71,15 @@ class LitPoseApp(LightningFlow):
             status = self.extract_ui.st_extract_status[video_file]
             if status == "initialized" or status == "active":
                 self.extract_ui.st_extract_status[video_file] = "active"
-                self.litpose.run(
-                    action="start_extract_frames",
-                    video_files=[video_file],
+                print(self.extract_ui.work.progress)
+                self.extract_ui.work.run(
+                    action="extract_frames",
+                    video_file=video_file,
                     proj_dir=proj_dir,
                     n_frames_per_video=n_frames_per_video,
                 )
                 self.extract_ui.st_extract_status[video_file] = "complete"
+                self.extract_ui.work.progress = 0.0
 
     def run(self):
 
@@ -163,7 +158,7 @@ class LitPoseApp(LightningFlow):
                 n_frames_per_video=self.extract_ui.st_n_frames_per_video,
             )
             # wait until litpose is done extracting frames, then update tasks
-            if self.litpose.work_is_done_extract_frames:
+            if self.extract_ui.work.work_is_done_extract_frames:
                 self.project_io.run(action="update_frame_shapes")
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False

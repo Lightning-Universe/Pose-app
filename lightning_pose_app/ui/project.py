@@ -8,7 +8,6 @@ import numpy as np
 import os
 import shutil
 from streamlit_autorefresh import st_autorefresh
-from PIL import Image
 import time
 import streamlit as st
 import yaml
@@ -202,6 +201,8 @@ class ProjectDataIO(LightningWork):
         self._put_to_drive_remove_local(self.config_file)
 
     def update_frame_shapes(self):
+
+        from PIL import Image
 
         # get labeled data from drive
         labeled_data_dir = os.path.join(self.proj_dir, "labeled-data")
