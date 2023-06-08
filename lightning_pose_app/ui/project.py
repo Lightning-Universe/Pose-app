@@ -15,9 +15,10 @@ import yaml
 from lightning_pose_app.utilities import StreamlitFrontend
 
 
-class ProjectDataIO(LightningWork):
+class ProjectUI(LightningFlow):
+    """UI to set up project."""
 
-    def __init__(self, *args, data_dir, default_config_dict, **kwargs):
+    def __init__(self, *args, data_dir, default_config_dict, debug=False, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -43,30 +44,44 @@ class ProjectDataIO(LightningWork):
         #   ├── config.yaml
         #   └── CollectedData.csv
         self.data_dir = data_dir
-
-        self.initialized_projects = []
-        self.proj_defaults = {
-            "st_n_views": 0,
-            "st_keypoints_": [],
-            "st_n_keypoints": 0,
-            "st_pcasv_columns": [],
-            "st_pcamv_columns": [],
-        }
         self.proj_dir = None
         self.config_name = None
         self.config_file = None
         self.model_dir = None
+        self.trained_models = []
         self.n_labeled_frames = 0
         self.n_total_frames = 0
 
+        # UI info
+        self.run_script = False
         self.update_models = False
-        self.trained_models = []
+        self.count = 0  # counter for external app
+        self.st_submits = 0  # counter for this streamlit app
+        self.initialized_projects = []
+        self.st_project_name = None
+        self.st_create_new_project = False
+        self.st_project_loaded = False
+        self.st_new_vals = None
+
+        # config data
+        self.st_n_views = 0
+        self.st_keypoints_ = []
+        self.st_n_keypoints = 0
+        self.st_pcasv_columns = []
+        self.st_pcamv_columns = []
+
+        # if True, do not expose project options to user, hard-code instead
+        self.debug = debug
+
+    @property
+    def st_keypoints(self):
+        return np.unique(self.st_keypoints_).tolist()
 
     def _get_from_drive_if_not_local(self, file_or_dir):
 
         if not os.path.exists(self.abspath(file_or_dir)):
             try:
-                print(f"drive try get {file_or_dir}")
+                print(f"PROJECT drive try get {file_or_dir}")
                 src = file_or_dir  # shared
                 dst = self.abspath(file_or_dir)  # local
                 self._drive.get(src, dst, overwrite=True)
@@ -79,14 +94,12 @@ class ProjectDataIO(LightningWork):
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
         print(f"put to drive {file_or_dir}")
-        if os.path.isfile(file_or_dir):
-            # print("put file")
-            src = self.abspath(file_or_dir)  # local
+        src = self.abspath(file_or_dir)  # local
+        if os.path.isfile(src):
             dst = file_or_dir  # shared
             self._drive.put(src, dst)
-        elif os.path.isdir(file_or_dir):
-            # print("put dir")
-            files_local = os.listdir(file_or_dir)
+        elif os.path.isdir(src):
+            files_local = os.listdir(src)
             existing_files = self._drive.listdir(file_or_dir)
             for file_or_dir_local in files_local:
                 rel_path = os.path.join(file_or_dir, file_or_dir_local)
@@ -146,32 +159,39 @@ class ProjectDataIO(LightningWork):
         except IOError as e:
             print(f"Unable to copy directory. {e}")
 
-    def find_initialized_projects(self):
-        # for some reason adding "component_name" arg isn't working
+    def _find_initialized_projects(self):
+        # find all directories inside the data_dir; these should be the projects
+        # (except labelstudio database)
         projects = self._drive.listdir(self.data_dir)
-        # strip leading dirs
-        projects = [os.path.basename(p)
-                    for p in projects
-                    if not (p.endswith("labelstudio_db") or p.endswith(".txt"))
-                    ]
+        # strip leading dirs to just get project names
+        projects = [
+            os.path.basename(p) for p in projects
+            if not (p.endswith("labelstudio_db") or p.endswith(".txt"))
+        ]
         self.initialized_projects = list(np.unique(projects))
 
-    def update_paths(self, project_name, **kwargs):
+    def _update_paths(self, project_name=None, **kwargs):
+        if not project_name:
+            project_name = self.st_project_name
+        # these will all be paths RELATIVE to the FileSystem root
         if project_name:
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
             self.config_file = os.path.join(self.proj_dir, self.config_name)
-            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_infer.py
+            self.model_dir = os.path.join(self.proj_dir, "models")  # hardcoded in train_infer.py
 
-    def update_project_config(self, new_vals_dict=None, **kwargs):
+    def _update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""
+
+        if not new_vals_dict:
+            new_vals_dict = self.st_new_vals
 
         # check to see if config exists locally; if not, try pulling from drive
         if self.config_file:
             self._get_from_drive_if_not_local(self.config_file)
 
         # check to see if config exists; copy default config if not
-        if (self.config_file is None) or (not os.path.exists(self.config_file)):
+        if (self.config_file is None) or (not os.path.exists(self.abspath(self.config_file))):
             print(f"no config file at {self.config_file}")
             print("loading default config")
             # copy default config
@@ -213,7 +233,7 @@ class ProjectDataIO(LightningWork):
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
 
-    def update_frame_shapes(self):
+    def _update_frame_shapes(self):
 
         from PIL import Image
 
@@ -227,7 +247,7 @@ class ProjectDataIO(LightningWork):
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
-            self.update_project_config({
+            self._update_project_config(new_vals_dict={
                 "data": {
                     "image_orig_dims": {
                         "height": image.height,
@@ -241,13 +261,9 @@ class ProjectDataIO(LightningWork):
             })
         else:
             print(glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*")))
-            print("did not find labeled data directory in Drive")
+            print("did not find labeled data directory in FileSystem")
 
-        # remove local files so that Work is forced to load updated versions from Drive
-        if os.path.isdir(labeled_data_dir):
-            shutil.rmtree(labeled_data_dir)
-
-    def compute_labeled_frame_fraction(self, timer=0.0):
+    def _compute_labeled_frame_fraction(self, timer=0.0):
         # TODO: don't want to have metadata filename hard-coded here
 
         metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
@@ -273,7 +289,7 @@ class ProjectDataIO(LightningWork):
         self.n_labeled_frames = n_labeled_frames
         self.n_total_frames = n_total_frames
 
-    def load_project_defaults(self, **kwargs):
+    def _load_project_defaults(self, **kwargs):
 
         # check to see if config exists locally; if not, try pulling from drive
         if self.config_file:
@@ -283,22 +299,13 @@ class ProjectDataIO(LightningWork):
         if self.config_file and os.path.exists(self.abspath(self.config_file)):
             # set values from config
             config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
+            self.st_keypoints_ = config_dict["data"]["keypoints"]
+            self.st_n_keypoints = config_dict["data"]["num_keypoints"]
+            self.st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
+            self.st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
+            self.st_n_views = 1 if len(self.st_pcamv_columns) == 0 else len(self.st_pcamv_columns)
 
-            st_keypoints = config_dict["data"]["keypoints"]
-            st_n_keypoints = config_dict["data"]["num_keypoints"]
-            st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
-            st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
-            st_n_views = 1 if len(st_pcamv_columns) == 0 else len(st_pcamv_columns)
-
-            self.proj_defaults = {
-                "st_n_views": st_n_views,
-                "st_keypoints_": st_keypoints,
-                "st_n_keypoints": st_n_keypoints,
-                "st_pcasv_columns": st_pcasv_columns,
-                "st_pcamv_columns": st_pcamv_columns,
-            }
-
-    def update_trained_models_list(self, **kwargs):
+    def _update_trained_models_list(self, **kwargs):
 
         if self.model_dir:
             trained_models = []
@@ -314,60 +321,21 @@ class ProjectDataIO(LightningWork):
     def run(self, action, **kwargs):
 
         if action == "find_initialized_projects":
-            self.find_initialized_projects()
+            self._find_initialized_projects()
         elif action == "update_paths":
-            self.update_paths(**kwargs)
+            self._update_paths(**kwargs)
         elif action == "update_project_config":
-            self.update_project_config(**kwargs)
+            self._update_project_config(**kwargs)
         elif action == "update_frame_shapes":
-            self.update_frame_shapes()
+            self._update_frame_shapes()
         elif action == "compute_labeled_frame_fraction":
-            self.compute_labeled_frame_fraction(**kwargs)
+            self._compute_labeled_frame_fraction(**kwargs)
         elif action == "load_project_defaults":
-            self.load_project_defaults(**kwargs)
+            self._load_project_defaults(**kwargs)
         elif action == "update_trained_models_list":
-            self.update_trained_models_list(**kwargs)
+            self._update_trained_models_list(**kwargs)
         elif action == "put_file_to_drive":
             self._put_to_drive_remove_local(**kwargs)
-
-
-class ProjectUI(LightningFlow):
-    """UI to set up project."""
-
-    def __init__(self, *args, data_dir, debug=False, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # control runners
-        # True = Run Jobs.  False = Do not Run jobs
-        # UI sets to True to kickoff jobs
-        # Job Runner sets to False when done
-        self.run_script = False
-        self.count = 0
-
-        self.data_dir = data_dir
-        self.config_file = None
-        self.create_new_project = False
-        self.initialized_projects = []
-
-        # input from ProjectIO
-        self.st_n_views = 0
-        self.st_keypoints_ = []
-        self.st_n_keypoints = 0
-        self.st_pcasv_columns = []
-        self.st_pcamv_columns = []
-
-        # output from the UI
-        self.st_submits = 0
-        self.st_project_name = None
-        self.st_project_loaded = False
-        self.st_new_vals = None
-
-        # if True, do not expose project options to user, hard-code instead
-        self.debug = debug
-
-    @property
-    def st_keypoints(self):
-        return np.unique(self.st_keypoints_).tolist()
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -385,7 +353,7 @@ def _render_streamlit_fn(state: AppState):
         "",
         options=["Create new project", "Load existing project"],
         disabled=state.st_project_loaded,
-        index=1 if (state.st_project_loaded and not state.create_new_project) else 0,
+        index=1 if (state.st_project_loaded and not state.st_create_new_project) else 0,
     )
 
     st.text(f"Available projects: {state.initialized_projects}")
@@ -449,10 +417,13 @@ def _render_streamlit_fn(state: AppState):
             elif st_project_name != "":
                 # allow creation of new project
                 enter_data = True
-                state.create_new_project = True
+                state.st_create_new_project = True
             else:
                 # catch remaining errors
                 enter_data = False
+        else:
+            # catch remaining errors
+            enter_data = False
     else:
         # cannot enter data until project name has been entered
         enter_data = False

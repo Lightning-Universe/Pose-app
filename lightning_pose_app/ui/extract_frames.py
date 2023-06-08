@@ -24,7 +24,7 @@ class ExtractFramesWork(LightningWork):
 
     def get_from_drive(self, inputs):
         for i in inputs:
-            print(f"drive get {i}")
+            print(f"EXTRACT drive get {i}")
             try:  # file may not be ready
                 src = i  # shared
                 dst = self.abspath(i)  # local
@@ -32,19 +32,23 @@ class ExtractFramesWork(LightningWork):
                 print(f"drive data saved at {dst}")
             except Exception as e:
                 print(e)
-                print(f"did not load {src} from drive")
+                print(f"did not load {i} from drive")
                 pass
 
     def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"drive try put {o}")
-            # make sure dir ends with / so that put works correctly
-            if os.path.isdir(o):
-                o = os.path.join(o, "")
+            print(f"EXTRACT drive try put {o}")
             src = self.abspath(o)  # local
             dst = o  # shared
+            # make sure dir ends with / so that put works correctly
+            if os.path.isdir(src):
+                src = os.path.join(src, "")
+                dst = os.path.join(dst, "")
+            # check to make sure file exists locally
+            if not os.path.exists(src):
+                continue
             self._drive.put(src, dst)
-            print(f"drive success put {dst}")
+            print(f"EXTRACT drive success put {dst}")
 
     @staticmethod
     def abspath(path):
@@ -180,7 +184,7 @@ class ExtractFramesWork(LightningWork):
         self.work_is_done_extract_frames = False
 
         # pull videos from drive; these will come from "root."
-        self.get_from_drive([video_file])
+        self.get_from_drive(["/" + video_file])
 
         data_dir_rel = os.path.join(proj_dir, "labeled-data")
         data_dir = self.abspath(data_dir_rel)
@@ -190,7 +194,7 @@ class ExtractFramesWork(LightningWork):
 
         video_file_abs = self.abspath(video_file)
 
-        print(f"============== extracting frames from {video_file_abs} ================")
+        print(f"============== extracting frames from {video_file} ================")
 
         # check: does file exist?
         video_file_exists = os.path.exists(video_file_abs)
@@ -317,7 +321,6 @@ class ExtractFramesUI(LightningFlow):
             else:
                 src = os.path.join(os.getcwd(), video_file)
                 dst = "/" + video_file
-            print(f"========== PUTTING VIDEO DATA {dst} ==========")
             self._drive.put(src, dst)
 
     def configure_layout(self):

@@ -138,12 +138,12 @@ class LitBashWork(L.LightningWork):
 
     def get_from_drive(self, inputs):
         for i in inputs:
-            print(f"drive get {i}")
+            print(f"BASHWORK drive get {i}")
             try:  # file may not be ready
                 src = i  # shared
                 dst = self.abspath(i)
                 self._drive.get(src, dst, overwrite=True)
-                print(f"drive data saved at {src}")
+                print(f"drive data saved at {dst}")
             except Exception as e:
                 print(e)
                 print(f"did not load {i} from drive")
@@ -151,18 +151,10 @@ class LitBashWork(L.LightningWork):
 
     def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"drive try put {o}")
-            # make sure dir end with / so that put works correctly
-            # delete file if it exists so we can overwrite
-            # try:
-            #     self._drive.delete(o)
-            #     print(f"deleting {o}")
-            # except Exception:
-            #     print(f"could not delete {o}")
-            #     # file doesn't exist yet
-            #     pass
+            print(f"BASHWORK drive try put {o}")
             src = self.abspath(o)  # local
             dst = o  # shared
+            # make sure dir end with / so that put works correctly
             if os.path.isdir(src):
                 src = os.path.join(src, "")
                 dst = os.path.join(dst, "")
@@ -170,7 +162,7 @@ class LitBashWork(L.LightningWork):
             if not os.path.exists(src):
                 continue
             self._drive.put(src, dst)
-            print(f"drive success put {dst}")
+            print(f"BASHWORK drive success put {dst}")
 
     @staticmethod
     def abspath(path):

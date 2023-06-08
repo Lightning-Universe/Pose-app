@@ -53,7 +53,6 @@ class LitPose(LightningWork):
 
         self._drive = Drive(drive_name, component_name=component_name)
 
-        self.work_is_done_extract_frames = True
         self.work_is_done_training = True
         self.work_is_done_inference = True
         self.count = 0

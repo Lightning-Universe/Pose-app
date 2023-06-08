@@ -17,7 +17,6 @@ from lightning_pose_app.litpose import LitPose
 from lightning_pose_app.ui.fiftyone import FiftyoneUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
-from lightning_pose_app.ui.landing import LandingUI
 from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
@@ -47,9 +46,6 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # flows and works
         # -----------------------------
-        # landing tab (flow)
-        self.landing_ui = LandingUI()
-
         # project manager (work) and tab (flow)
         self.project_io = ProjectDataIO(
             drive_name=drive_name,
@@ -402,7 +398,6 @@ class LitPoseApp(LightningFlow):
     def configure_layout(self):
 
         # init tabs
-        landing_tab = {"name": "Home", "content": self.landing_ui}
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
         annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
@@ -417,41 +412,24 @@ class LitPoseApp(LightningFlow):
         # st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         # st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
 
-        if self.landing_ui.st_mode == "demo":
+        if not self.extract_ui.proj_dir:
+            # need to create/load new project before moving on to other tabs
             return [
-                landing_tab,
+                project_tab,
+            ]
+        else:
+            # show all tabs
+            return [
+                project_tab,
+                extract_tab,
+                annotate_tab,
                 train_tab,
-                # train_status_tab,
-                # fo_prep_tab,
-                # fo_tab,
+                train_status_tab,
+                fo_prep_tab,
+                fo_tab,
                 # st_frame_tab,
                 # st_video_tab,
             ]
-
-        # elif self.landing_ui.st_mode == "project":
-        # if not self.extract_ui.proj_dir:
-        #     # need to create/load new project before moving on to other tabs
-        #     return [
-        #         # landing_tab,
-        #         project_tab,
-        #     ]
-        # else:
-        #     # show all tabs
-        #     return [
-        #         # landing_tab,
-        #         project_tab,
-        #         extract_tab,
-        #         annotate_tab,
-        #         train_tab,
-        #         train_status_tab,
-        #         fo_prep_tab,
-        #         fo_tab,
-        #         # st_frame_tab,
-        #         # st_video_tab,
-        #     ]
-
-        else:
-            return [landing_tab]
 
 
 app = LightningApp(LitPoseApp())
