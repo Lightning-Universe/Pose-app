@@ -33,18 +33,18 @@ class LightningAppTestInt(LightningTestApp):
         return True
 
 
-# def test_app():
-#     cwd = os.getcwd()
-#     cwd = os.path.join(cwd, "app.py")
-#     command_line = [
-#         cwd,
-#         "--blocking",
-#         "False",
-#         "--open-ui",
-#         "False",
-#     ]
-#     result = application_testing(LightningAppTestInt, command_line)
-#     assert result.exit_code == 0
+def test_app():
+    cwd = os.getcwd()
+    cwd = os.path.join(cwd, "app.py")
+    command_line = [
+        cwd,
+        "--blocking",
+        "False",
+        "--open-ui",
+        "False",
+    ]
+    result = application_testing(LightningAppTestInt, command_line)
+    assert result.exit_code == 0
 
 
 def test_demo_app():
