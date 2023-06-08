@@ -558,7 +558,7 @@ def _render_streamlit_fn(state: AppState):
         # store dataset-specific values in order to update config.yaml file later
         # TODO: some of this is updated in ProjectDataIO.update_config also, should unify
         st_new_vals = {"data": {}, "hydra": {"run": {}, "sweep": {}}}
-        st_new_vals["data"]["data_dir"] = os.path.join(state.data_dir, st_project_name)
+        st_new_vals["data"]["data_dir"] = os.path.join(state.data_dir[1:], st_project_name)
         st_new_vals["data"]["video_dir"] = "videos"
         st_new_vals["data"]["csv_file"] = "CollectedData.csv"
         st_new_vals["data"]["num_keypoints"] = st_n_keypoints

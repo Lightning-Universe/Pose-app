@@ -367,7 +367,6 @@ class TrainUI(LightningFlow):
         # UI sets to True to kickoff jobs
         # Job Runner sets to False when done
         self.run_script_train = False
-        # self.run_script_update_models = False
         self.run_script_infer = False
 
         # for controlling messages to user
@@ -435,18 +434,18 @@ def _render_streamlit_fn(state: AppState):
             or state.run_script_train:
         st_autorefresh(interval=2000, key="refresh_train_ui")
 
+    # add a sidebar to show the labeling progress
+    # Calculate percentage of frames labeled
+    labeling_progress = state.n_labeled_frames / state.n_total_frames
+    st.sidebar.markdown('### Labeling Progress')
+    st.sidebar.progress(labeling_progress)
+    st.sidebar.write(f"You have labeled {state.n_labeled_frames} out of {state.n_total_frames} frames.")
+
+    st.sidebar.markdown("""### Existing models""")
+    st.sidebar.selectbox("Browse", sorted(state.trained_models, reverse=True))
+    st.sidebar.write("Proceed to next tabs to analyze your previously trained models.")
+
     with train_tab:
-
-        # add a sidebar to show the labeling progress
-        # Calculate percentage of frames labeled
-        labeling_progress = state.n_labeled_frames / state.n_total_frames
-        st.sidebar.markdown('### Labeling Progress')
-        st.sidebar.progress(labeling_progress)
-        st.sidebar.write(f"You have labeled {state.n_labeled_frames} out of {state.n_total_frames} frames.")
-
-        st.sidebar.markdown("""### Existing models""")
-        st.sidebar.selectbox("Browse", sorted(state.trained_models, reverse=True))
-        st.sidebar.write("Proceed to next tabs to analyze your previously trained models.")
 
         st.header("Train Networks")
 
