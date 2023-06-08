@@ -1,14 +1,11 @@
 # Lightning Pose App
 
-This is an _experimental_ version of our Lightning App for:
+This repo contains browser-based GUIs that facilitate the deveopment of a pose estimation project.
 
-- Annotating keypoints on images
-- Training a pose estimation model to predict keypoints
-- Predicting keypoints on images and videos
-- Looking at diagnostics via Tensorboard and FiftyOne
-- More to come! (Deploying for new videos, active learning, etc.)
-
-Our app of reference is `demo_app.py`, which is a demo of the above functionality.
+We provide three different apps:
+* `demo_app.py`: using provided example data, train and evaluate pose estimation models
+* `labeling_app.py`: stand-alone labeling app where you can upload videos, extract frames, and annotate keypoints on extracted frames using LabelStudio
+* `app.py`: [UNDER CONSTRUCTION!] full app that includes labeling, training, and evaluation
 
 The following instructions detail how to install the app locally for development purposes.
 
@@ -29,12 +26,19 @@ cd ~
 git clone --recursive https://github.com/Lightning-Universe/Pose-app
 cd Pose-app
 pip install -e .
-cd lightning-pose
+```
+
+There are additional installation steps based on which apps you would like to run.
+
+#### Demo app and full app
+Install the `lightning-pose` repo:
+```bash
+cd ~/Pose-app/lightning-pose
 pip install -e .
 ```
 
-If you are planning to run the app on a local computer or from a Lightning Studio, you 
-additionally need to install LabelStudio. From `~/Pose-app`, run
+#### Labling app and full app
+Install `LabelStudio` in a virtual environment. From `~/Pose-app`, run
 ```bash
 virtualenv ~/venv-label-studio
 source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
@@ -52,12 +56,7 @@ source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 
 ## Run the apps
 
-We provide three different apps:
-* `demo_app.py`: using provided example data, you can train and evaluate models
-* `labeling_app.py`: stand-alone labeling app where you can upload videos, extract frames, and label using LabelStudio
-* `app.py`: full app that includes labeling, training, and evaluation
-
-### Running locally
+#### Running locally
 Run any of the above three apps from the command line:
 ```bash
 cd ~/Pose-app
@@ -70,9 +69,8 @@ variable (in units of MB). We recommend using videos less than 500MB for best pe
 lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 ```
 
-### Running on cloud
+#### Running on cloud
 Running the app on the cloud is easy!
 ```bash
 lightning run app <app_name.py> --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 ```
-
