@@ -65,8 +65,7 @@ lightning run app <app_name.py>
 ```
 
 If you need to increase the file size limit for uploading videos, set the following environment
-variable (in units of MB, so 500 is equivalent to 500MB). We recommend using videos less than 500MB
-for best performance.
+variable (in units of MB). We recommend using videos less than 500MB for best performance.
 ```
 lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 ```

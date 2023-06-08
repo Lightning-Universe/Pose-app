@@ -1,4 +1,4 @@
-from lightning import LightningFlow
+from lightning import CloudCompute, LightningFlow
 import os
 
 from lightning_pose_app.bashwork import LitBashWork
@@ -7,23 +7,13 @@ from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studi
 
 class LitLabelStudio(LightningFlow):
 
-    def __init__(
-        self,
-        *args,
-        cloud_compute,
-        drive_name,
-        database_dir="data",
-        proj_dir=None,
-        **kwargs
-    ) -> None:
+    def __init__(self, *args, database_dir="/data", proj_dir=None, **kwargs) -> None:
 
         super().__init__(*args, **kwargs)
 
         self.label_studio = LitBashWork(
-            cloud_compute=cloud_compute,
+            cloud_compute=CloudCompute("default"),
             cloud_build_config=LabelStudioBuildConfig(),
-            drive_name=drive_name,
-            component_name="label_studio",
         )
         self.counts = {
             "import_database": 0,
@@ -54,9 +44,13 @@ class LitLabelStudio(LightningFlow):
         self.proj_name = None
         self.keypoints = None
 
-    @property
-    def proj_dir_local(self):
-        return os.path.join(os.getcwd(), self.proj_dir)
+    @staticmethod
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
     def _import_database(self):
         # pull database from Drive if it exists
@@ -92,7 +86,7 @@ class LitLabelStudio(LightningFlow):
                 "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
                 "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
                 "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
-                "LABEL_STUDIO_BASE_DATA_DIR": os.path.join(os.getcwd(), self.database_dir),
+                "LABEL_STUDIO_BASE_DATA_DIR": self.abspath(self.database_dir),
                 "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
                 "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
                 "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
@@ -128,10 +122,10 @@ class LitLabelStudio(LightningFlow):
         # build script command
         script_path = os.path.join(
             os.getcwd(), "lightning_pose_app", "label_studio", "create_new_project.py")
-        label_studio_config_file = os.path.join(os.getcwd(), self.filenames["label_studio_config"])
+        label_studio_config_file = self.abspath(self.filenames["label_studio_config"])
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.proj_dir_local} " \
+                        f"--proj_dir {self.abspath(self.proj_dir)} " \
                         f"--api_key {self.user_token} " \
                         f"--project_name {self.proj_name} " \
                         f"--label_config {label_studio_config_file} "
@@ -160,7 +154,7 @@ class LitLabelStudio(LightningFlow):
             os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.proj_dir_local} " \
+                        f"--proj_dir {self.abspath(self.proj_dir)} " \
                         f"--api_key {self.user_token} "
 
         # run command to update label studio tasks
@@ -189,7 +183,7 @@ class LitLabelStudio(LightningFlow):
             keypoints_list = "/".join(self.keypoints)
             run_command = f"python {script_path} " \
                           f"--label_studio_url {self.label_studio_url} " \
-                          f"--proj_dir {self.proj_dir_local} " \
+                          f"--proj_dir {self.abspath(self.proj_dir)} " \
                           f"--api_key {self.user_token} " \
                           f"--keypoints_list '{keypoints_list}' "
 
@@ -222,7 +216,7 @@ class LitLabelStudio(LightningFlow):
         script_path = os.path.join(
             os.getcwd(), "lightning_pose_app", "label_studio", "create_labeling_config.py")
         build_command = f"python {script_path} " \
-                        f"--proj_dir {self.proj_dir_local} " \
+                        f"--proj_dir {self.abspath(self.proj_dir)} " \
                         f"--filename {os.path.basename(self.filenames['label_studio_config'])} " \
                         f"--keypoints_list {keypoints_list} "
 

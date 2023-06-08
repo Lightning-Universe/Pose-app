@@ -13,7 +13,7 @@ import yaml
 
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
-from lightning_pose_app.ui.project import ProjectUI, ProjectDataIO
+from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.build_configs import lightning_pose_dir
 
 
@@ -27,50 +27,40 @@ class LitPoseApp(LightningFlow):
 
         super().__init__()
 
-        # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
-        drive_name = "lit://lpa"
-
         # -----------------------------
         # paths
         # -----------------------------
-        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
-        self.data_dir = "data"  # relative to self.drive
+        self.data_dir = "/data"  # relative to FileSystem root
 
         # load default config and pass to project manager
+        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
         # flows and works
         # -----------------------------
-        # project manager (work) and tab (flow)
-        self.project_io = ProjectDataIO(
-            drive_name=drive_name,
-            data_dir=self.data_dir,
-            default_config_dict=default_config_dict,
-        )
+        # project manager tab (flow)
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
-            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            default_config_dict=default_config_dict,
+            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
-        for key, val in self.project_io.proj_defaults.items():
-            setattr(self.project_ui, key, val)
 
-        # extract frames tab (flow)
-        self.extract_ui = ExtractFramesUI(drive_name=drive_name)
+        # extract frames tab (flow + work)
+        self.extract_ui = ExtractFramesUI()
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
-            cloud_compute=CloudCompute("default"),
-            drive_name=drive_name,
             database_dir=os.path.join(self.data_dir, "labelstudio_db"),
         )
 
     def extract_frames(self, video_files, proj_dir, n_frames_per_video):
+        # push videos to shared filesystem if not there already
         for video_file in video_files:
             status = self.extract_ui.st_extract_status[video_file]
             if status == "initialized" or status == "active":
                 self.extract_ui.st_extract_status[video_file] = "active"
-                print(self.extract_ui.work.progress)
+                self.extract_ui.run(action="push_video", video_file=video_file)
                 self.extract_ui.work.run(
                     action="extract_frames",
                     video_file=video_file,
@@ -90,11 +80,10 @@ class LitPoseApp(LightningFlow):
         # update project data
         # -------------------------------------------------------------
         # find previously initialized projects, expose to project UI
-        self.project_io.run(action="find_initialized_projects")
-        self.project_ui.initialized_projects = self.project_io.initialized_projects
+        self.project_ui.run(action="find_initialized_projects")
 
         # -------------------------------------------------------------
-        # init label studio
+        # init label studio; this will only happen once
         # -------------------------------------------------------------
         self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
@@ -104,18 +93,17 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.project_ui.run_script:
             # update paths now that we know which project we're working with
-            self.project_io.run(
-                action="update_paths", project_name=self.project_ui.st_project_name)
-            self.extract_ui.proj_dir = self.project_io.proj_dir
+            self.project_ui.run(action="update_paths")
+            self.extract_ui.proj_dir = self.project_ui.proj_dir
             self.label_studio.run(
                 action="update_paths",
-                proj_dir=self.project_io.proj_dir, proj_name=self.project_ui.st_project_name)
+                proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
 
             # create/load project
-            if self.project_ui.create_new_project and self.project_ui.count == 0:
+            if self.project_ui.st_create_new_project and self.project_ui.count == 0:
                 # create project from scratch
-                self.project_io.run(
-                    action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
+                # load project defaults then overwrite certain fields with user input from app
+                self.project_ui.run(action="update_project_config")
                 if self.project_ui.st_keypoints:
                     # if statement here so that we only run "create_new_project" once we have data
                     self.label_studio.run(
@@ -129,11 +117,7 @@ class LitPoseApp(LightningFlow):
                 # project already created
                 if self.project_ui.count == 0:
                     # load project configuration from config file
-                    self.project_io.run(
-                        action="load_project_defaults", new_vals_dict=self.project_ui.st_new_vals)
-                    # copy project defaults into UI
-                    for key, val in self.project_io.proj_defaults.items():
-                        setattr(self.project_ui, key, val)
+                    self.project_ui.run(action="load_project_defaults")
                     # update label studio object
                     self.label_studio.keypoints = self.project_ui.st_keypoints
                     # allow app to advance
@@ -141,8 +125,7 @@ class LitPoseApp(LightningFlow):
                     self.project_ui.run_script = False
                 else:
                     # update project
-                    self.project_io.run(
-                        action="update_project_config", new_vals_dict=self.project_ui.st_new_vals)
+                    self.project_ui.run(action="update_project_config")
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
@@ -158,7 +141,7 @@ class LitPoseApp(LightningFlow):
             )
             # wait until litpose is done extracting frames, then update tasks
             if self.extract_ui.work.work_is_done_extract_frames:
-                self.project_io.run(action="update_frame_shapes")
+                self.project_ui.run(action="update_frame_shapes")
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
 
@@ -175,7 +158,7 @@ class LitPoseApp(LightningFlow):
             if self.label_studio.check_labels:
                 self.label_studio.run(
                     action="check_labeling_task_and_export", timer=self.label_studio.time)
-                self.project_io.run(
+                self.project_ui.run(
                     action="compute_labeled_frame_fraction", timer=self.label_studio.time)
                 self.label_studio.check_labels = False
 

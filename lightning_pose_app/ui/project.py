@@ -1,7 +1,7 @@
 import copy
 import glob
 from lightning import LightningFlow, LightningWork
-from lightning.app.storage.drive import Drive
+from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import math
 import numpy as np
@@ -15,13 +15,23 @@ import yaml
 from lightning_pose_app.utilities import StreamlitFrontend
 
 
-class ProjectDataIO(LightningWork):
+class ProjectUI(LightningFlow):
+    """UI to set up project."""
 
-    def __init__(self, *args, drive_name, data_dir, default_config_dict, **kwargs):
+    def __init__(self, *args, data_dir, default_config_dict, debug=False, **kwargs):
 
         super().__init__(*args, **kwargs)
 
-        self.drive = Drive(drive_name)
+        self._drive = FileSystem()
+
+        # initialize data_dir if it doesn't yet exist
+        if not self._drive.isdir(data_dir):
+            d = self.abspath(data_dir)
+            os.makedirs(d, exist_ok=True)
+            f = os.path.join(d, "tmp.txt")
+            with open(f, "w") as fs:
+                fs.write("tmp")
+            self._drive.put(f, os.path.join(data_dir, "tmp.txt"))
 
         # save default config info for initializing new projects
         self.default_config_dict = default_config_dict
@@ -34,131 +44,119 @@ class ProjectDataIO(LightningWork):
         #   ├── config.yaml
         #   └── CollectedData.csv
         self.data_dir = data_dir
-
-        self.initialized_projects = []
-        self.proj_defaults = {
-            "st_n_views": 0,
-            "st_keypoints_": [],
-            "st_n_keypoints": 0,
-            "st_pcasv_columns": [],
-            "st_pcamv_columns": [],
-        }
         self.proj_dir = None
         self.config_name = None
         self.config_file = None
         self.model_dir = None
+        self.trained_models = []
         self.n_labeled_frames = 0
         self.n_total_frames = 0
 
+        # UI info
+        self.run_script = False
         self.update_models = False
-        self.trained_models = []
+        self.count = 0  # counter for external app
+        self.st_submits = 0  # counter for this streamlit app
+        self.initialized_projects = []
+        self.st_project_name = None
+        self.st_create_new_project = False
+        self.st_project_loaded = False
+        self.st_new_vals = None
+
+        # config data
+        self.st_n_views = 0
+        self.st_keypoints_ = []
+        self.st_n_keypoints = 0
+        self.st_pcasv_columns = []
+        self.st_pcamv_columns = []
+
+        # if True, do not expose project options to user, hard-code instead
+        self.debug = debug
+
+    @property
+    def st_keypoints(self):
+        return np.unique(self.st_keypoints_).tolist()
 
     def _get_from_drive_if_not_local(self, file_or_dir):
 
-        if not os.path.exists(file_or_dir):
+        if not os.path.exists(self.abspath(file_or_dir)):
             try:
-                print(f"{file_or_dir} does not exist; getting from drive")
-                # hacky way to see if we're dealing with a directory
-                if not file_or_dir.endswith(".yaml"):
-                    # need to loop over dirs (presumably inside of labeled-data) because for some
-                    # reason Drive.get() will remove a single intermediate directory
-                    dirs = self.drive.list(file_or_dir)
-                    for dir_ in dirs:
-                        print(f"drive try get {dir_}")
-                        self.drive.get(dir_, overwrite=True)
-                        print(f"drive success get {dir_}")
-                else:
-                    # NOTE: making directories is required, otherwise get fails
-                    os.makedirs(os.path.dirname(file_or_dir), exist_ok=True)
-                    print(f"drive try get {file_or_dir}")
-                    self.drive.get(file_or_dir, overwrite=True)
-                    print(f"drive success get {file_or_dir}")
+                print(f"PROJECT drive try get {file_or_dir}")
+                src = file_or_dir  # shared
+                dst = self.abspath(file_or_dir)  # local
+                self._drive.get(src, dst, overwrite=True)
+                print(f"PROJECT drive success get {file_or_dir}")
             except Exception as e:
                 print(e)
-                print(f"could not find {file_or_dir} in in {self.drive.root}")
+                print(f"could not find {file_or_dir} in {self.data_dir}")
         else:
             print(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
-        print(f"put to drive {file_or_dir}")
-        if os.path.isfile(file_or_dir):
-            # print("put file")
-            self.drive.put(file_or_dir)
-        elif os.path.isdir(file_or_dir):
-            # print("put dir")
-            files_local = os.listdir(file_or_dir)
-            existing_files = self.drive.list(file_or_dir)
+        print(f"PROJECT put to drive {file_or_dir}")
+        src = self.abspath(file_or_dir)  # local
+        if os.path.isfile(src):
+            dst = file_or_dir  # shared
+            self._drive.put(src, dst)
+        elif os.path.isdir(src):
+            files_local = os.listdir(src)
+            existing_files = self._drive.listdir(file_or_dir)
             for file_or_dir_local in files_local:
                 rel_path = os.path.join(file_or_dir, file_or_dir_local)
                 if rel_path not in existing_files:
-                    self.drive.put(rel_path)
+                    src = self.abspath(rel_path)
+                    dst = rel_path
+                    self._drive.put(src, dst)
                 else:
-                    print(f"{rel_path} already exists on Drive! not updating")
+                    print(f"{rel_path} already exists on FileSystem! not updating")
         # clean up the local object
         if remove_local:
-            if os.path.isfile(file_or_dir):
-                os.remove(file_or_dir)
+            if os.path.isfile(self.abspath(file_or_dir)):
+                os.remove(self.abspath(file_or_dir))
             else:
-                shutil.rmtree(file_or_dir)
+                shutil.rmtree(self.abspath(file_or_dir))
 
     @staticmethod
-    def _copy_file(src_path, dst_path):
-        """Copy a file from the source path to the destination path."""
-        try:
-            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-            if not os.path.isfile(dst_path):
-                shutil.copy(src_path, dst_path)
-                print(f"File copied from {src_path} to {dst_path}")
-            else:
-                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
-        except IOError as e:
-            print(f"Unable to copy file. {e}")
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
-    def _copy_dir(self, src_path, dst_path):
-        """Copy a directory from the source path to the destination path."""
-        try:
-            os.makedirs(dst_path, exist_ok=True)
-            src_files_or_dirs = os.listdir(src_path)
-            for src_file_or_dir in src_files_or_dirs:
-                if os.path.isfile(os.path.join(src_path, src_file_or_dir)):
-                    self._copy_file(
-                        os.path.join(src_path, src_file_or_dir),
-                        os.path.join(dst_path, src_file_or_dir),
-                    )
-                else:
-                    src_dir = os.path.join(src_path, src_file_or_dir)
-                    dst_dir = os.path.join(dst_path, src_file_or_dir)
-                    if not os.path.isdir(dst_dir):
-                        shutil.copytree(src_dir, dst_dir)
-                        print(f"Directory copied from {src_dir} to {dst_dir}")
-                    else:
-                        print(f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
-        except IOError as e:
-            print(f"Unable to copy directory. {e}")
-
-    def find_initialized_projects(self):
-        # for some reason adding "component_name" arg isn't working
-        projects = self.drive.list(self.data_dir)
-        # strip leading dirs
-        projects = [os.path.basename(p) for p in projects if not p.endswith("labelstudio_db")]
+    def _find_initialized_projects(self):
+        # find all directories inside the data_dir; these should be the projects
+        # (except labelstudio database)
+        projects = self._drive.listdir(self.data_dir)
+        # strip leading dirs to just get project names
+        projects = [
+            os.path.basename(p) for p in projects
+            if not (p.endswith("labelstudio_db") or p.endswith(".txt"))
+        ]
         self.initialized_projects = list(np.unique(projects))
 
-    def update_paths(self, project_name, **kwargs):
+    def _update_paths(self, project_name=None, **kwargs):
+        if not project_name:
+            project_name = self.st_project_name
+        # these will all be paths RELATIVE to the FileSystem root
         if project_name:
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
             self.config_file = os.path.join(self.proj_dir, self.config_name)
-            self.model_dir = os.path.join(self.proj_dir, "models")  # NOTE: hardcoded in train_infer.py
+            self.model_dir = os.path.join(self.proj_dir, "models")  # hardcoded in train_infer.py
 
-    def update_project_config(self, new_vals_dict=None, **kwargs):
+    def _update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""
+
+        if not new_vals_dict:
+            new_vals_dict = self.st_new_vals
 
         # check to see if config exists locally; if not, try pulling from drive
         if self.config_file:
             self._get_from_drive_if_not_local(self.config_file)
 
         # check to see if config exists; copy default config if not
-        if (self.config_file is None) or (not os.path.exists(self.config_file)):
+        if (self.config_file is None) or (not os.path.exists(self.abspath(self.config_file))):
             print(f"no config file at {self.config_file}")
             print("loading default config")
             # copy default config
@@ -176,7 +174,7 @@ class ProjectDataIO(LightningWork):
         else:
             print("loading existing config")
             # load existing config
-            config_dict = yaml.safe_load(open(self.config_file))
+            config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
 
         # update config using new_vals_dict; assume this is a dict of dicts
         # new_vals_dict = {
@@ -193,14 +191,14 @@ class ProjectDataIO(LightningWork):
                     else:
                         config_dict[sconfig_name][key] = val
             # save out updated config file locally
-            if not os.path.exists(self.proj_dir):
-                os.makedirs(self.proj_dir)
-            yaml.dump(config_dict, open(self.config_file, "w"))
+            if not os.path.exists(self.abspath(self.proj_dir)):
+                os.makedirs(self.abspath(self.proj_dir))
+            yaml.dump(config_dict, open(self.abspath(self.config_file), "w"))
 
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
 
-    def update_frame_shapes(self):
+    def _update_frame_shapes(self):
 
         from PIL import Image
 
@@ -210,11 +208,11 @@ class ProjectDataIO(LightningWork):
         self._get_from_drive_if_not_local(labeled_data_dir)
 
         # load single frame from labeled data
-        imgs = glob.glob(os.path.join(self.proj_dir, "labeled-data", "*", "*.png"))
+        imgs = glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*", "*.png"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
-            self.update_project_config({
+            self._update_project_config(new_vals_dict={
                 "data": {
                     "image_orig_dims": {
                         "height": image.height,
@@ -227,21 +225,17 @@ class ProjectDataIO(LightningWork):
                 }
             })
         else:
-            print(glob.glob(os.path.join(self.proj_dir, "labeled-data", "*")))
-            print("did not find labeled data directory in Drive")
+            print(glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*")))
+            print("did not find labeled data directory in FileSystem")
 
-        # remove local files so that Work is forced to load updated versions from Drive
-        if os.path.isdir(labeled_data_dir):
-            shutil.rmtree(labeled_data_dir)
-
-    def compute_labeled_frame_fraction(self, timer=0.0):
+    def _compute_labeled_frame_fraction(self, timer=0.0):
         # TODO: don't want to have metadata filename hard-coded here
 
         metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
         self._get_from_drive_if_not_local(metadata_file)
 
         try:
-            proj_details = yaml.safe_load(open(metadata_file, "r"))
+            proj_details = yaml.safe_load(open(self.abspath(metadata_file), "r"))
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
@@ -254,46 +248,37 @@ class ProjectDataIO(LightningWork):
             n_total_frames = None
 
         # remove local file so that Work is forced to load updated versions from Drive
-        if os.path.exists(metadata_file):
-            os.remove(metadata_file)
+        if os.path.exists(self.abspath(metadata_file)):
+            os.remove(self.abspath(metadata_file))
 
         self.n_labeled_frames = n_labeled_frames
         self.n_total_frames = n_total_frames
 
-    def load_project_defaults(self, **kwargs):
+    def _load_project_defaults(self, **kwargs):
 
         # check to see if config exists locally; if not, try pulling from drive
         if self.config_file:
             self._get_from_drive_if_not_local(self.config_file)
 
         # check to see if config exists
-        if self.config_file and os.path.exists(self.config_file):
+        if self.config_file and os.path.exists(self.abspath(self.config_file)):
             # set values from config
-            config_dict = yaml.safe_load(open(self.config_file))
+            config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
+            self.st_keypoints_ = config_dict["data"]["keypoints"]
+            self.st_n_keypoints = config_dict["data"]["num_keypoints"]
+            self.st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
+            self.st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
+            self.st_n_views = 1 if len(self.st_pcamv_columns) == 0 else len(self.st_pcamv_columns)
 
-            st_keypoints = config_dict["data"]["keypoints"]
-            st_n_keypoints = config_dict["data"]["num_keypoints"]
-            st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
-            st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
-            st_n_views = 1 if len(st_pcamv_columns) == 0 else len(st_pcamv_columns)
+    def _update_trained_models_list(self, **kwargs):
 
-            self.proj_defaults = {
-                "st_n_views": st_n_views,
-                "st_keypoints_": st_keypoints,
-                "st_n_keypoints": st_n_keypoints,
-                "st_pcasv_columns": st_pcasv_columns,
-                "st_pcamv_columns": st_pcamv_columns,
-            }
-
-    def update_trained_models_list(self, **kwargs):
-
-        if self.model_dir:
+        if self._drive.isdir(self.model_dir):
             trained_models = []
             # this returns a list of model training days
-            dirs_day = self.drive.list(self.model_dir)
+            dirs_day = self._drive.listdir(self.model_dir)
             # loop over days and find HH-MM-SS
             for dir_day in dirs_day:
-                dirs_time = self.drive.list(dir_day)
+                dirs_time = self._drive.listdir("/" + dir_day)
                 for dir_time in dirs_time:
                     trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
@@ -301,60 +286,21 @@ class ProjectDataIO(LightningWork):
     def run(self, action, **kwargs):
 
         if action == "find_initialized_projects":
-            self.find_initialized_projects()
+            self._find_initialized_projects()
         elif action == "update_paths":
-            self.update_paths(**kwargs)
+            self._update_paths(**kwargs)
         elif action == "update_project_config":
-            self.update_project_config(**kwargs)
+            self._update_project_config(**kwargs)
         elif action == "update_frame_shapes":
-            self.update_frame_shapes()
+            self._update_frame_shapes()
         elif action == "compute_labeled_frame_fraction":
-            self.compute_labeled_frame_fraction(**kwargs)
+            self._compute_labeled_frame_fraction(**kwargs)
         elif action == "load_project_defaults":
-            self.load_project_defaults(**kwargs)
+            self._load_project_defaults(**kwargs)
         elif action == "update_trained_models_list":
-            self.update_trained_models_list(**kwargs)
+            self._update_trained_models_list(**kwargs)
         elif action == "put_file_to_drive":
             self._put_to_drive_remove_local(**kwargs)
-
-
-class ProjectUI(LightningFlow):
-    """UI to set up project."""
-
-    def __init__(self, *args, data_dir, debug=False, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # control runners
-        # True = Run Jobs.  False = Do not Run jobs
-        # UI sets to True to kickoff jobs
-        # Job Runner sets to False when done
-        self.run_script = False
-        self.count = 0
-
-        self.data_dir = data_dir
-        self.config_file = None
-        self.create_new_project = False
-        self.initialized_projects = []
-
-        # input from ProjectIO
-        self.st_n_views = 0
-        self.st_keypoints_ = []
-        self.st_n_keypoints = 0
-        self.st_pcasv_columns = []
-        self.st_pcamv_columns = []
-
-        # output from the UI
-        self.st_submits = 0
-        self.st_project_name = None
-        self.st_project_loaded = False
-        self.st_new_vals = None
-
-        # if True, do not expose project options to user, hard-code instead
-        self.debug = debug
-
-    @property
-    def st_keypoints(self):
-        return np.unique(self.st_keypoints_).tolist()
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -372,7 +318,7 @@ def _render_streamlit_fn(state: AppState):
         "",
         options=["Create new project", "Load existing project"],
         disabled=state.st_project_loaded,
-        index=1 if (state.st_project_loaded and not state.create_new_project) else 0,
+        index=1 if (state.st_project_loaded and not state.st_create_new_project) else 0,
     )
 
     st.text(f"Available projects: {state.initialized_projects}")
@@ -436,10 +382,13 @@ def _render_streamlit_fn(state: AppState):
             elif st_project_name != "":
                 # allow creation of new project
                 enter_data = True
-                state.create_new_project = True
+                state.st_create_new_project = True
             else:
                 # catch remaining errors
                 enter_data = False
+        else:
+            # catch remaining errors
+            enter_data = False
     else:
         # cannot enter data until project name has been entered
         enter_data = False
@@ -638,10 +587,10 @@ def _render_streamlit_fn(state: AppState):
             st_submit_button = st.button("Create project", disabled=need_update_pcamv)
         if state.st_submits > 0:
             proceed_str = """
-                Please proceed to the next tab to extract frames for labeling.<br />
-                Use the following login information:<br />
-                username: user@localhost<br />
-                password: pw
+                Proceed to the next tab to extract frames for labeling.<br /><br />
+                LabelStudio login information:<br />
+                <strong>username</strong>: user@localhost<br />
+                <strong>password</strong>: pw
             """
 
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"

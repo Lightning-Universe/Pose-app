@@ -1,7 +1,7 @@
 import cv2
 from lightning import CloudCompute, LightningFlow, LightningWork
 from lightning.app.utilities.state import AppState
-from lightning.app.storage.drive import Drive
+from lightning.app.storage import FileSystem
 import numpy as np
 import os
 from sklearn.decomposition import PCA
@@ -14,33 +14,49 @@ from lightning_pose_app.utilities import StreamlitFrontend
 
 class ExtractFramesWork(LightningWork):
 
-    def __init__(self, *args, drive_name, **kwargs):
+    def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
-        self._drive = Drive(drive_name, component_name="extract_frames_work")
+        self._drive = FileSystem()
 
         self.progress = 0.0
         self.work_is_done_extract_frames = False
 
-    def get_from_drive(self, inputs, component_name=None):
+    def get_from_drive(self, inputs):
         for i in inputs:
-            print(f"drive get {i}")
+            print(f"EXTRACT drive get {i}")
             try:  # file may not be ready
-                self._drive.get(i, overwrite=True, component_name=component_name)
-                print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
+                src = i  # shared
+                dst = self.abspath(i)  # local
+                self._drive.get(src, dst, overwrite=True)
+                print(f"drive data saved at {dst}")
             except Exception as e:
                 print(e)
                 print(f"did not load {i} from drive")
                 pass
 
-    def put_to_drive(self, outputs, directory=True):
+    def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"drive try put {o}")
+            print(f"EXTRACT drive try put {o}")
+            src = self.abspath(o)  # local
+            dst = o  # shared
             # make sure dir ends with / so that put works correctly
-            if directory and o[-1] != "/":
-                o = os.path.join(o, "")
-            self._drive.put(o)
-            print(f"drive success put {o}")
+            if os.path.isdir(src):
+                src = os.path.join(src, "")
+                dst = os.path.join(dst, "")
+            # check to make sure file exists locally
+            if not os.path.exists(src):
+                continue
+            self._drive.put(src, dst)
+            print(f"EXTRACT drive success put {dst}")
+
+    @staticmethod
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
     def read_nth_frames(self, video_file, n=1, resize_dims=64):
 
@@ -168,15 +184,15 @@ class ExtractFramesWork(LightningWork):
         self.work_is_done_extract_frames = False
 
         # pull videos from drive; these will come from "root."
-        self.get_from_drive([video_file], component_name="root.")
+        self.get_from_drive(["/" + video_file])
 
         data_dir_rel = os.path.join(proj_dir, "labeled-data")
-        data_dir = os.path.join(os.getcwd(), data_dir_rel)
+        data_dir = self.abspath(data_dir_rel)
         n_digits = 8
         extension = "png"
         context_frames = 2
 
-        video_file_abs = os.path.join(os.getcwd(), video_file)
+        video_file_abs = self.abspath(video_file)
 
         print(f"============== extracting frames from {video_file} ================")
 
@@ -190,12 +206,11 @@ class ExtractFramesWork(LightningWork):
         # create folder to save images
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         save_dir = os.path.join(data_dir, video_name)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
 
         # select indices for labeling
         # reduce image size, even more if there are many frames
-        cap = cv2.VideoCapture(video_file)
+        cap = cv2.VideoCapture(video_file_abs)
         n_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
         cap.release()
         if n_frames > 1e5:
@@ -269,20 +284,12 @@ def get_frames_from_idxs(cap, idxs):
 class ExtractFramesUI(LightningFlow):
     """UI to set up project."""
 
-    def __init__(
-        self,
-        *args,
-        drive_name,
-        **kwargs
-    ):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.work = ExtractFramesWork(
-            cloud_compute=CloudCompute("default"),
-            drive_name=drive_name,
-        )
+        self.work = ExtractFramesWork(cloud_compute=CloudCompute("default"))
 
-        self.drive = Drive(drive_name)
+        self._drive = FileSystem()
 
         # control runners
         # True = Run Jobs.  False = Do not Run jobs
@@ -305,6 +312,17 @@ class ExtractFramesUI(LightningFlow):
     def st_video_files(self):
         return np.unique(self.st_video_files_).tolist()
 
+    def run(self, action, **kwargs):
+        if action == "push_video":
+            video_file = kwargs["video_file"]
+            if video_file[0] == "/":
+                src = os.path.join(os.getcwd(), video_file[1:])
+                dst = video_file
+            else:
+                src = os.path.join(os.getcwd(), video_file)
+                dst = "/" + video_file
+            self._drive.put(src, dst)
+
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
@@ -322,7 +340,7 @@ def _render_streamlit_fn(state: AppState):
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
     # upload video files
-    video_dir = os.path.join(state.proj_dir, "videos")
+    video_dir = os.path.join(state.proj_dir[1:], "videos")
     os.makedirs(video_dir, exist_ok=True)
 
     # initialize the file uploader
@@ -343,10 +361,6 @@ def _render_streamlit_fn(state: AppState):
             # write the content of the file to the path, but not while processing
             with open(filepath, "wb") as f:
                 f.write(bytes_data)
-            # push the data to the Drive
-            state.drive.put(filepath)
-            # clean up the local file
-            # os.remove(filepath)
 
     # select number of frames to label per video
     n_frames_per_video = st.text_input("Frames to label per video", 20)
