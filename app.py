@@ -183,6 +183,7 @@ class LitPoseApp(LightningFlow):
                 drive_name="lit://lpa",  # see note below
                 parallel=True,  # is_running_in_cloud(),
             )
+            self.train_ui.run(action="push_video", video_file=video)
             self.inference[video].run('run_inference', model=model, video=video)
 
         # clean up works

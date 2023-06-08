@@ -8,20 +8,13 @@ from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_
 class StreamlitAppLightningPose(LightningFlow):
     """UI to run Streamlit labeled frame app."""
 
-    def __init__(
-        self,
-        *args,
-        drive_name,
-        app_type,
-        **kwargs
-    ):
+    def __init__(self, *args, app_type, **kwargs):
 
         super().__init__(*args, **kwargs)
 
         self.work = LitBashWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
-            drive_name=drive_name,
         )
 
         # choose labeled frame or video option
@@ -48,12 +41,12 @@ class StreamlitAppLightningPose(LightningFlow):
             if kwargs.get("model_dir", None):
                 model_dir = kwargs["model_dir"]
             else:
-                model_dir = os.path.join(os.getcwd(), self.proj_dir, "models")
-        
+                model_dir = os.path.join(os.getcwd(), self.proj_dir[1:], "models")
+
             model_dir_args = f" --model_dir={model_dir} --make_dir"
 
             cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
-                + " --server.address $host --server.port $port" \
+                + " --server.address $host --server.port $port --server.headless true" \
                 + " -- " \
                 + " " + model_dir_args
 

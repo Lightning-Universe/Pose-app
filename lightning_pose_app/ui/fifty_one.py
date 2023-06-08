@@ -1,5 +1,5 @@
 from lightning import CloudCompute, LightningFlow, LightningWork
-from lightning.app.storage.drive import Drive
+from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import os
 import streamlit as st
@@ -12,10 +12,11 @@ from lightning_pose_app.utilities import StreamlitFrontend
 
 class FiftyoneWork(LightningWork):
     
-    def __init__(self, *args, drive_name, **kwargs):
+    def __init__(self, *args, **kwargs):
         
         super().__init__(*args, **kwargs)
-        self._drive = Drive(drive_name, component_name="fiftyone_work")
+
+        self._drive = FileSystem()
 
         self.fiftyone_launched = False
         self.fiftyone_datasets = []
@@ -64,18 +65,20 @@ class FiftyoneWork(LightningWork):
         
         # pull models (relative path)
         for model_dir in model_dirs:
-            self._drive.get(model_dir, overwrite=True)
+            dst = os.path.join(os.getcwd(), model_dir[1:])
+            self._drive.get(model_dir, dst, overwrite=True)
 
         # pull config (relative path)
-        self._drive.get(config_file, overwrite=True)
+        config_file_abs = os.path.join(os.getcwd(), config_file[1:])
+        self._drive.get(config_file, config_file_abs, overwrite=True)
 
         # load config (absolute path)
-        cfg = DictConfig(yaml.safe_load(open(os.path.join(os.getcwd(), config_file), "r")))
+        cfg = DictConfig(yaml.safe_load(open(config_file_abs, "r")))
 
         # edit config (add fiftyone key before making DictConfig, otherwise error)
-        model_dirs_abs = [os.path.join(os.getcwd(), x) for x in model_dirs]
+        model_dirs_abs = [os.path.join(os.getcwd(), x[1:]) for x in model_dirs]
+        cfg.data.data_dir = os.path.join(os.getcwd(), cfg.data.data_dir)
         cfg.eval.fiftyone.build_speed = "fast"
-        cfg.eval.fiftyone.n_dirs_back = 6  # hack
         cfg.eval.fiftyone.dataset_name = dataset_name
         cfg.eval.fiftyone.model_display_names = model_names
         cfg.eval.hydra_paths = model_dirs_abs
@@ -110,18 +113,13 @@ class FiftyoneWork(LightningWork):
 class FiftyoneConfigUI(LightningFlow):
     """UI to run Fiftyone and Streamlit apps."""
 
-    def __init__(
-        self,
-        *args,
-        drive_name,
-        **kwargs
-    ):
+    def __init__(self, *args, **kwargs):
+
         super().__init__(*args, **kwargs)
 
         self.work = FiftyoneWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # get fiftyone
-            drive_name=drive_name,
         )
 
         # control runners
@@ -158,9 +156,9 @@ class FiftyoneConfigUI(LightningFlow):
         elif action == "build_fiftyone_dataset":
             self.work.run(
                 action=action,
-                config_file=os.path.join(self.proj_dir, self.config_name),  # relative for Drive
+                config_file=os.path.join(self.proj_dir, self.config_name),  # relative paths
                 dataset_name=self.st_dataset_name,
-                model_dirs=self.st_model_dirs,
+                model_dirs=self.st_model_dirs,  # relative paths
                 model_names=self.st_model_display_names,
                 **kwargs,
             )

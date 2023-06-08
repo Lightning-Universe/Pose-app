@@ -9,12 +9,13 @@ from lightning import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
 import os
+import shutil
 import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
-from lightning_pose_app.ui.project import ProjectDataIO
+from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
@@ -28,50 +29,44 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_p
 class LitPoseApp(LightningFlow):
 
     def __init__(self):
+
         super().__init__()
-
-        # shared data for apps; NOTE: this is hard-coded in the run_inference method below too
-        drive_name = "lit://lpa"
-
-        self.proj_name = "demo"
 
         # -----------------------------
         # paths
         # -----------------------------
-        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
-        self.data_dir = "data"  # relative to base of filesystem
+        self.data_dir = "/data"  # relative to FileSystem root
+        self.proj_name = "demo"
 
         # load default config and pass to project manager
+        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
         # flows and works
         # -----------------------------
-        # project manager (work)
-        self.project_io = ProjectDataIO(
-            drive_name=drive_name,
+        # project manager (flow)
+        self.project_ui = ProjectUI(
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
         )
 
         # training tab (flow + work)
-        self.train_ui = TrainUI(drive_name=drive_name)
+        self.train_ui = TrainUI()
         self.train_ui.n_labeled_frames = 90  # hard-code these values for now
         self.train_ui.n_total_frames = 90
 
         # fiftyone tab (flow + work)
-        self.fiftyone_ui = FiftyoneConfigUI(drive_name=drive_name)
+        self.fiftyone_ui = FiftyoneConfigUI()
 
         # streamlit tabs (flow + work)
-        self.streamlit_frame = StreamlitAppLightningPose(drive_name=drive_name, app_type="frame")
-        self.streamlit_video = StreamlitAppLightningPose(drive_name=drive_name, app_type="video")
+        self.streamlit_frame = StreamlitAppLightningPose(app_type="frame")
+        self.streamlit_video = StreamlitAppLightningPose(app_type="video")
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
             cloud_compute=CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
-            drive_name=drive_name,
-            component_name="tensorboard",
         )
 
         # -----------------------------
@@ -80,26 +75,61 @@ class LitPoseApp(LightningFlow):
         # here we copy the toy dataset config file, frames, and labels that come packaged with the 
         # lightning-pose repo and move it to a new directory that is consistent with the project 
         # structure the app expects
-        # later we will write that newly copied data to the Drive so other Works have access
+        # later we will write that newly copied data to the FileSystem so other Works have access
 
         # copy config file
         toy_config_file_src = os.path.join(
             lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
-        toy_config_file_dst = os.path.join(self.data_dir, self.proj_name, "model_config_demo.yaml")
-        self.project_io._copy_file(toy_config_file_src, toy_config_file_dst)
+        toy_config_file_dst = os.path.join(
+            os.getcwd(), self.data_dir[1:], self.proj_name, "model_config_demo.yaml")
+        self._copy_file(toy_config_file_src, toy_config_file_dst)
 
         # frames, videos, and labels
         toy_data_src = os.path.join(lightning_pose_dir, "toy_datasets/toymouseRunningData")
-        toy_data_dst = os.path.join(self.data_dir, self.proj_name)
-        self.project_io._copy_dir(toy_data_src, toy_data_dst)
+        toy_data_dst = os.path.join(os.getcwd(), self.data_dir[1:], self.proj_name)
+        self._copy_dir(toy_data_src, toy_data_dst)
 
         self.demo_data_transferred = False
+
+    @staticmethod
+    def _copy_file(src_path, dst_path):
+        """Copy a file from the source path to the destination path."""
+        try:
+            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+            if not os.path.isfile(dst_path):
+                shutil.copy(src_path, dst_path)
+                print(f"File copied from {src_path} to {dst_path}")
+            else:
+                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
+        except IOError as e:
+            print(f"Unable to copy file. {e}")
+
+    def _copy_dir(self, src_path, dst_path):
+        """Copy a directory from the source path to the destination path."""
+        try:
+            os.makedirs(dst_path, exist_ok=True)
+            src_files_or_dirs = os.listdir(src_path)
+            for src_file_or_dir in src_files_or_dirs:
+                if os.path.isfile(os.path.join(src_path, src_file_or_dir)):
+                    self._copy_file(
+                        os.path.join(src_path, src_file_or_dir),
+                        os.path.join(dst_path, src_file_or_dir),
+                    )
+                else:
+                    src_dir = os.path.join(src_path, src_file_or_dir)
+                    dst_dir = os.path.join(dst_path, src_file_or_dir)
+                    if not os.path.isdir(dst_dir):
+                        shutil.copytree(src_dir, dst_dir)
+                        print(f"Directory copied from {src_dir} to {dst_dir}")
+                    else:
+                        print(f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
+        except IOError as e:
+            print(f"Unable to copy directory. {e}")
 
     # @property
     # def ready(self) -> bool:
     #     """Return true once all works have an assigned url"""
     #     return all([
-    #         self.project_io.url != "",
     #         self.fiftyone_ui.work.url != "",
     #         self.streamlit_frame.work.url != "",
     #         self.streamlit_video.work.url != "",
@@ -114,7 +144,7 @@ class LitPoseApp(LightningFlow):
     def train_models(self):
 
         # check to see if we're in demo mode or not
-        base_dir = os.path.join(os.getcwd(), self.project_io.proj_dir)
+        base_dir = os.path.join(os.getcwd(), self.project_ui.proj_dir[1:])
         cfg_overrides = {
             "data": {
                 "data_dir": base_dir,
@@ -130,12 +160,12 @@ class LitPoseApp(LightningFlow):
             }
         }
 
-        # list files needed from Drive
+        # list files needed from FileSystem
         inputs = [
-            os.path.join(self.project_io.proj_dir, self.project_io.config_name),
-            os.path.join(self.project_io.proj_dir, "barObstacleScaling1"),
-            os.path.join(self.project_io.proj_dir, "unlabeled_videos"),
-            os.path.join(self.project_io.proj_dir, "CollectedData_.csv"),
+            os.path.join(self.project_ui.proj_dir, self.project_ui.config_name),
+            os.path.join(self.project_ui.proj_dir, "barObstacleScaling1"),
+            os.path.join(self.project_ui.proj_dir, "unlabeled_videos"),
+            os.path.join(self.project_ui.proj_dir, "CollectedData_.csv"),
         ]
 
         # train models
@@ -143,9 +173,8 @@ class LitPoseApp(LightningFlow):
             status = self.train_ui.st_train_status[m]
             if status == "initialized" or status == "active":
                 self.train_ui.st_train_status[m] = "active"
-                outputs = [os.path.join(self.project_io.model_dir, self.train_ui.st_datetimes[m], "")]
+                outputs = [os.path.join(self.project_ui.model_dir, self.train_ui.st_datetimes[m], "")]
                 cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
-                self.train_ui.progress = self.train_ui.work.progress
                 self.train_ui.work.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
                     results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
@@ -157,10 +186,10 @@ class LitPoseApp(LightningFlow):
         self.train_ui.count += 1
 
     def update_trained_models_list(self, timer):
-        self.project_io.run(action="update_trained_models_list", timer=timer)
-        if self.project_io.trained_models:
-            self.train_ui.trained_models = self.project_io.trained_models
-            self.fiftyone_ui.trained_models = self.project_io.trained_models
+        self.project_ui.run(action="update_trained_models_list", timer=timer)
+        if self.project_ui.trained_models:
+            self.train_ui.trained_models = self.project_ui.trained_models
+            self.fiftyone_ui.trained_models = self.project_ui.trained_models
 
     def run(self):
 
@@ -178,39 +207,39 @@ class LitPoseApp(LightningFlow):
         # update project data
         # -------------------------------------------------------------
         # update paths if we know which project we're working with
-        self.project_io.run(action="update_paths", project_name=self.proj_name)
-        self.train_ui.proj_dir = self.project_io.proj_dir
-        self.streamlit_frame.proj_dir = self.project_io.proj_dir
-        self.streamlit_video.proj_dir = self.project_io.proj_dir
-        self.fiftyone_ui.proj_dir = self.project_io.proj_dir
-        self.fiftyone_ui.config_name = self.project_io.config_name
+        self.project_ui.run(action="update_paths", project_name=self.proj_name)
+        self.train_ui.proj_dir = self.project_ui.proj_dir
+        self.streamlit_frame.proj_dir = self.project_ui.proj_dir
+        self.streamlit_video.proj_dir = self.project_ui.proj_dir
+        self.fiftyone_ui.proj_dir = self.project_ui.proj_dir
+        self.fiftyone_ui.config_name = self.project_ui.config_name
 
-        # write demo data to the Drive so other Works have access (run once)
+        # write demo data to the FileSystem so other Works have access (run once)
         if not self.demo_data_transferred:
             # we call the run method twice with two sets of arguments so the run cache will always
             # be overwritten; therefore if we put these two calls outside of the boolean flag they
             # will be continuously called as the app is running
             # update config file
-            self.project_io.run(
+            self.project_ui.run(
                 action="update_project_config",
                 new_vals_dict={"data": {  # TODO: will this work on cloud?
-                    "data_dir": os.path.join(os.getcwd(), self.project_io.proj_dir)}
+                    "data_dir": os.path.join(os.getcwd(), self.project_ui.proj_dir)[1:]}
                 },
             )
-            # put demo data onto Drive
-            self.project_io.run(
+            # put demo data onto FileSystem
+            self.project_ui.run(
                 action="put_file_to_drive", 
-                file_or_dir=self.project_io.proj_dir, 
+                file_or_dir=self.project_ui.proj_dir,
                 remove_local=False,
             )
-            print("Demo data transferred to Drive")
+            print("Demo data transferred to FileSystem")
             self.demo_data_transferred = True
 
         # find previously trained models for project, expose to training and diagnostics UIs
         self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
 
         # start background services (only run once)
-        self.start_tensorboard(logdir=self.project_io.model_dir)
+        self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
         self.streamlit_frame.run(action="initialize")
         self.streamlit_video.run(action="initialize")
         self.fiftyone_ui.run(action="start_fiftyone")
@@ -223,23 +252,23 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.train_ui.run_script_train:
             self.train_models()
-            inputs = [self.project_io.model_dir]
+            inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
             self.tensorboard.run(
                 "null command",
                 cwd=os.getcwd(),
-                input_output_only=True,  # pull inputs from Drive, but do not run commands
+                input_output_only=True,  # pull inputs from FileSystem, but do not run commands
                 inputs=inputs,
             )
             # have streamlit pull the new data
             self.streamlit_frame.run(action="pull_models", inputs=inputs)
             self.streamlit_video.run(action="pull_models", inputs=inputs)
-            self.project_io.update_models = True
+            self.project_ui.update_models = True
             self.train_ui.run_script_train = False
 
         # set the new outputs for UIs
-        if self.project_io.update_models:
-            self.project_io.update_models = False
+        if self.project_ui.update_models:
+            self.project_ui.update_models = False
             self.update_trained_models_list(timer=self.train_ui.count)
 
         # -------------------------------------------------------------

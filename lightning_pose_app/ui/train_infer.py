@@ -3,14 +3,16 @@
 from datetime import datetime
 from lightning import CloudCompute, LightningFlow, LightningWork
 from lightning.app.utilities.state import AppState
-from lightning.app.storage.drive import Drive
+from lightning.app.storage import FileSystem
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+import subprocess
 import time
+import yaml
 
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend
@@ -39,55 +41,64 @@ class TrainingProgress(Callback):
 
 class LitPose(LightningWork):
 
-    def __init__(
-            self,
-            *args,
-            drive_name,
-            component_name="litpose",
-            **kwargs
-    ) -> None:
+    def __init__(self, *args, **kwargs) -> None:
+
         super().__init__(*args, **kwargs)
 
         self.pwd = os.getcwd()
         self.progress = 0.0
 
-        self._drive = Drive(drive_name, component_name=component_name)
+        self._drive = FileSystem()
 
         self.work_is_done_training = True
         self.work_is_done_inference = True
         self.count = 0
 
-    def get_from_drive(self, inputs, component_name=None):
+    def get_from_drive(self, inputs):
         for i in inputs:
-            print(f"drive get {i}")
+            print(f"TRAIN drive get {i}")
             try:  # file may not be ready
-                self._drive.get(i, overwrite=True, component_name=component_name)
-                print(f"drive data saved at {os.path.join(os.getcwd(), i)}")
+                src = i  # shared
+                dst = self.abspath(i)  # local
+                self._drive.get(src, dst, overwrite=True)
+                print(f"drive data saved at {dst}")
             except Exception as e:
                 print(e)
                 print(f"did not load {i} from drive")
                 pass
 
-    def put_to_drive(self, outputs, directory=True):
+    def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"drive try put {o}")
+            print(f"TRAIN drive try put {o}")
+            src = self.abspath(o)  # local
+            dst = o  # shared
             # make sure dir ends with / so that put works correctly
-            if directory and o[-1] != "/":
-                o = os.path.join(o, "")
-            self._drive.put(o)
-            print(f"drive success put {o}")
+            if os.path.isdir(src):
+                src = os.path.join(src, "")
+                dst = os.path.join(dst, "")
+            # check to make sure file exists locally
+            if not os.path.exists(src):
+                continue
+            self._drive.put(src, dst)
+            print(f"TRAIN drive success put {dst}")
+
+    @staticmethod
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
     def _reformat_videos(self, video_files=None, **kwargs):
 
-        from lightning_pose.utils.video_ops import check_codec_format, reencode_video
-
         # pull videos from Drive; these will come from "root." component
-        self.get_from_drive(video_files, component_name="root.")
+        self.get_from_drive(video_files)
 
         video_files_new = []
         for video_file in video_files:
 
-            video_file_abs = os.path.join(os.getcwd(), video_file)
+            video_file_abs = self.abspath(video_file)
 
             # check 1: does file exist?
             video_file_exists = os.path.exists(video_file_abs)
@@ -114,7 +125,7 @@ class LitPose(LightningWork):
                 video_files_new.append(video_file_new)
 
             # push possibly reformated, renamed videos to Drive
-            self.put_to_drive(video_files_new, directory=False)
+            self.put_to_drive(video_files_new)
 
         return video_files_new
 
@@ -153,7 +164,7 @@ class LitPose(LightningWork):
         for i in inputs:
             if i.endswith(".yaml"):
                 config_file = i
-        cfg = DictConfig(yaml.safe_load(open(os.path.join(os.getcwd(), config_file), "r")))
+        cfg = DictConfig(yaml.safe_load(open(self.abspath(config_file), "r")))
 
         # update config with user-provided overrides
         for key1, val1 in cfg_overrides.items():
@@ -223,8 +234,6 @@ class LitPose(LightningWork):
             callbacks=callbacks,
             logger=logger,
             limit_train_batches=limit_train_batches,
-            accumulate_grad_batches=cfg.training.accumulate_grad_batches,
-            profiler=cfg.training.profiler,
         )
 
         # train model!
@@ -247,10 +256,9 @@ class LitPose(LightningWork):
             cfg_pred.training.imgaug = "default"
             imgaug_transform_pred = get_imgaug_transform(cfg=cfg_pred)
             dataset_pred = get_dataset(
-                cfg=cfg_pred, data_dir=data_dir, imgaug_transform=imgaug_transform_pred
-            )
-            data_module_pred = get_data_module(cfg=cfg_pred, dataset=dataset_pred,
-                                               video_dir=video_dir)
+                cfg=cfg_pred, data_dir=data_dir, imgaug_transform=imgaug_transform_pred)
+            data_module_pred = get_data_module(
+                cfg=cfg_pred, dataset=dataset_pred, video_dir=video_dir)
             data_module_pred.setup()
         else:
             data_module_pred = data_module
@@ -307,7 +315,6 @@ class LitPose(LightningWork):
                     labeled_mp4_file=labeled_mp4_file,
                     trainer=trainer,
                     model=model,
-                    gpu_id=cfg.training.gpu_id,
                     data_module=data_module_pred,
                     save_heatmaps=cfg.eval.get("predict_vids_after_training_save_heatmaps", False),
                 )
@@ -344,20 +351,15 @@ class LitPose(LightningWork):
 class TrainUI(LightningFlow):
     """UI to enter training parameters for demo data."""
 
-    def __init__(
-        self,
-        *args,
-        drive_name,
-        **kwargs
-    ):
+    def __init__(self, *args, **kwargs):
+
         super().__init__(*args, **kwargs)
 
-        self.drive = Drive(drive_name)
+        self._drive = FileSystem()
 
         self.work = LitPose(
             cloud_compute=CloudCompute("gpu"),
             cloud_build_config=LitPoseBuildConfig(),
-            drive_name=drive_name,
         )
 
         # control runners
@@ -393,6 +395,17 @@ class TrainUI(LightningFlow):
         # output from the UI (infer)
         self.st_inference_model = None
         self.st_inference_videos = None
+
+    def run(self, action, **kwargs):
+        if action == "push_video":
+            video_file = kwargs["video_file"]
+            if video_file[0] == "/":
+                src = os.path.join(os.getcwd(), video_file[1:])
+                dst = video_file
+            else:
+                src = os.path.join(os.getcwd(), video_file)
+                dst = "/" + video_file
+            self._drive.put(src, dst)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -474,12 +487,12 @@ def _render_streamlit_fn(state: AppState):
                     if status == "initialized":
                         p = 0.0
                     elif status == "active":
-                        p = state.progress
+                        p = state.work.progress
                     elif status == "complete":
                         p = 100.0
                     else:
                         st.text(status)
-                    st.progress(p / 100.0, f"{m} progress ({status})")
+                    st.progress(p / 100.0, f"{m} progress ({status}: {int(p)}\% complete)")
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) and st_train_semisuper:
@@ -538,7 +551,7 @@ def _render_streamlit_fn(state: AppState):
             "Choose model to run inference", sorted(state.trained_models, reverse=True))
 
         # upload video files
-        video_dir = os.path.join(state.proj_dir, "videos")
+        video_dir = os.path.join(state.proj_dir[1:], "videos")
         os.makedirs(video_dir, exist_ok=True)
 
         # initialize the file uploader
@@ -556,8 +569,6 @@ def _render_streamlit_fn(state: AppState):
             # write the content of the file to the path
             with open(filepath, "wb") as f:
                 f.write(bytes_data)
-            # push the data to the Drive
-            state.drive.put(filepath)
 
         st_submit_button_infer = st.button(
             "Run inference",
@@ -574,3 +585,39 @@ def _render_streamlit_fn(state: AppState):
             state.run_script_infer = True  # must the last to prevent race condition
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
+
+
+def reencode_video(input_file: str, output_file: str) -> None:
+    """reencodes video into H.264 coded format using ffmpeg from a subprocess.
+
+    Args:
+        input_file: abspath to existing video
+        output_file: abspath to to new video
+
+    """
+    # check input file exists
+    assert os.path.isfile(input_file), "input video does not exist."
+    # check directory for saving outputs exists
+    assert os.path.isdir(
+        os.path.dirname(output_file)), \
+        f"saving folder {os.path.dirname(output_file)} does not exist."
+    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
+    subprocess.run(ffmpeg_cmd, shell=True)
+
+
+def check_codec_format(input_file: str):
+    """Run FFprobe command to get video codec and pixel format."""
+
+    ffmpeg_cmd = f'ffmpeg -i {input_file}'
+    output_str = subprocess.run(ffmpeg_cmd, shell=True, capture_output=True, text=True)
+    # stderr because the ffmpeg command has no output file, but the stderr still has codec info.
+    output_str = output_str.stderr
+
+    # search for correct codec (h264) and pixel format (yuv420p)
+    if output_str.find('h264') != -1 and output_str.find('yuv420p') != -1:
+        # print('Video uses H.264 codec')
+        is_codec = True
+    else:
+        # print('Video does not use H.264 codec')
+        is_codec = False
+    return is_codec

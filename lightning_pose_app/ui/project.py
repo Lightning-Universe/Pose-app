@@ -85,7 +85,7 @@ class ProjectUI(LightningFlow):
                 src = file_or_dir  # shared
                 dst = self.abspath(file_or_dir)  # local
                 self._drive.get(src, dst, overwrite=True)
-                print(f"drive success get {file_or_dir}")
+                print(f"PROJECT drive success get {file_or_dir}")
             except Exception as e:
                 print(e)
                 print(f"could not find {file_or_dir} in {self.data_dir}")
@@ -93,7 +93,7 @@ class ProjectUI(LightningFlow):
             print(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
-        print(f"put to drive {file_or_dir}")
+        print(f"PROJECT put to drive {file_or_dir}")
         src = self.abspath(file_or_dir)  # local
         if os.path.isfile(src):
             dst = file_or_dir  # shared
@@ -123,41 +123,6 @@ class ProjectUI(LightningFlow):
         else:
             path_ = path
         return os.path.abspath(path_)
-
-    @staticmethod
-    def _copy_file(src_path, dst_path):
-        """Copy a file from the source path to the destination path."""
-        try:
-            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-            if not os.path.isfile(dst_path):
-                shutil.copy(src_path, dst_path)
-                print(f"File copied from {src_path} to {dst_path}")
-            else:
-                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
-        except IOError as e:
-            print(f"Unable to copy file. {e}")
-
-    def _copy_dir(self, src_path, dst_path):
-        """Copy a directory from the source path to the destination path."""
-        try:
-            os.makedirs(dst_path, exist_ok=True)
-            src_files_or_dirs = os.listdir(src_path)
-            for src_file_or_dir in src_files_or_dirs:
-                if os.path.isfile(os.path.join(src_path, src_file_or_dir)):
-                    self._copy_file(
-                        os.path.join(src_path, src_file_or_dir),
-                        os.path.join(dst_path, src_file_or_dir),
-                    )
-                else:
-                    src_dir = os.path.join(src_path, src_file_or_dir)
-                    dst_dir = os.path.join(dst_path, src_file_or_dir)
-                    if not os.path.isdir(dst_dir):
-                        shutil.copytree(src_dir, dst_dir)
-                        print(f"Directory copied from {src_dir} to {dst_dir}")
-                    else:
-                        print(f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
-        except IOError as e:
-            print(f"Unable to copy directory. {e}")
 
     def _find_initialized_projects(self):
         # find all directories inside the data_dir; these should be the projects
@@ -307,13 +272,13 @@ class ProjectUI(LightningFlow):
 
     def _update_trained_models_list(self, **kwargs):
 
-        if self.model_dir:
+        if self._drive.isdir(self.model_dir):
             trained_models = []
             # this returns a list of model training days
             dirs_day = self._drive.listdir(self.model_dir)
             # loop over days and find HH-MM-SS
             for dir_day in dirs_day:
-                dirs_time = self._drive.listdir(dir_day)
+                dirs_time = self._drive.listdir("/" + dir_day)
                 for dir_time in dirs_time:
                     trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
