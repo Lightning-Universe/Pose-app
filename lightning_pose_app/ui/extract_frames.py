@@ -353,8 +353,8 @@ def _render_streamlit_fn(state: AppState):
         bytes_data = uploaded_file.read()
         # name it (append "_"
         filename = uploaded_file.name.replace(" ", "_")
-        ext = os.path.splitext(filename)[1]
-        filename = filename.replace(ext, f"_tmp{ext}")
+        # ext = os.path.splitext(filename)[1]
+        # filename = filename.replace(ext, f"_tmp{ext}")
         filepath = os.path.join(video_dir, filename)
         st_videos.append(filepath)
         if not state.run_script:
