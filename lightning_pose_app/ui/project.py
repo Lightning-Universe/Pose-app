@@ -587,10 +587,10 @@ def _render_streamlit_fn(state: AppState):
             st_submit_button = st.button("Create project", disabled=need_update_pcamv)
         if state.st_submits > 0:
             proceed_str = """
-                Please proceed to the next tab to extract frames for labeling.<br />
-                Use the following login information:<br />
-                username: user@localhost<br />
-                password: pw
+                Proceed to the next tab to extract frames for labeling.<br /><br />
+                LabelStudio login information:<br />
+                <strong>username</strong>: user@localhost<br />
+                <strong>password</strong>: pw
             """
 
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
