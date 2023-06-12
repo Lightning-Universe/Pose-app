@@ -93,22 +93,6 @@ class LitPoseApp(LightningFlow):
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
-    def extract_frames(self, video_files, proj_dir, n_frames_per_video):
-        # push videos to shared filesystem if not there already
-        for video_file in video_files:
-            status = self.extract_ui.st_extract_status[video_file]
-            if status == "initialized" or status == "active":
-                self.extract_ui.st_extract_status[video_file] = "active"
-                self.extract_ui.run(action="push_video", video_file=video_file)
-                self.extract_ui.work.run(
-                    action="extract_frames",
-                    video_file=video_file,
-                    proj_dir=proj_dir,
-                    n_frames_per_video=n_frames_per_video,
-                )
-                self.extract_ui.st_extract_status[video_file] = "complete"
-                self.extract_ui.work.progress = 0.0
-
     def train_models(self):
 
         # check to see if we're in demo mode or not
@@ -274,13 +258,12 @@ class LitPoseApp(LightningFlow):
         # extract frames for labeling from uploaded videos
         # -------------------------------------------------------------
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
-            self.extract_frames(
-                video_files=self.extract_ui.st_video_files,
-                proj_dir=self.extract_ui.proj_dir,
-                n_frames_per_video=self.extract_ui.st_n_frames_per_video,
+            self.extract_ui.run(
+                action="extract_frames",
+                video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
             )
             # wait until litpose is done extracting frames, then update tasks
-            if self.extract_ui.work.work_is_done_extract_frames:
+            if len(self.extract_ui.works_dict) == 0:
                 self.project_ui.run(action="update_frame_shapes")
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
