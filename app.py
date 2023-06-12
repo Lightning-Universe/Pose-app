@@ -137,35 +137,6 @@ class LitPoseApp(LightningFlow):
 
         self.train_ui.count += 1
 
-    def run_inference(self, model, videos):
-
-        print("--------------------")
-        print("RUN INFERENCE HERE!!")
-        print(f"model: {model}")
-        print("--------------------")
-        # launch works
-        for video in videos:
-            self.inference[video] = LitPose(
-                cloud_compute=CloudCompute("gpu"),
-                cloud_build_config=LitPoseBuildConfig(),
-                parallel=is_running_in_cloud(),
-            )
-            self.train_ui.run(action="push_video", video_file=video)
-            self.inference[video].run('run_inference', model=model, video=video)
-
-        # clean up works
-        while len(self.inference) > 0:
-            for video in list(self.inference):
-                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
-                    # kill work
-                    print(f"killing work from video {video}")
-                    self.inference[video].stop()
-                    del self.inference[video]
-
-        print("--------------------")
-        print("END OF INFERENCE")
-        print("--------------------")
-
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
@@ -262,9 +233,10 @@ class LitPoseApp(LightningFlow):
                 action="extract_frames",
                 video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
             )
-            # wait until litpose is done extracting frames, then update tasks
-            if len(self.extract_ui.works_dict) == 0:
+            # wait until frame extraction is complete, then update label studio tasks
+            if self.extract_ui.work_is_done_extract_frames:
                 self.project_ui.run(action="update_frame_shapes")
+                self.extract_ui.run_script = False  # hack, app won't advance past ls run
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
 
@@ -315,9 +287,9 @@ class LitPoseApp(LightningFlow):
         # run inference on ui button press (single model, multiple vids)
         # -------------------------------------------------------------
         if self.train_ui.run_script_infer and run_while_training:
-            self.run_inference(
-                model=self.train_ui.st_inference_model,
-                videos=self.train_ui.st_inference_videos,
+            self.train_ui.run(
+                action="run_inference",
+                video_files=self.train_ui.st_inference_videos,  # add arg for run caching purposes
             )
             self.train_ui.run_script_infer = False
 

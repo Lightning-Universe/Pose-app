@@ -191,9 +191,12 @@ class ExtractFramesWork(LightningWork):
 
     def _extract_frames(self, video_file, proj_dir, n_frames_per_video):
 
+        print(f"============== extracting frames from {video_file} ================")
+
+        # set flag for parent app
         self.work_is_done_extract_frames = False
 
-        # pull videos from FileSystem
+        # pull video from FileSystem
         self.get_from_drive([video_file])
 
         data_dir_rel = os.path.join(proj_dir, "labeled-data")
@@ -202,11 +205,8 @@ class ExtractFramesWork(LightningWork):
         extension = "png"
         context_frames = 2
 
-        video_file_abs = self.abspath(video_file)
-
-        print(f"============== extracting frames from {video_file} ================")
-
         # check: does file exist?
+        video_file_abs = self.abspath(video_file)
         video_file_exists = os.path.exists(video_file_abs)
         print(f"video file exists? {video_file_exists}")
         if not video_file_exists:
@@ -248,7 +248,7 @@ class ExtractFramesWork(LightningWork):
         # push extracted frames to drive
         self.put_to_drive([data_dir_rel])
 
-        # update flag
+        # set flag for parent app
         self.work_is_done_extract_frames = True
 
     def _reformat_video(self, video_file, **kwargs):
@@ -261,6 +261,7 @@ class ExtractFramesWork(LightningWork):
         video_file_exists = os.path.exists(video_file_abs)
         if not video_file_exists:
             print(f"{video_file_abs} does not exist! skipping")
+            return
 
         # check 2: is file in the correct format for DALI?
         video_file_correct_codec = check_codec_format(video_file_abs)
@@ -288,6 +289,8 @@ class ExtractFramesWork(LightningWork):
         # push possibly reformated, renamed videos to FileSystem
         self.put_to_drive([video_file_new])
 
+        return video_file_new
+
     def run(self, action, **kwargs):
         if action == "reformat_video":
             self._reformat_video(**kwargs)
@@ -310,7 +313,7 @@ class ExtractFramesUI(LightningFlow):
         #     parallel=parallel,
         # )
 
-        # works for inference
+        # works for frame extraction
         self.works_dict = Dict()
         self.work_is_done_extract_frames = False
 
@@ -379,7 +382,6 @@ class ExtractFramesUI(LightningFlow):
                     n_frames_per_video=n_frames_per_video,
                 )
                 self.st_extract_status[video_file] = "complete"
-                print(f"+++ FINISH {video_file}")
 
         # clean up works
         while len(self.works_dict) > 0:
@@ -482,4 +484,5 @@ def _render_streamlit_fn(state: AppState):
         st.text("Request submitted!")
         state.run_script = True  # must the last to prevent race condition
 
+        # force rerun to show "waiting for existing..." message
         st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
