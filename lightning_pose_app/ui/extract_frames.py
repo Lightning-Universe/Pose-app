@@ -243,8 +243,6 @@ class ExtractFramesWork(LightningWork):
 
     def _reformat_video(self, video_file, **kwargs):
 
-        print("####### REFORMAT " + video_file)
-
         # pull videos from FileSystem
         self.get_from_drive([video_file])
         video_file_abs = self.abspath(video_file)

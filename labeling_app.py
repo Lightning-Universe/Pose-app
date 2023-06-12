@@ -43,16 +43,16 @@ class LitPoseApp(LightningFlow):
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
-            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
 
         # extract frames tab (flow + work)
         self.extract_ui = ExtractFramesUI()
 
         # label studio (flow + work)
-        # self.label_studio = LitLabelStudio(
-        #     database_dir=os.path.join(self.data_dir, "labelstudio_db"),
-        # )
+        self.label_studio = LitLabelStudio(
+            database_dir=os.path.join(self.data_dir, "labelstudio_db"),
+        )
 
     def extract_frames(self, video_files, proj_dir, n_frames_per_video):
         # push videos to shared filesystem if not there already
@@ -87,8 +87,8 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # init label studio; this will only happen once
         # -------------------------------------------------------------
-        # self.label_studio.run(action="import_database")
-        # self.label_studio.run(action="start_label_studio")
+        self.label_studio.run(action="import_database")
+        self.label_studio.run(action="start_label_studio")
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
@@ -97,9 +97,9 @@ class LitPoseApp(LightningFlow):
             # update paths now that we know which project we're working with
             self.project_ui.run(action="update_paths")
             self.extract_ui.proj_dir = self.project_ui.proj_dir
-            # self.label_studio.run(
-            #     action="update_paths",
-            #     proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
+            self.label_studio.run(
+                action="update_paths",
+                proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
 
             # create/load project
             if self.project_ui.st_create_new_project and self.project_ui.count == 0:
@@ -108,10 +108,10 @@ class LitPoseApp(LightningFlow):
                 self.project_ui.run(action="update_project_config")
                 if self.project_ui.st_keypoints:
                     # if statement here so that we only run "create_new_project" once we have data
-                    # self.label_studio.run(
-                    #     action="create_labeling_config_xml",
-                    #     keypoints=self.project_ui.st_keypoints)
-                    # self.label_studio.run(action="create_new_project")
+                    self.label_studio.run(
+                        action="create_labeling_config_xml",
+                        keypoints=self.project_ui.st_keypoints)
+                    self.label_studio.run(action="create_new_project")
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
@@ -144,37 +144,37 @@ class LitPoseApp(LightningFlow):
             # wait until litpose is done extracting frames, then update tasks
             if self.extract_ui.work.work_is_done_extract_frames:
                 self.project_ui.run(action="update_frame_shapes")
-                # self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
+                self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
 
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels
         # -------------------------------------------------------------
-        # if self.project_ui.count > 0:
-        #     t_elapsed = 15  # seconds
-        #     t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
-        #     if self.schedule(f"* * * * * {t_elapsed_list}"):
-        #         # only true for a single flow execution every n seconds; capture event in state var
-        #         self.label_studio.check_labels = True
-        #         self.label_studio.time = time.time()
-        #     if self.label_studio.check_labels:
-        #         self.label_studio.run(
-        #             action="check_labeling_task_and_export", timer=self.label_studio.time)
-        #         self.project_ui.run(
-        #             action="compute_labeled_frame_fraction", timer=self.label_studio.time)
-        #         self.label_studio.check_labels = False
+        if self.project_ui.count > 0:
+            t_elapsed = 15  # seconds
+            t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
+            if self.schedule(f"* * * * * {t_elapsed_list}"):
+                # only true for a single flow execution every n seconds; capture event in state var
+                self.label_studio.check_labels = True
+                self.label_studio.time = time.time()
+            if self.label_studio.check_labels:
+                self.label_studio.run(
+                    action="check_labeling_task_and_export", timer=self.label_studio.time)
+                self.project_ui.run(
+                    action="compute_labeled_frame_fraction", timer=self.label_studio.time)
+                self.label_studio.check_labels = False
 
     def configure_layout(self):
 
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        # annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
+        annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
 
         if self.extract_ui.proj_dir:
             return [
                 project_tab,
                 extract_tab,
-                # annotate_tab,
+                annotate_tab,
             ]
         else:
             return [
