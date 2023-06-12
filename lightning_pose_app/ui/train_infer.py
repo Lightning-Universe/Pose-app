@@ -10,12 +10,11 @@ import lightning.pytorch as pl
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-import subprocess
 import time
 import yaml
 
 from lightning_pose_app.build_configs import LitPoseBuildConfig
-from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
 
 st.set_page_config(layout="wide")
 
@@ -92,7 +91,7 @@ class LitPose(LightningWork):
 
     def _reformat_videos(self, video_files=None, **kwargs):
 
-        # pull videos from Drive; these will come from "root." component
+        # pull videos from FileSystem
         self.get_from_drive(video_files)
 
         video_files_new = []
@@ -584,39 +583,3 @@ def _render_streamlit_fn(state: AppState):
             state.run_script_infer = True  # must the last to prevent race condition
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
-
-
-def reencode_video(input_file: str, output_file: str) -> None:
-    """reencodes video into H.264 coded format using ffmpeg from a subprocess.
-
-    Args:
-        input_file: abspath to existing video
-        output_file: abspath to to new video
-
-    """
-    # check input file exists
-    assert os.path.isfile(input_file), "input video does not exist."
-    # check directory for saving outputs exists
-    assert os.path.isdir(
-        os.path.dirname(output_file)), \
-        f"saving folder {os.path.dirname(output_file)} does not exist."
-    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
-    subprocess.run(ffmpeg_cmd, shell=True)
-
-
-def check_codec_format(input_file: str):
-    """Run FFprobe command to get video codec and pixel format."""
-
-    ffmpeg_cmd = f'ffmpeg -i {input_file}'
-    output_str = subprocess.run(ffmpeg_cmd, shell=True, capture_output=True, text=True)
-    # stderr because the ffmpeg command has no output file, but the stderr still has codec info.
-    output_str = output_str.stderr
-
-    # search for correct codec (h264) and pixel format (yuv420p)
-    if output_str.find('h264') != -1 and output_str.find('yuv420p') != -1:
-        # print('Video uses H.264 codec')
-        is_codec = True
-    else:
-        # print('Video does not use H.264 codec')
-        is_codec = False
-    return is_codec
