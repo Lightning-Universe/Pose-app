@@ -155,6 +155,11 @@ class LitPoseApp(LightningFlow):
         if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
 
+        # don't interfere w/ inference
+        run_while_inferring = True
+        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+            run_while_inferring = False
+
         # -------------------------------------------------------------
         # update project data
         # -------------------------------------------------------------
@@ -243,7 +248,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels
         # -------------------------------------------------------------
-        if self.project_ui.count > 0 and run_while_training:
+        if self.project_ui.count > 0 and run_while_training and run_while_inferring:
             t_elapsed = 15  # seconds
             t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
             if self.schedule(f"* * * * * {t_elapsed_list}"):
@@ -262,7 +267,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
-        if self.train_ui.run_script_train:
+        if self.train_ui.run_script_train and run_while_inferring:
             self.train_models()
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
