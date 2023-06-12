@@ -173,7 +173,7 @@ class LitPoseApp(LightningFlow):
             status = self.train_ui.st_train_status[m]
             if status == "initialized" or status == "active":
                 self.train_ui.st_train_status[m] = "active"
-                outputs = [os.path.join(self.project_ui.model_dir, self.train_ui.st_datetimes[m], "")]
+                outputs = [os.path.join(self.project_ui.model_dir, self.train_ui.st_datetimes[m])]
                 cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
                 self.train_ui.work.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
@@ -181,7 +181,6 @@ class LitPoseApp(LightningFlow):
                 )
                 self.train_ui.st_train_status[m] = "complete"
                 self.train_ui.work.progress = 0.0
-                self.train_ui.progress = 0.0
 
         self.train_ui.count += 1
 
@@ -203,6 +202,11 @@ class LitPoseApp(LightningFlow):
         run_while_training = True
         if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
+
+        # don't interfere w/ inference
+        run_while_inferring = True
+        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+            run_while_inferring = False
 
         # -------------------------------------------------------------
         # update project data
@@ -251,7 +255,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
-        if self.train_ui.run_script_train:
+        if self.train_ui.run_script_train and run_while_inferring:
             self.train_models()
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
@@ -276,11 +280,10 @@ class LitPoseApp(LightningFlow):
         # run inference on ui button press (single model, multiple vids)
         # -------------------------------------------------------------
         if self.train_ui.run_script_infer and run_while_training:
-            print("Cannot run inference in demo right now")
-            # self.run_inference(
-            #     model=self.train_ui.st_inference_model,
-            #     videos=self.train_ui.st_inference_videos,
-            # )
+            self.train_ui.run(
+                action="run_inference",
+                video_files=self.train_ui.st_inference_videos,  # add arg for run caching purposes
+            )
             self.train_ui.run_script_infer = False
 
         # -------------------------------------------------------------

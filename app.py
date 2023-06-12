@@ -93,22 +93,6 @@ class LitPoseApp(LightningFlow):
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
-    def extract_frames(self, video_files, proj_dir, n_frames_per_video):
-        # push videos to shared filesystem if not there already
-        for video_file in video_files:
-            status = self.extract_ui.st_extract_status[video_file]
-            if status == "initialized" or status == "active":
-                self.extract_ui.st_extract_status[video_file] = "active"
-                self.extract_ui.run(action="push_video", video_file=video_file)
-                self.extract_ui.work.run(
-                    action="extract_frames",
-                    video_file=video_file,
-                    proj_dir=proj_dir,
-                    n_frames_per_video=n_frames_per_video,
-                )
-                self.extract_ui.st_extract_status[video_file] = "complete"
-                self.extract_ui.work.progress = 0.0
-
     def train_models(self):
 
         # check to see if we're in demo mode or not
@@ -153,35 +137,6 @@ class LitPoseApp(LightningFlow):
 
         self.train_ui.count += 1
 
-    def run_inference(self, model, videos):
-
-        print("--------------------")
-        print("RUN INFERENCE HERE!!")
-        print(f"model: {model}")
-        print("--------------------")
-        # launch works
-        for video in videos:
-            self.inference[video] = LitPose(
-                cloud_compute=CloudCompute("gpu"),
-                cloud_build_config=LitPoseBuildConfig(),
-                parallel=is_running_in_cloud(),
-            )
-            self.train_ui.run(action="push_video", video_file=video)
-            self.inference[video].run('run_inference', model=model, video=video)
-
-        # clean up works
-        while len(self.inference) > 0:
-            for video in list(self.inference):
-                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
-                    # kill work
-                    print(f"killing work from video {video}")
-                    self.inference[video].stop()
-                    del self.inference[video]
-
-        print("--------------------")
-        print("END OF INFERENCE")
-        print("--------------------")
-
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
@@ -199,6 +154,11 @@ class LitPoseApp(LightningFlow):
         run_while_training = True
         if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
+
+        # don't interfere w/ inference
+        run_while_inferring = True
+        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+            run_while_inferring = False
 
         # -------------------------------------------------------------
         # update project data
@@ -274,21 +234,21 @@ class LitPoseApp(LightningFlow):
         # extract frames for labeling from uploaded videos
         # -------------------------------------------------------------
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
-            self.extract_frames(
-                video_files=self.extract_ui.st_video_files,
-                proj_dir=self.extract_ui.proj_dir,
-                n_frames_per_video=self.extract_ui.st_n_frames_per_video,
+            self.extract_ui.run(
+                action="extract_frames",
+                video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
             )
-            # wait until litpose is done extracting frames, then update tasks
-            if self.extract_ui.work.work_is_done_extract_frames:
+            # wait until frame extraction is complete, then update label studio tasks
+            if self.extract_ui.work_is_done_extract_frames:
                 self.project_ui.run(action="update_frame_shapes")
+                self.extract_ui.run_script = False  # hack, app won't advance past ls run
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
 
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels
         # -------------------------------------------------------------
-        if self.project_ui.count > 0 and run_while_training:
+        if self.project_ui.count > 0 and run_while_training and run_while_inferring:
             t_elapsed = 15  # seconds
             t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
             if self.schedule(f"* * * * * {t_elapsed_list}"):
@@ -307,7 +267,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
-        if self.train_ui.run_script_train:
+        if self.train_ui.run_script_train and run_while_inferring:
             self.train_models()
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
@@ -332,9 +292,9 @@ class LitPoseApp(LightningFlow):
         # run inference on ui button press (single model, multiple vids)
         # -------------------------------------------------------------
         if self.train_ui.run_script_infer and run_while_training:
-            self.run_inference(
-                model=self.train_ui.st_inference_model,
-                videos=self.train_ui.st_inference_videos,
+            self.train_ui.run(
+                action="run_inference",
+                video_files=self.train_ui.st_inference_videos,  # add arg for run caching purposes
             )
             self.train_ui.run_script_infer = False
 

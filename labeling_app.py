@@ -54,24 +54,6 @@ class LitPoseApp(LightningFlow):
             database_dir=os.path.join(self.data_dir, "labelstudio_db"),
         )
 
-    def extract_frames(self, video_files, proj_dir, n_frames_per_video):
-        # push videos to shared filesystem if not there already
-        for video_file in video_files:
-            status = self.extract_ui.st_extract_status[video_file]
-            if status == "initialized" or status == "active":
-                self.extract_ui.st_extract_status[video_file] = "active"
-                # move video from ui machine to shared FileSystem
-                self.extract_ui.run(action="push_video", video_file="/" + video_file)
-                # extract frames for labeling (automatically reformats video for DALI)
-                self.extract_ui.work.run(
-                    action="extract_frames",
-                    video_file="/" + video_file,
-                    proj_dir=proj_dir,
-                    n_frames_per_video=n_frames_per_video,
-                )
-                self.extract_ui.st_extract_status[video_file] = "complete"
-                self.extract_ui.work.progress = 0.0
-
     def run(self):
 
         # for unit testing purposes
@@ -136,14 +118,14 @@ class LitPoseApp(LightningFlow):
         # extract frames for labeling from uploaded videos
         # -------------------------------------------------------------
         if self.extract_ui.proj_dir and self.extract_ui.run_script:
-            self.extract_frames(
-                video_files=self.extract_ui.st_video_files,
-                proj_dir=self.extract_ui.proj_dir,
-                n_frames_per_video=self.extract_ui.st_n_frames_per_video,
+            self.extract_ui.run(
+                action="extract_frames",
+                video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
             )
-            # wait until litpose is done extracting frames, then update tasks
-            if self.extract_ui.work.work_is_done_extract_frames:
+            # wait until frame extraction is complete, then update label studio tasks
+            if self.extract_ui.work_is_done_extract_frames:
                 self.project_ui.run(action="update_frame_shapes")
+                self.extract_ui.run_script = False  # hack, app won't advance past ls run
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
 

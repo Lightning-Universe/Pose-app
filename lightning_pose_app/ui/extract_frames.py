@@ -1,7 +1,9 @@
 import cv2
 from lightning import CloudCompute, LightningFlow, LightningWork
-from lightning.app.utilities.state import AppState
 from lightning.app.storage import FileSystem
+from lightning.app.structures import Dict
+from lightning.app.utilities.cloud import is_running_in_cloud
+from lightning.app.utilities.state import AppState
 import numpy as np
 import os
 from sklearn.decomposition import PCA
@@ -9,7 +11,8 @@ from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
-from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
+from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
 
 
 class ExtractFramesWork(LightningWork):
@@ -20,6 +23,7 @@ class ExtractFramesWork(LightningWork):
         self._drive = FileSystem()
 
         self.progress = 0.0
+        self.progress_delta = 0.5
         self.work_is_done_extract_frames = False
 
     def get_from_drive(self, inputs):
@@ -82,7 +86,13 @@ class ExtractFramesWork(LightningWork):
                         frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2GRAY)
                         frames.append(frame_gray.astype(np.float16))
                     frame_counter += 1
-                    self.progress = round(frame_counter / frame_total, 4) * 100.0
+                    progress = frame_counter / frame_total * 100.0
+                    # periodically update progress
+                    if round(progress, 4) - self.progress >= self.progress_delta:
+                        if progress > 100:
+                            self.progress = 100.0
+                        else:
+                            self.progress = round(progress, 4)
                     pbar.update(1)
                 else:
                     # If we couldn't read a frame, we've probably reached the end
@@ -181,9 +191,12 @@ class ExtractFramesWork(LightningWork):
 
     def _extract_frames(self, video_file, proj_dir, n_frames_per_video):
 
+        print(f"============== extracting frames from {video_file} ================")
+
+        # set flag for parent app
         self.work_is_done_extract_frames = False
 
-        # pull videos from FileSystem
+        # pull video from FileSystem
         self.get_from_drive([video_file])
 
         data_dir_rel = os.path.join(proj_dir, "labeled-data")
@@ -192,11 +205,8 @@ class ExtractFramesWork(LightningWork):
         extension = "png"
         context_frames = 2
 
-        video_file_abs = self.abspath(video_file)
-
-        print(f"============== extracting frames from {video_file} ================")
-
         # check: does file exist?
+        video_file_abs = self.abspath(video_file)
         video_file_exists = os.path.exists(video_file_abs)
         print(f"video file exists? {video_file_exists}")
         if not video_file_exists:
@@ -238,7 +248,7 @@ class ExtractFramesWork(LightningWork):
         # push extracted frames to drive
         self.put_to_drive([data_dir_rel])
 
-        # update flag
+        # set flag for parent app
         self.work_is_done_extract_frames = True
 
     def _reformat_video(self, video_file, **kwargs):
@@ -251,6 +261,7 @@ class ExtractFramesWork(LightningWork):
         video_file_exists = os.path.exists(video_file_abs)
         if not video_file_exists:
             print(f"{video_file_abs} does not exist! skipping")
+            return
 
         # check 2: is file in the correct format for DALI?
         video_file_correct_codec = check_codec_format(video_file_abs)
@@ -278,6 +289,8 @@ class ExtractFramesWork(LightningWork):
         # push possibly reformated, renamed videos to FileSystem
         self.put_to_drive([video_file_new])
 
+        return video_file_new
+
     def run(self, action, **kwargs):
         if action == "reformat_video":
             self._reformat_video(**kwargs)
@@ -288,48 +301,21 @@ class ExtractFramesWork(LightningWork):
             pass
 
 
-def get_frames_from_idxs(cap, idxs):
-    """Helper function to load video segments.
-
-    Parameters
-    ----------
-    cap : cv2.VideoCapture object
-    idxs : array-like
-        frame indices into video
-
-    Returns
-    -------
-    np.ndarray
-        returned frames of shape shape (n_frames, n_channels, ypix, xpix)
-
-    """
-    is_contiguous = np.sum(np.diff(idxs)) == (len(idxs) - 1)
-    n_frames = len(idxs)
-    for fr, i in enumerate(idxs):
-        if fr == 0 or not is_contiguous:
-            cap.set(1, i)
-        ret, frame = cap.read()
-        if ret:
-            if fr == 0:
-                height, width, _ = frame.shape
-                frames = np.zeros((n_frames, 1, height, width), dtype="uint8")
-            frames[fr, 0, :, :] = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            print(
-                "warning! reached end of video; returning blank frames for remainder of "
-                + "requested indices"
-            )
-            break
-    return frames
-
-
 class ExtractFramesUI(LightningFlow):
     """UI to set up project."""
 
     def __init__(self, *args, **kwargs):
+
         super().__init__(*args, **kwargs)
 
-        self.work = ExtractFramesWork(cloud_compute=CloudCompute("default"))
+        # self.work = ExtractFramesWork(
+        #     cloud_compute=CloudCompute("default"),
+        #     parallel=parallel,
+        # )
+
+        # works for frame extraction
+        self.works_dict = Dict()
+        self.work_is_done_extract_frames = False
 
         self._drive = FileSystem()
 
@@ -354,17 +340,67 @@ class ExtractFramesUI(LightningFlow):
     def st_video_files(self):
         return np.unique(self.st_video_files_).tolist()
 
+    def _push_video(self, video_file):
+        if video_file[0] == "/":
+            src = os.path.join(os.getcwd(), video_file[1:])
+            dst = video_file
+        else:
+            src = os.path.join(os.getcwd(), video_file)
+            dst = "/" + video_file
+        if not self._drive.isfile(dst):
+            self._drive.put(src, dst)
+
+    def _extract_frames(self, video_files=None, n_frames_per_video=None):
+
+        self.work_is_done_extract_frames = False
+
+        if not video_files:
+            video_files = self.st_video_files
+        if not n_frames_per_video:
+            n_frames_per_video = self.st_n_frames_per_video
+
+        # launch works:
+        # - sequential if local
+        # - parallel if on cloud
+        for video_file in video_files:
+            video_key = video_file.replace(".", "_")  # keys cannot contain "."
+            if video_key not in self.works_dict.keys():
+                self.works_dict[video_key] = ExtractFramesWork(
+                    cloud_compute=CloudCompute("default"),
+                    parallel=is_running_in_cloud(),
+                )
+            status = self.st_extract_status[video_file]
+            if status == "initialized" or status == "active":
+                self.st_extract_status[video_file] = "active"
+                # move video from ui machine to shared FileSystem
+                self._push_video(video_file=video_file)
+                # extract frames for labeling (automatically reformats video for DALI)
+                self.works_dict[video_key].run(
+                    action="extract_frames",
+                    video_file="/" + video_file,
+                    proj_dir=self.proj_dir,
+                    n_frames_per_video=n_frames_per_video,
+                )
+                self.st_extract_status[video_file] = "complete"
+
+        # clean up works
+        while len(self.works_dict) > 0:
+            for video_key in list(self.works_dict):
+                if (video_key in self.works_dict.keys()) \
+                        and self.works_dict[video_key].work_is_done_extract_frames:
+                    # kill work
+                    print(f"killing work from video {video_key}")
+                    self.works_dict[video_key].stop()
+                    del self.works_dict[video_key]
+
+        # set flag for parent app
+        self.work_is_done_extract_frames = True
+
     def run(self, action, **kwargs):
         if action == "push_video":
-            video_file = kwargs["video_file"]
-            if video_file[0] == "/":
-                src = os.path.join(os.getcwd(), video_file[1:])
-                dst = video_file
-            else:
-                src = os.path.join(os.getcwd(), video_file)
-                dst = "/" + video_file
-            if not self._drive.isfile(dst):
-                self._drive.put(src, dst)
+            self._push_video(**kwargs)
+        elif action == "extract_frames":
+            self._extract_frames(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -411,13 +447,20 @@ def _render_streamlit_fn(state: AppState):
         "Extract frames",
         disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script
     )
-
     if state.run_script:
+        keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
         for vid, status in state.st_extract_status.items():
             if status == "initialized":
                 p = 0.0
             elif status == "active":
-                p = state.work.progress
+                vid_ = vid.replace(".", "_")
+                if vid_ in keys:
+                    try:
+                        p = state.works_dict[vid_].progress
+                    except:
+                        p = 100.0  # if work is deleted while accessing
+                else:
+                    p = 100.0  # state.work.progress
             elif status == "complete":
                 p = 100.0
             else:
@@ -441,4 +484,5 @@ def _render_streamlit_fn(state: AppState):
         st.text("Request submitted!")
         state.run_script = True  # must the last to prevent race condition
 
+        # force rerun to show "waiting for existing..." message
         st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
