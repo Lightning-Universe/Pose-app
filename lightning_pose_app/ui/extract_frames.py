@@ -9,7 +9,7 @@ from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
-from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
 
 
 class ExtractFramesWork(LightningWork):
@@ -183,8 +183,8 @@ class ExtractFramesWork(LightningWork):
 
         self.work_is_done_extract_frames = False
 
-        # pull videos from drive; these will come from "root."
-        self.get_from_drive(["/" + video_file])
+        # pull videos from FileSystem
+        self.get_from_drive([video_file])
 
         data_dir_rel = os.path.join(proj_dir, "labeled-data")
         data_dir = self.abspath(data_dir_rel)
@@ -241,9 +241,51 @@ class ExtractFramesWork(LightningWork):
         # update flag
         self.work_is_done_extract_frames = True
 
+    def _reformat_video(self, video_file, **kwargs):
+
+        # pull videos from FileSystem
+        self.get_from_drive([video_file])
+        video_file_abs = self.abspath(video_file)
+
+        # check 1: does file exist?
+        video_file_exists = os.path.exists(video_file_abs)
+        if not video_file_exists:
+            print(f"{video_file_abs} does not exist! skipping")
+
+        # check 2: is file in the correct format for DALI?
+        video_file_correct_codec = check_codec_format(video_file_abs)
+
+        # get new name (ensure mp4 file extension, no tmp directory)
+        ext = os.path.splitext(os.path.basename(video_file))[1]
+        video_file_new = video_file.replace(f"{ext}", ".mp4").replace("videos_tmp", "videos")
+        video_file_abs_new = self.abspath(video_file_new)
+
+        # reencode/rename
+        if not video_file_correct_codec:
+            print("re-encoding video to be compatable with Lightning Pose video reader")
+            reencode_video(video_file_abs, video_file_abs_new)
+            # remove old video from local files
+            # os.remove(video_file_abs)
+        else:
+            # make dir to write into
+            os.makedirs(os.path.dirname(video_file_abs_new), exist_ok=True)
+            # rename
+            os.rename(video_file_abs, video_file_abs_new)
+
+        # remove old video from FileSystem
+        # self._drive.rm(video_file)
+
+        # push possibly reformated, renamed videos to FileSystem
+        self.put_to_drive([video_file_new])
+
     def run(self, action, **kwargs):
-        if action == "extract_frames":
+        if action == "reformat_video":
+            self._reformat_video(**kwargs)
+        elif action == "extract_frames":
+            self._reformat_video(**kwargs)
             self._extract_frames(**kwargs)
+        else:
+            pass
 
 
 def get_frames_from_idxs(cap, idxs):
@@ -321,7 +363,8 @@ class ExtractFramesUI(LightningFlow):
             else:
                 src = os.path.join(os.getcwd(), video_file)
                 dst = "/" + video_file
-            self._drive.put(src, dst)
+            if not self._drive.isfile(dst):
+                self._drive.put(src, dst)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -339,8 +382,8 @@ def _render_streamlit_fn(state: AppState):
         # don't autorefresh during large file uploads, only during processing
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
-    # upload video files
-    video_dir = os.path.join(state.proj_dir[1:], "videos")
+    # upload video files to temporary directory
+    video_dir = os.path.join(state.proj_dir[1:], "videos_tmp")
     os.makedirs(video_dir, exist_ok=True)
 
     # initialize the file uploader
@@ -351,10 +394,8 @@ def _render_streamlit_fn(state: AppState):
     for uploaded_file in uploaded_files:
         # read it
         bytes_data = uploaded_file.read()
-        # name it (append "_"
+        # name it
         filename = uploaded_file.name.replace(" ", "_")
-        # ext = os.path.splitext(filename)[1]
-        # filename = filename.replace(ext, f"_tmp{ext}")
         filepath = os.path.join(video_dir, filename)
         st_videos.append(filepath)
         if not state.run_script:

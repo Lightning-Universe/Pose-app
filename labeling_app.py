@@ -60,10 +60,12 @@ class LitPoseApp(LightningFlow):
             status = self.extract_ui.st_extract_status[video_file]
             if status == "initialized" or status == "active":
                 self.extract_ui.st_extract_status[video_file] = "active"
-                self.extract_ui.run(action="push_video", video_file=video_file)
+                # move video from ui machine to shared FileSystem
+                self.extract_ui.run(action="push_video", video_file="/" + video_file)
+                # extract frames for labeling (automatically reformats video for DALI)
                 self.extract_ui.work.run(
                     action="extract_frames",
-                    video_file=video_file,
+                    video_file="/" + video_file,
                     proj_dir=proj_dir,
                     n_frames_per_video=n_frames_per_video,
                 )
@@ -119,7 +121,7 @@ class LitPoseApp(LightningFlow):
                     # load project configuration from config file
                     self.project_ui.run(action="load_project_defaults")
                     # update label studio object
-                    self.label_studio.keypoints = self.project_ui.st_keypoints
+                    # self.label_studio.keypoints = self.project_ui.st_keypoints
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
