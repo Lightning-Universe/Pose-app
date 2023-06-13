@@ -11,6 +11,8 @@ from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR
+from lightning_pose_app import SELECTED_FRAMES_FILENAME
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
 
@@ -162,7 +164,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         # pull video from FileSystem
         self.get_from_drive([video_file])
 
-        data_dir_rel = os.path.join(proj_dir, "labeled-data")
+        data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
         data_dir = self.abspath(data_dir_rel)
         n_digits = 8
         extension = "png"
@@ -197,7 +199,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         frames_to_label = np.array([
             "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
         np.savetxt(
-            os.path.join(save_dir, "selected_frames.csv"),
+            os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
             np.sort(frames_to_label),
             delimiter=",",
             fmt="%s"
@@ -219,7 +221,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         # get new names (ensure mp4 file extension, no tmp directory)
         ext = os.path.splitext(os.path.basename(video_file))[1]
         video_file_mp4_ext = video_file.replace(f"{ext}", ".mp4")
-        video_file_new = video_file_mp4_ext.replace("videos_tmp", "videos")
+        video_file_new = video_file_mp4_ext.replace(VIDEOS_TMP_DIR, VIDEOS_DIR)
         video_file_abs_new = self.abspath(video_file_new)
 
         # check 0: do we even need to reformat?
@@ -387,7 +389,7 @@ def _render_streamlit_fn(state: AppState):
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
     # upload video files to temporary directory
-    video_dir = os.path.join(state.proj_dir[1:], "videos_tmp")
+    video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
     os.makedirs(video_dir, exist_ok=True)
 
     # initialize the file uploader

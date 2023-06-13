@@ -11,6 +11,7 @@ import os
 import time
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_DB_DIR
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
@@ -51,7 +52,7 @@ class LitPoseApp(LightningFlow):
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
-            database_dir=os.path.join(self.data_dir, "labelstudio_db"),
+            database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
     def run(self):

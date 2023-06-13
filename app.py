@@ -12,6 +12,7 @@ import os
 import time
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_DB_DIR
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
@@ -70,7 +71,7 @@ class LitPoseApp(LightningFlow):
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
-            database_dir=os.path.join(self.data_dir, "labelstudio_db"),
+            database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
         # works for inference

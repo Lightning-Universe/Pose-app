@@ -1,6 +1,13 @@
 from lightning import CloudCompute, LightningFlow
 import os
 
+from lightning_pose_app import (
+    LABELED_DATA_DIR,
+    LABELSTUDIO_CONFIG_FILENAME,
+    LABELSTUDIO_METADATA_FILENAME,
+    LABELSTUDIO_TASKS_FILENAME,
+    COLLECTED_DATA_FILENAME,
+)
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studio_venv
 
@@ -103,17 +110,17 @@ class LitLabelStudio(LightningFlow):
         self.proj_name = proj_name
 
         self.filenames["label_studio_config"] = os.path.join(
-            self.proj_dir, "label_studio_config.xml")
+            self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
 
         self.filenames["label_studio_metadata"] = os.path.join(
-            self.proj_dir, "label_studio_metadata.yaml")
+            self.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 
-        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, "labeled-data")
+        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, LABELED_DATA_DIR)
 
-        self.filenames["collected_data"] = os.path.join(self.proj_dir, "CollectedData.csv")
+        self.filenames["collected_data"] = os.path.join(self.proj_dir, COLLECTED_DATA_FILENAME)
 
         self.filenames["label_studio_tasks"] = os.path.join(
-            self.proj_dir, "label_studio_tasks.pkl")
+            self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
 
     def _create_new_project(self):
 

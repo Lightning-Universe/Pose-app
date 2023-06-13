@@ -3,6 +3,8 @@ import os
 import pickle
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, LABELSTUDIO_TASKS_FILENAME
+from lightning_pose_app import COLLECTED_DATA_FILENAME
 from lightning_pose_app.label_studio.utils import connect_to_label_studio
 from lightning_pose_app.label_studio.utils import get_project
 from lightning_pose_app.label_studio.utils import LabelStudioJSONProcessor
@@ -22,7 +24,7 @@ label_studio_client = connect_to_label_studio(url=args.label_studio_url, api_key
 print("Connected to LabelStudio at %s" % args.label_studio_url)
 
 # get current project
-metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
+metadata_file = os.path.join(args.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 try:
     metadata = yaml.safe_load(open(metadata_file, "r"))
 except FileNotFoundError:
@@ -49,13 +51,13 @@ if len(exported_tasks) > 0:
     # print(df)
     # save to csv for lightning pose models
     # print("Saving to csv file")
-    df.to_csv(os.path.join(args.proj_dir, "CollectedData.csv"))
+    df.to_csv(os.path.join(args.proj_dir, COLLECTED_DATA_FILENAME))
     # save to pickle for resuming projects
     print("Saving tasks to pickle file")
-    pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, "label_studio_tasks.pkl"), "wb"))
+    pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"))
 
 # update metadata so app has access to labeling project info
-metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
+metadata_file = os.path.join(args.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 proj_details = yaml.safe_load(open(metadata_file, "r"))
 proj_details["n_labeled_tasks"] = len(exported_tasks)
 proj_details["n_total_tasks"] = len(label_studio_project.get_tasks())
