@@ -68,7 +68,7 @@ class FiftyoneWork(WorkWithFileSystem):
         self.get_from_drive([config_file])
 
         # load config (absolute path)
-        cfg = DictConfig(yaml.safe_load(open(config_file_abs, "r")))
+        cfg = DictConfig(yaml.safe_load(open(self.abspath(config_file), "r")))
 
         # edit config (add fiftyone key before making DictConfig, otherwise error)
         model_dirs_abs = [os.path.join(os.getcwd(), x[1:]) for x in model_dirs]

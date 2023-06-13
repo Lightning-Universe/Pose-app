@@ -27,8 +27,6 @@ class LitPoseApp(LightningFlow):
 
     def __init__(self):
 
-        # raise Exception("app.py needs to be updated with new components!")
-        
         super().__init__()
 
         # -----------------------------

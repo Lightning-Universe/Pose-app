@@ -52,26 +52,26 @@ class WorkWithFileSystem(LightningWork):
         super().__init__(*args, **kwargs)
 
         # uniquely identify prints
-        self.name = name
+        self.work_name = name
 
         # initialize shared storage system
         self._drive = FileSystem()
 
     def get_from_drive(self, inputs, overwrite=True):
         for i in inputs:
-            print(f"{self.name.upper()} get {i}")
+            print(f"{self.work_name.upper()} get {i}")
             try:  # file may not be ready
                 src = i  # shared
                 dst = self.abspath(i)  # local
                 self._drive.get(src, dst, overwrite=overwrite)
-                print(f"{self.name.upper()} data saved at {dst}")
+                print(f"{self.work_name.upper()} data saved at {dst}")
             except Exception as e:
-                print(f"{self.name.upper()} did not load {i} from FileSystem: {e}")
+                print(f"{self.work_name.upper()} did not load {i} from FileSystem: {e}")
                 continue
 
     def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"{self.name.upper()} drive try put {o}")
+            print(f"{self.work_name.upper()} drive try put {o}")
             src = self.abspath(o)  # local
             dst = o  # shared
             # make sure dir ends with / so that put works correctly
@@ -82,7 +82,7 @@ class WorkWithFileSystem(LightningWork):
             if not os.path.exists(src):
                 continue
             self._drive.put(src, dst)
-            print(f"{self.name.upper()} drive success put {dst}")
+            print(f"{self.work_name.upper()} drive success put {dst}")
 
     @staticmethod
     def abspath(path):

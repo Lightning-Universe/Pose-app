@@ -71,6 +71,16 @@ class LitPose(WorkWithFileSystem):
 
     def _reformat_video(self, video_file, **kwargs):
 
+        # get new names (ensure mp4 file extension, no tmp directory)
+        ext = os.path.splitext(os.path.basename(video_file))[1]
+        video_file_mp4_ext = video_file.replace(f"{ext}", ".mp4")
+        video_file_new = video_file_mp4_ext.replace("videos_tmp", "videos_infer")
+        video_file_abs_new = self.abspath(video_file_new)
+
+        # check 0: do we even need to reformat?
+        if self._drive.isfile(video_file_new):
+            return video_file_new
+
         # pull videos from FileSystem
         self.get_from_drive([video_file])
         video_file_abs = self.abspath(video_file)
@@ -79,30 +89,28 @@ class LitPose(WorkWithFileSystem):
         video_file_exists = os.path.exists(video_file_abs)
         if not video_file_exists:
             print(f"{video_file_abs} does not exist! skipping")
-            return
+            return None
 
         # check 2: is file in the correct format for DALI?
         video_file_correct_codec = check_codec_format(video_file_abs)
-
-        # get new name (ensure mp4 file extension, no tmp directory)
-        ext = os.path.splitext(os.path.basename(video_file))[1]
-        video_file_new = video_file.replace(f"{ext}", ".mp4").replace("videos_tmp", "videos_infer")
-        video_file_abs_new = self.abspath(video_file_new)
 
         # reencode/rename
         if not video_file_correct_codec:
             print("re-encoding video to be compatable with Lightning Pose video reader")
             reencode_video(video_file_abs, video_file_abs_new)
             # remove old video from local files
-            # os.remove(video_file_abs)
+            os.remove(video_file_abs)
         else:
             # make dir to write into
             os.makedirs(os.path.dirname(video_file_abs_new), exist_ok=True)
             # rename
             os.rename(video_file_abs, video_file_abs_new)
 
-        # remove old video from FileSystem
-        # self._drive.rm(video_file)
+        # remove old video(s) from FileSystem
+        if self._drive.isfile(video_file):
+            self._drive.rm(video_file)
+        if self._drive.isfile(video_file_mp4_ext):
+            self._drive.rm(video_file_mp4_ext)
 
         # push possibly reformated, renamed videos to FileSystem
         self.put_to_drive([video_file_new])
@@ -320,7 +328,10 @@ class LitPose(WorkWithFileSystem):
             compute_metrics,
         )
 
-        print(f"====== launching inference for video {video_file} using model {model_dir} ======")
+        print(
+            f"============ launching inference\nvideo: {video_file}\nmodel: {model_dir}\n"
+            f"============"
+        )
 
         # set flag for parent app
         self.work_is_done_inference = False
@@ -478,8 +489,13 @@ class TrainUI(LightningFlow):
         else:
             src = os.path.join(os.getcwd(), video_file)
             dst = "/" + video_file
-        if not self._drive.isfile(dst):
+        if not self._drive.isfile(dst) and os.path.exists(src):
+            # only put to FileSystem under two conditions:
+            # 1. file exists locally; if it doesn't, maybe it has already been deleted for a reason
+            # 2. file does not already exist on FileSystem; avoids excessive file transfers
+            print(f"TRAIN_INFER UI try put {dst}")
             self._drive.put(src, dst)
+            print(f"TRAIN_INFER UI success put {dst}")
 
     def _train(
         self,

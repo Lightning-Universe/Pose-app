@@ -358,7 +358,7 @@ def _render_streamlit_fn(state: AppState):
                     state.st_project_name = st_project_name
                     state.st_project_loaded = True
                     # let user know their data has been loaded
-                    proceed_str = "Project loaded successfully! You may proceed to following tabs."
+                    proceed_str = "Project loaded successfully! Proceed to following tabs."
                     proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
                     st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
                     enter_data = True
