@@ -141,49 +141,6 @@ class LitPoseApp(LightningFlow):
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
-    def train_models(self):
-
-        # check to see if we're in demo mode or not
-        base_dir = os.path.join(os.getcwd(), self.project_ui.proj_dir[1:])
-        cfg_overrides = {
-            "data": {
-                "data_dir": base_dir,
-                "video_dir": os.path.join(base_dir, 'unlabeled_videos'),
-            },
-            "eval": {
-                "test_videos_directory": os.path.join(base_dir, 'unlabeled_videos'),
-                "predict_vids_after_training": True,
-            },
-            "training": {
-                "imgaug": "dlc",
-                "max_epochs": self.train_ui.st_max_epochs,
-            }
-        }
-
-        # list files needed from FileSystem
-        inputs = [
-            os.path.join(self.project_ui.proj_dir, self.project_ui.config_name),
-            os.path.join(self.project_ui.proj_dir, "barObstacleScaling1"),
-            os.path.join(self.project_ui.proj_dir, "unlabeled_videos"),
-            os.path.join(self.project_ui.proj_dir, "CollectedData_.csv"),
-        ]
-
-        # train models
-        for m in ["super", "semisuper"]:
-            status = self.train_ui.st_train_status[m]
-            if status == "initialized" or status == "active":
-                self.train_ui.st_train_status[m] = "active"
-                outputs = [os.path.join(self.project_ui.model_dir, self.train_ui.st_datetimes[m])]
-                cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
-                self.train_ui.work.run(
-                    action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
-                    results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
-                )
-                self.train_ui.st_train_status[m] = "complete"
-                self.train_ui.work.progress = 0.0
-
-        self.train_ui.count += 1
-
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
@@ -241,7 +198,8 @@ class LitPoseApp(LightningFlow):
             self.demo_data_transferred = True
 
         # find previously trained models for project, expose to training and diagnostics UIs
-        self.update_trained_models_list(timer=self.train_ui.count)  # timer is to force later runs
+        # timer is to force later runs
+        self.update_trained_models_list(timer=self.train_ui.submit_count_train)
 
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
@@ -256,7 +214,13 @@ class LitPoseApp(LightningFlow):
         # train models on ui button press
         # -------------------------------------------------------------
         if self.train_ui.run_script_train and run_while_inferring:
-            self.train_models()
+            self.train_ui.run(
+                action="train",
+                config_filename=self.project_ui.config_name,
+                video_dirname="unlabeled_videos",
+                labeled_data_dirname="barObstacleScaling1",
+                csv_filename="CollectedData_.csv",
+            )
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
             self.tensorboard.run(
@@ -274,7 +238,7 @@ class LitPoseApp(LightningFlow):
         # set the new outputs for UIs
         if self.project_ui.update_models:
             self.project_ui.update_models = False
-            self.update_trained_models_list(timer=self.train_ui.count)
+            self.update_trained_models_list(timer=self.train_ui.submit_count_train)
 
         # -------------------------------------------------------------
         # run inference on ui button press (single model, multiple vids)

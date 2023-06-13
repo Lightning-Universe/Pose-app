@@ -456,55 +456,57 @@ class LitPose(LightningWork):
 
 
 class TrainUI(LightningFlow):
-    """UI to enter training parameters for demo data."""
+    """UI to interact with training and inference."""
 
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
 
+        # shared storage system
         self._drive = FileSystem()
 
+        # updated externally by parent app
+        self.trained_models = []
+        self.proj_dir = None
+        self.n_labeled_frames = None
+        self.n_total_frames = None
+
+        # ------------------------
+        # Training
+        # ------------------------
+        # for now models will be trained sequentially with a single work rather than in parallel
         self.work = LitPose(
             cloud_compute=CloudCompute("gpu"),
             cloud_build_config=LitPoseBuildConfig(),
         )
 
-        # works for inference
+        # flag; used internally and externally
+        self.run_script_train = False
+        # track number of times user hits buttons; used internally and externally
+        self.submit_count_train = 0
+
+        # output from the UI (all will be dicts with keys=models, except st_max_epochs)
+        self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
+        self.st_losses = {}
+        self.st_datetimes = {}
+        self.st_max_epochs = None
+
+        # ------------------------
+        # Inference
+        # ------------------------
+        # works will be allocated once videos are uploaded
         self.works_dict = Dict()
         self.work_is_done_inference = False
 
-        # control runners
-        # True = Run Jobs.  False = Do not Run jobs
-        # UI sets to True to kickoff jobs
-        # Job Runner sets to False when done
-        self.run_script_train = False
+        # flag; used internally and externally
         self.run_script_infer = False
+        # track number of times user hits buttons; used internally and externally
+        self.submit_count_infer = 0
 
-        # for controlling messages to user
-        self.submit_count_train = 0
-
-        # for controlling when models are broadcast to other flows/workers
-        self.count = 0
-
-        # save parameters for later run
-        self.proj_dir = None
-
-        self.n_labeled_frames = None  # set externally
-        self.n_total_frames = None  # set externally
-
-        # updated externally by top-level flow
-        self.trained_models = []
-
-        # output from the UI (train; all will be dicts with keys=models, except st_max_epochs)
-        self.st_max_epochs = None
-        self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
+        # output from the UI
         self.st_infer_status = {}  # 'initialized' | 'active' | 'complete'
-        self.st_losses = {}
-        self.st_datetimes = {}
-
-        # output from the UI (infer)
         self.st_inference_model = None
-        self.st_inference_videos = None
+        self.st_inference_videos = []
 
     def _push_video(self, video_file):
         if video_file[0] == "/":
@@ -515,6 +517,59 @@ class TrainUI(LightningFlow):
             dst = "/" + video_file
         if not self._drive.isfile(dst):
             self._drive.put(src, dst)
+
+    def _train(
+        self,
+        config_filename=None,
+        video_dirname="videos",
+        labeled_data_dirname="labeled-data",
+        csv_filename="CollectedData.csv",
+    ):
+
+        if config_filename is None:
+            print("ERROR: config_filename must be specified for training models")
+
+        # check to see if we're in demo mode or not
+        base_dir = os.path.join(os.getcwd(), self.proj_dir[1:])
+        model_dir = os.path.join(self.proj_dir, "models")
+        cfg_overrides = {
+            "data": {
+                "data_dir": base_dir,
+                "video_dir": os.path.join(base_dir, video_dirname),
+            },
+            "eval": {
+                "test_videos_directory": os.path.join(base_dir, video_dirname),
+                "predict_vids_after_training": True,
+            },
+            "training": {
+                "imgaug": "dlc",
+                "max_epochs": self.st_max_epochs,
+            }
+        }
+
+        # list files needed from FileSystem
+        inputs = [
+            os.path.join(self.proj_dir, config_filename),
+            os.path.join(self.proj_dir, labeled_data_dirname),
+            os.path.join(self.proj_dir, video_dirname),
+            os.path.join(self.proj_dir, csv_filename),
+        ]
+
+        # train models
+        for m in ["super", "semisuper"]:
+            status = self.st_train_status[m]
+            if status == "initialized" or status == "active":
+                self.st_train_status[m] = "active"
+                outputs = [os.path.join(model_dir, self.st_datetimes[m])]
+                cfg_overrides["model"] = {"losses_to_use": self.st_losses[m]}
+                self.work.run(
+                    action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
+                    results_dir=os.path.join(base_dir, "models", self.st_datetimes[m])
+                )
+                self.st_train_status[m] = "complete"
+                self.work.progress = 0.0  # reset for next model
+
+        self.submit_count_train += 1
 
     def _run_inference(self, model_dir=None, video_files=None):
 
@@ -564,6 +619,8 @@ class TrainUI(LightningFlow):
     def run(self, action, **kwargs):
         if action == "push_video":
             self._push_video(**kwargs)
+        elif action == "train":
+            self._train(**kwargs)
         elif action == "run_inference":
             self._run_inference(**kwargs)
 
@@ -758,6 +815,8 @@ def _render_streamlit_fn(state: AppState):
 
         # Lightning way of returning the parameters
         if st_submit_button_infer:
+
+            state.submit_count_infer += 1
 
             state.st_inference_model = model_dir
             state.st_inference_videos = st_videos
