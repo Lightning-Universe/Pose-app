@@ -189,6 +189,8 @@ class LitPoseApp(LightningFlow):
                     "data_dir": os.path.join(os.getcwd(), self.project_ui.proj_dir)[1:]}
                 },
             )
+            # send params to train ui
+            self.train_ui.config_dict = self.project_ui.config_dict
             # put demo data onto FileSystem
             self.project_ui.run(
                 action="put_file_to_drive", 

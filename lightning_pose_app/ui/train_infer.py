@@ -442,6 +442,7 @@ class TrainUI(LightningFlow):
         # updated externally by parent app
         self.trained_models = []
         self.proj_dir = None
+        self.config_dict = None
         self.n_labeled_frames = None
         self.n_total_frames = None
 
@@ -633,7 +634,10 @@ def _render_streamlit_fn(state: AppState):
 
     # add a sidebar to show the labeling progress
     # Calculate percentage of frames labeled
-    labeling_progress = state.n_labeled_frames / state.n_total_frames
+    if state.n_total_frames == 0:
+        labeling_progress = 0.0
+    else:
+        labeling_progress = state.n_labeled_frames / state.n_total_frames
     st.sidebar.markdown('### Labeling Progress')
     st.sidebar.progress(labeling_progress)
     st.sidebar.write(f"You have labeled {state.n_labeled_frames}/{state.n_total_frames} frames.")
@@ -659,10 +663,14 @@ def _render_streamlit_fn(state: AppState):
             value=100,
         )
 
-        # unsupervised losses (semi-supervised only)
+        # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
-        st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
-        st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
+        pcamv = state.config_dict["data"]["mirrored_column_matches"]
+        if len(pcamv) > 0:
+            st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
+        pcasv = state.config_dict["data"]["columns_for_singleview_pca"]
+        if len(pcasv) > 0:
+            st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
         st_loss_temp = expander.checkbox("Temporal", value=True)
 
         st.markdown(

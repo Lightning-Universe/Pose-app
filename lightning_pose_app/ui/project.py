@@ -47,6 +47,7 @@ class ProjectUI(LightningFlow):
         self.proj_dir = None
         self.config_name = None
         self.config_file = None
+        self.config_dict = None
         self.model_dir = None
         self.trained_models = []
         self.n_labeled_frames = 0
@@ -194,6 +195,9 @@ class ProjectUI(LightningFlow):
             if not os.path.exists(self.abspath(self.proj_dir)):
                 os.makedirs(self.abspath(self.proj_dir))
             yaml.dump(config_dict, open(self.abspath(self.config_file), "w"))
+
+        # save current params
+        self.config_dict = config_dict
 
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
@@ -556,7 +560,6 @@ def _render_streamlit_fn(state: AppState):
                     "Duplicate entries in PCA Multiview selections; each entry should be unique")
 
         # store dataset-specific values in order to update config.yaml file later
-        # TODO: some of this is updated in ProjectDataIO.update_config also, should unify
         st_new_vals = {"data": {}, "hydra": {"run": {}, "sweep": {}}}
         st_new_vals["data"]["data_dir"] = os.path.join(state.data_dir[1:], st_project_name)
         st_new_vals["data"]["video_dir"] = "videos"
