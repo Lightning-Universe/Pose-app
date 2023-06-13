@@ -12,6 +12,7 @@ import os
 import time
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_DB_DIR
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
@@ -27,8 +28,6 @@ class LitPoseApp(LightningFlow):
 
     def __init__(self):
 
-        # raise Exception("app.py needs to be updated with new components!")
-        
         super().__init__()
 
         # -----------------------------
@@ -65,13 +64,14 @@ class LitPoseApp(LightningFlow):
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
+            name="tensorboard",
             cloud_compute=CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
         )
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
-            database_dir=os.path.join(self.data_dir, "labelstudio_db"),
+            database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
         # works for inference
@@ -93,95 +93,6 @@ class LitPoseApp(LightningFlow):
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
-    def extract_frames(self, video_files, proj_dir, n_frames_per_video):
-        # push videos to shared filesystem if not there already
-        for video_file in video_files:
-            status = self.extract_ui.st_extract_status[video_file]
-            if status == "initialized" or status == "active":
-                self.extract_ui.st_extract_status[video_file] = "active"
-                self.extract_ui.run(action="push_video", video_file=video_file)
-                self.extract_ui.work.run(
-                    action="extract_frames",
-                    video_file=video_file,
-                    proj_dir=proj_dir,
-                    n_frames_per_video=n_frames_per_video,
-                )
-                self.extract_ui.st_extract_status[video_file] = "complete"
-                self.extract_ui.work.progress = 0.0
-
-    def train_models(self):
-
-        # check to see if we're in demo mode or not
-        base_dir = os.path.join(os.getcwd(), self.project_ui.proj_dir[1:])
-        cfg_overrides = {
-            "data": {
-                "data_dir": base_dir,
-                "video_dir": os.path.join(base_dir, "videos"),
-            },
-            "eval": {
-                "test_videos_directory": os.path.join(base_dir, "videos"),
-                "predict_vids_after_training": True,
-            },
-            "training": {
-                "imgaug": "dlc",
-                "max_epochs": self.train_ui.st_max_epochs,
-            }
-        }
-
-        # list files needed from FileSystem
-        inputs = [
-            os.path.join(self.project_ui.proj_dir, self.project_ui.config_name),
-            os.path.join(self.project_ui.proj_dir, "barObstacleScaling1"),
-            os.path.join(self.project_ui.proj_dir, "unlabeled_videos"),
-            os.path.join(self.project_ui.proj_dir, "CollectedData_.csv"),
-        ]
-
-        # train models
-        for m in ["super", "semisuper"]:
-            status = self.train_ui.st_train_status[m]
-            if status == "initialized" or status == "active":
-                self.train_ui.st_train_status[m] = "active"
-                outputs = [os.path.join(self.project_ui.model_dir, self.train_ui.st_datetimes[m], "")]
-                cfg_overrides["model"] = {"losses_to_use": self.train_ui.st_losses[m]}
-                self.train_ui.work.run(
-                    action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
-                    results_dir=os.path.join(base_dir, "models", self.train_ui.st_datetimes[m])
-                )
-                self.train_ui.st_train_status[m] = "complete"
-                self.train_ui.work.progress = 0.0
-                self.train_ui.progress = 0.0
-
-        self.train_ui.count += 1
-
-    def run_inference(self, model, videos):
-
-        print("--------------------")
-        print("RUN INFERENCE HERE!!")
-        print(f"model: {model}")
-        print("--------------------")
-        # launch works
-        for video in videos:
-            self.inference[video] = LitPose(
-                cloud_compute=CloudCompute("gpu"),
-                cloud_build_config=LitPoseBuildConfig(),
-                parallel=is_running_in_cloud(),
-            )
-            self.train_ui.run(action="push_video", video_file=video)
-            self.inference[video].run('run_inference', model=model, video=video)
-
-        # clean up works
-        while len(self.inference) > 0:
-            for video in list(self.inference):
-                if video in self.inference.keys() and self.inference[video].work_is_done_inference:
-                    # kill work
-                    print(f"killing work from video {video}")
-                    self.inference[video].stop()
-                    del self.inference[video]
-
-        print("--------------------")
-        print("END OF INFERENCE")
-        print("--------------------")
-
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
@@ -200,6 +111,11 @@ class LitPoseApp(LightningFlow):
         if not is_running_in_cloud() and self.train_ui.run_script_train:
             run_while_training = False
 
+        # don't interfere w/ inference
+        run_while_inferring = True
+        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+            run_while_inferring = False
+
         # -------------------------------------------------------------
         # update project data
         # -------------------------------------------------------------
@@ -217,7 +133,8 @@ class LitPoseApp(LightningFlow):
         self.fiftyone_ui.run(action="start_fiftyone")
         if self.project_ui.model_dir is not None:
             # find previously trained models for project, expose to training and diagnostics UIs
-            self.update_trained_models_list(timer=self.train_ui.count)  # timer to force later runs
+            # timer to force later runs
+            self.update_trained_models_list(timer=self.train_ui.submit_count_train)
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
             self.streamlit_frame.run(action="initialize")
@@ -244,6 +161,8 @@ class LitPoseApp(LightningFlow):
                 # create project from scratch
                 # load project defaults then overwrite certain fields with user input from app
                 self.project_ui.run(action="update_project_config")
+                # send params to train ui
+                self.train_ui.config_dict = self.project_ui.config_dict
                 if self.project_ui.st_keypoints:
                     # if statement here so that we only run "create_new_project" once we have data
                     self.label_studio.run(
@@ -266,6 +185,8 @@ class LitPoseApp(LightningFlow):
                 else:
                     # update project
                     self.project_ui.run(action="update_project_config")
+                    # send params to train ui
+                    self.train_ui.config_dict = self.project_ui.config_dict
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
@@ -274,21 +195,21 @@ class LitPoseApp(LightningFlow):
         # extract frames for labeling from uploaded videos
         # -------------------------------------------------------------
         if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
-            self.extract_frames(
-                video_files=self.extract_ui.st_video_files,
-                proj_dir=self.extract_ui.proj_dir,
-                n_frames_per_video=self.extract_ui.st_n_frames_per_video,
+            self.extract_ui.run(
+                action="extract_frames",
+                video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
             )
-            # wait until litpose is done extracting frames, then update tasks
-            if self.extract_ui.work.work_is_done_extract_frames:
+            # wait until frame extraction is complete, then update label studio tasks
+            if self.extract_ui.work_is_done_extract_frames:
                 self.project_ui.run(action="update_frame_shapes")
+                self.extract_ui.run_script = False  # hack, app won't advance past ls run
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script = False
 
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels
         # -------------------------------------------------------------
-        if self.project_ui.count > 0 and run_while_training:
+        if self.project_ui.count > 0 and run_while_training and run_while_inferring:
             t_elapsed = 15  # seconds
             t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
             if self.schedule(f"* * * * * {t_elapsed_list}"):
@@ -307,8 +228,8 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # train models on ui button press
         # -------------------------------------------------------------
-        if self.train_ui.run_script_train:
-            self.train_models()
+        if self.train_ui.run_script_train and run_while_inferring:
+            self.train_ui.run(action="train", config_filename=self.project_ui.config_name)
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
             self.tensorboard.run(
@@ -326,15 +247,15 @@ class LitPoseApp(LightningFlow):
         # set the new outputs for UIs
         if self.project_ui.update_models:
             self.project_ui.update_models = False
-            self.update_trained_models_list(timer=self.train_ui.count)
+            self.update_trained_models_list(timer=self.train_ui.submit_count_train)
 
         # -------------------------------------------------------------
         # run inference on ui button press (single model, multiple vids)
         # -------------------------------------------------------------
         if self.train_ui.run_script_infer and run_while_training:
-            self.run_inference(
-                model=self.train_ui.st_inference_model,
-                videos=self.train_ui.st_inference_videos,
+            self.train_ui.run(
+                action="run_inference",
+                video_files=self.train_ui.st_inference_videos,  # add arg for run caching purposes
             )
             self.train_ui.run_script_infer = False
 

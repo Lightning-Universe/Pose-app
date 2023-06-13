@@ -1,7 +1,6 @@
 import errno
 from functools import partial
-import lightning.app as L
-from lightning.app.storage import FileSystem
+from lightning import LightningWork
 from lightning.app.utilities.app_helpers import _collect_child_process_pids
 import os
 import shlex
@@ -12,7 +11,7 @@ import subprocess
 import threading
 import time
 
-from lightning_pose_app.utilities import args_to_dict
+from lightning_pose_app.utilities import args_to_dict, WorkWithFileSystem
 
 
 def add_to_system_env(env_key='env', **kwargs) -> dict:
@@ -45,13 +44,13 @@ def is_port_in_use(host: str, port: int) -> bool:
     return in_use
 
 
-def work_calls_len(lwork: L.LightningWork):
+def work_calls_len(lwork: LightningWork):
     """get the number of call in state dict. state dict has current and past calls to work."""
     # reduce by 1 to remove latest_call_hash entry
     return len(lwork.state["calls"]) - 1
 
 
-def work_is_free(lwork: L.LightningWork):
+def work_is_free(lwork: LightningWork):
     """work is free to accept new calls.
     this is expensive when a lot of calls accumulate over time
     work is when there is there is no pending and running calls at the moment
@@ -83,10 +82,12 @@ def work_is_free(lwork: L.LightningWork):
         return False
 
 
-class LitBashWork(L.LightningWork):
+class LitBashWork(WorkWithFileSystem):
 
     def __init__(
-        self, *args,
+        self,
+        *args,
+        name="bashwork",
         wait_seconds_after_run=10,
         wait_seconds_after_kill=10,
         **kwargs
@@ -95,10 +96,9 @@ class LitBashWork(L.LightningWork):
         # required to to grab self.host and self.port in the cloud.
         # otherwise, the values flips from 127.0.0.1 to 0.0.0.0 causing two runs
         # host='0.0.0.0',
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, name=name, **kwargs)
         self.wait_seconds_after_run = wait_seconds_after_run
         self.wait_seconds_after_kill = wait_seconds_after_kill
-        self._drive = FileSystem()
 
         self.pid = None
         self.exit_code = None
@@ -135,42 +135,6 @@ class LitBashWork(L.LightningWork):
 
     def work_calls_len(self) -> int:
         return work_calls_len(self)
-
-    def get_from_drive(self, inputs):
-        for i in inputs:
-            print(f"BASHWORK drive get {i}")
-            try:  # file may not be ready
-                src = i  # shared
-                dst = self.abspath(i)
-                self._drive.get(src, dst, overwrite=True)
-                print(f"drive data saved at {dst}")
-            except Exception as e:
-                print(e)
-                print(f"did not load {i} from drive")
-                pass
-
-    def put_to_drive(self, outputs):
-        for o in outputs:
-            print(f"BASHWORK drive try put {o}")
-            src = self.abspath(o)  # local
-            dst = o  # shared
-            # make sure dir end with / so that put works correctly
-            if os.path.isdir(src):
-                src = os.path.join(src, "")
-                dst = os.path.join(dst, "")
-            # check to make sure file exists locally
-            if not os.path.exists(src):
-                continue
-            self._drive.put(src, dst)
-            print(f"BASHWORK drive success put {dst}")
-
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
 
     def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
         with subprocess.Popen(

@@ -1,6 +1,7 @@
 from lightning import CloudCompute, LightningFlow
 import os
 
+from lightning_pose_app import MODELS_DIR
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_dir
 
@@ -13,6 +14,7 @@ class StreamlitAppLightningPose(LightningFlow):
         super().__init__(*args, **kwargs)
 
         self.work = LitBashWork(
+            name=f"streamlit_{app_type}",
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
         )
@@ -41,7 +43,7 @@ class StreamlitAppLightningPose(LightningFlow):
             if kwargs.get("model_dir", None):
                 model_dir = kwargs["model_dir"]
             else:
-                model_dir = os.path.join(os.getcwd(), self.proj_dir[1:], "models")
+                model_dir = os.path.join(os.getcwd(), self.proj_dir[1:], MODELS_DIR)
 
             model_dir_args = f" --model_dir={model_dir} --make_dir"
 

@@ -7,6 +7,8 @@ import numpy as np
 import os
 from typing import Any, Tuple, List, Dict
 
+from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME
+
 MAX_CONNECT_ATTEMPTS = 30
 
 
@@ -77,7 +79,7 @@ class LabelStudioJSONProcessor:
         """Paths within data_dir"""
         path = os.path.join(
             self.relative_image_dir, annotated_example["data"]["img"].split("=")[-1])
-        relative_image_path = path[path.find('labeled-data'):]
+        relative_image_path = path[path.find(LABELED_DATA_DIR):]
         return relative_image_path
 
     def get_absolute_image_paths(self) -> List[str]:
@@ -151,7 +153,7 @@ def get_rel_image_paths_from_idx_files(basedir: str) -> List[str]:
     img_list = []
     for root, dirs, files in os.walk(basedir):
         for file in files:
-            if file == "selected_frames.csv":
+            if file == SELECTED_FRAMES_FILENAME:
                 abspath = os.path.join(root, file)
                 img_files = np.genfromtxt(abspath, delimiter=',', dtype=str)
                 for img_file in img_files:

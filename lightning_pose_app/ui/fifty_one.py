@@ -1,4 +1,4 @@
-from lightning import CloudCompute, LightningFlow, LightningWork
+from lightning import CloudCompute, LightningFlow
 from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import os
@@ -6,17 +6,16 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import yaml
 
+from lightning_pose_app import MODELS_DIR
 from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_dir
-from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 
 
-class FiftyoneWork(LightningWork):
+class FiftyoneWork(WorkWithFileSystem):
     
     def __init__(self, *args, **kwargs):
         
-        super().__init__(*args, **kwargs)
-
-        self._drive = FileSystem()
+        super().__init__(*args, name="fiftyone", **kwargs)
 
         self.fiftyone_launched = False
         self.fiftyone_datasets = []
@@ -64,16 +63,13 @@ class FiftyoneWork(LightningWork):
         from omegaconf import DictConfig
         
         # pull models (relative path)
-        for model_dir in model_dirs:
-            dst = os.path.join(os.getcwd(), model_dir[1:])
-            self._drive.get(model_dir, dst, overwrite=True)
+        self.get_from_drive(model_dirs)
 
         # pull config (relative path)
-        config_file_abs = os.path.join(os.getcwd(), config_file[1:])
-        self._drive.get(config_file, config_file_abs, overwrite=True)
+        self.get_from_drive([config_file])
 
         # load config (absolute path)
-        cfg = DictConfig(yaml.safe_load(open(config_file_abs, "r")))
+        cfg = DictConfig(yaml.safe_load(open(self.abspath(config_file), "r")))
 
         # edit config (add fiftyone key before making DictConfig, otherwise error)
         model_dirs_abs = [os.path.join(os.getcwd(), x[1:]) for x in model_dirs]
@@ -223,10 +219,10 @@ def _render_streamlit_fn(state: AppState):
                 "Display name for Model 2", value="model_2", disabled=state.run_script)
             st_model_display_names[1] = tmp
 
-        # make model dirs paths relative to Drive
+        # make model dirs paths relative to FileSystem
         for i in range(2):
             if st_model_dirs[i] and not os.path.isabs(st_model_dirs[i]):
-                st_model_dirs[i] = os.path.join(state.proj_dir, "models", st_model_dirs[i])
+                st_model_dirs[i] = os.path.join(state.proj_dir, MODELS_DIR, st_model_dirs[i])
 
         # dataset names
         existing_datasets = state.fiftyone_datasets

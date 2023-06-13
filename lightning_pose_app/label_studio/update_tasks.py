@@ -4,6 +4,7 @@ import argparse
 import os
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME
 from lightning_pose_app.label_studio.utils import connect_to_label_studio
 from lightning_pose_app.label_studio.utils import get_project
 from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
@@ -21,7 +22,7 @@ label_studio_client = connect_to_label_studio(url=args.label_studio_url, api_key
 print("Connected to LabelStudio at %s" % args.label_studio_url)
 
 # get current project
-metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
+metadata_file = os.path.join(args.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 try:
     metadata = yaml.safe_load(open(metadata_file, "r"))
 except FileNotFoundError:
