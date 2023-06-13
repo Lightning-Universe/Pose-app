@@ -1,7 +1,7 @@
 """UI for training models."""
 
 from datetime import datetime
-from lightning import CloudCompute, LightningFlow, LightningWork
+from lightning import CloudCompute, LightningFlow
 from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
 from lightning.app.storage import FileSystem
@@ -16,7 +16,8 @@ import time
 import yaml
 
 from lightning_pose_app.build_configs import LitPoseBuildConfig
-from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
+from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
+from lightning_pose_app.utilities import reencode_video, check_codec_format
 
 st.set_page_config(layout="wide")
 
@@ -55,56 +56,18 @@ class TrainerProgress(Callback):
             self._update_progress(progress)
 
 
-class LitPose(LightningWork):
+class LitPose(WorkWithFileSystem):
 
     def __init__(self, *args, **kwargs) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, name="train_infer", **kwargs)
 
         self.pwd = os.getcwd()
         self.progress = 0.0
 
-        self._drive = FileSystem()
-
         self.work_is_done_training = False
         self.work_is_done_inference = False
         self.count = 0
-
-    def get_from_drive(self, inputs):
-        for i in inputs:
-            print(f"TRAIN drive get {i}")
-            try:  # file may not be ready
-                src = i  # shared
-                dst = self.abspath(i)  # local
-                self._drive.get(src, dst, overwrite=True)
-                print(f"drive data saved at {dst}")
-            except Exception as e:
-                print(e)
-                print(f"did not load {i} from drive")
-                pass
-
-    def put_to_drive(self, outputs):
-        for o in outputs:
-            print(f"TRAIN drive try put {o}")
-            src = self.abspath(o)  # local
-            dst = o  # shared
-            # make sure dir ends with / so that put works correctly
-            if os.path.isdir(src):
-                src = os.path.join(src, "")
-                dst = os.path.join(dst, "")
-            # check to make sure file exists locally
-            if not os.path.exists(src):
-                continue
-            self._drive.put(src, dst)
-            print(f"TRAIN drive success put {dst}")
-
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
 
     def _reformat_video(self, video_file, **kwargs):
 

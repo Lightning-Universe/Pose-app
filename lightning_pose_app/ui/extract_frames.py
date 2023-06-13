@@ -1,5 +1,5 @@
 import cv2
-from lightning import CloudCompute, LightningFlow, LightningWork
+from lightning import CloudCompute, LightningFlow
 from lightning.app.storage import FileSystem
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
@@ -11,56 +11,19 @@ from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
-from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
 
 
-class ExtractFramesWork(LightningWork):
+class ExtractFramesWork(WorkWithFileSystem):
 
     def __init__(self, *args, **kwargs):
 
-        super().__init__(*args, **kwargs)
-        self._drive = FileSystem()
+        super().__init__(*args, name="extract", **kwargs)
 
         self.progress = 0.0
         self.progress_delta = 0.5
         self.work_is_done_extract_frames = False
-
-    def get_from_drive(self, inputs):
-        for i in inputs:
-            print(f"EXTRACT drive get {i}")
-            try:  # file may not be ready
-                src = i  # shared
-                dst = self.abspath(i)  # local
-                self._drive.get(src, dst, overwrite=True)
-                print(f"drive data saved at {dst}")
-            except Exception as e:
-                print(e)
-                print(f"did not load {i} from drive")
-                pass
-
-    def put_to_drive(self, outputs):
-        for o in outputs:
-            print(f"EXTRACT drive try put {o}")
-            src = self.abspath(o)  # local
-            dst = o  # shared
-            # make sure dir ends with / so that put works correctly
-            if os.path.isdir(src):
-                src = os.path.join(src, "")
-                dst = os.path.join(dst, "")
-            # check to make sure file exists locally
-            if not os.path.exists(src):
-                continue
-            self._drive.put(src, dst)
-            print(f"EXTRACT drive success put {dst}")
-
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
 
     def read_nth_frames(self, video_file, n=1, resize_dims=64):
 
@@ -302,37 +265,28 @@ class ExtractFramesWork(LightningWork):
 
 
 class ExtractFramesUI(LightningFlow):
-    """UI to set up project."""
+    """UI to manage projects - create, load, modify."""
 
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
 
-        # self.work = ExtractFramesWork(
-        #     cloud_compute=CloudCompute("default"),
-        #     parallel=parallel,
-        # )
+        # shared storage system
+        self._drive = FileSystem()
 
-        # works for frame extraction
+        # updated externally by parent app
+        self.proj_dir = None
+
+        # works will be allocated once videos are uploaded
         self.works_dict = Dict()
         self.work_is_done_extract_frames = False
 
-        self._drive = FileSystem()
-
-        # control runners
-        # True = Run Jobs.  False = Do not Run jobs
-        # UI sets to True to kickoff jobs
-        # Job Runner sets to False when done
+        # flag; used internally and externally
         self.run_script = False
 
-        # send info to user
-        self.st_video_files_ = []
-        self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
-
-        # save parameters for later run
-        self.proj_dir = None
-
         # output from the UI
+        self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
+        self.st_video_files_ = []
         self.st_submits = 0
         self.st_n_frames_per_video = None
 

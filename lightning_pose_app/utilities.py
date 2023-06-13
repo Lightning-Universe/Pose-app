@@ -1,10 +1,11 @@
 import cv2
+from lightning import LightningWork
+from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
+from lightning.app.storage import FileSystem
 import numpy as np
 import os
 import shlex
 import subprocess
-
-from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 
 
 def args_to_dict(script_args: str) -> dict:
@@ -42,6 +43,54 @@ class StreamlitFrontend(LitStreamlitFrontend):
         except:
             # on the cloud, args[0] = host, args[1] = port
             pass
+
+
+class WorkWithFileSystem(LightningWork):
+
+    def __init__(self, *args, name, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
+        # uniquely identify prints
+        self.name = name
+
+        # initialize shared storage system
+        self._drive = FileSystem()
+
+    def get_from_drive(self, inputs, overwrite=True):
+        for i in inputs:
+            print(f"{self.name.upper()} get {i}")
+            try:  # file may not be ready
+                src = i  # shared
+                dst = self.abspath(i)  # local
+                self._drive.get(src, dst, overwrite=overwrite)
+                print(f"{self.name.upper()} data saved at {dst}")
+            except Exception as e:
+                print(f"{self.name.upper()} did not load {i} from FileSystem: {e}")
+                continue
+
+    def put_to_drive(self, outputs):
+        for o in outputs:
+            print(f"{self.name.upper()} drive try put {o}")
+            src = self.abspath(o)  # local
+            dst = o  # shared
+            # make sure dir ends with / so that put works correctly
+            if os.path.isdir(src):
+                src = os.path.join(src, "")
+                dst = os.path.join(dst, "")
+            # check to make sure file exists locally
+            if not os.path.exists(src):
+                continue
+            self._drive.put(src, dst)
+            print(f"{self.name.upper()} drive success put {dst}")
+
+    @staticmethod
+    def abspath(path):
+        if path[0] == "/":
+            path_ = path[1:]
+        else:
+            path_ = path
+        return os.path.abspath(path_)
 
 
 def reencode_video(input_file: str, output_file: str) -> None:

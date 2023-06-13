@@ -65,6 +65,7 @@ class LitPoseApp(LightningFlow):
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
+            name="tensorboard",
             cloud_compute=CloudCompute("default"),
             cloud_build_config=TensorboardBuildConfig(),
         )
