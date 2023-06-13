@@ -12,6 +12,7 @@ class LitLabelStudio(LightningFlow):
         super().__init__(*args, **kwargs)
 
         self.label_studio = LitBashWork(
+            name="labelstudio",
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LabelStudioBuildConfig(),
         )

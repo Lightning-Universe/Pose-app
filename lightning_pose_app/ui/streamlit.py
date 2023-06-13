@@ -13,6 +13,7 @@ class StreamlitAppLightningPose(LightningFlow):
         super().__init__(*args, **kwargs)
 
         self.work = LitBashWork(
+            name=f"streamlit_{app_type}",
             cloud_compute=CloudCompute("default"),
             cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
         )

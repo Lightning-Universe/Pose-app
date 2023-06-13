@@ -43,7 +43,7 @@ class LitPoseApp(LightningFlow):
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
-            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
 
         # extract frames tab (flow + work)
