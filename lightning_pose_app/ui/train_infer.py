@@ -670,9 +670,13 @@ def _render_streamlit_fn(state: AppState):
         pcamv = state.config_dict["data"]["mirrored_column_matches"]
         if len(pcamv) > 0:
             st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
+        else:
+            st_loss_pcamv = False
         pcasv = state.config_dict["data"]["columns_for_singleview_pca"]
         if len(pcasv) > 0:
             st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
+        else:
+            st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)
 
         st.markdown(
