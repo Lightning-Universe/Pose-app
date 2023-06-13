@@ -5,6 +5,7 @@ import datetime
 import os
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME
 from lightning_pose_app.label_studio.utils import connect_to_label_studio
 from lightning_pose_app.label_studio.utils import start_project
 from lightning_pose_app.label_studio.utils import create_data_source
@@ -46,7 +47,7 @@ proj_details = {
     "n_labeled_tasks": 0,
     "n_total_tasks": 0,
 }
-metadata_file = os.path.join(args.proj_dir, "label_studio_metadata.yaml")
+metadata_file = os.path.join(args.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 if not os.path.exists(args.proj_dir):
     os.makedirs(args.proj_dir)
 yaml.safe_dump(proj_details, open(metadata_file, "w"))

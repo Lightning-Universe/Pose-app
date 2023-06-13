@@ -12,6 +12,8 @@ import time
 import streamlit as st
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_DB_DIR, LABELED_DATA_DIR, VIDEOS_DIR, MODELS_DIR
+from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, COLLECTED_DATA_FILENAME
 from lightning_pose_app.utilities import StreamlitFrontend
 
 
@@ -47,6 +49,7 @@ class ProjectUI(LightningFlow):
         self.proj_dir = None
         self.config_name = None
         self.config_file = None
+        self.config_dict = None
         self.model_dir = None
         self.trained_models = []
         self.n_labeled_frames = 0
@@ -131,7 +134,7 @@ class ProjectUI(LightningFlow):
         # strip leading dirs to just get project names
         projects = [
             os.path.basename(p) for p in projects
-            if not (p.endswith("labelstudio_db") or p.endswith(".txt"))
+            if not (p.endswith(LABELSTUDIO_DB_DIR) or p.endswith(".txt"))
         ]
         self.initialized_projects = list(np.unique(projects))
 
@@ -143,7 +146,7 @@ class ProjectUI(LightningFlow):
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
             self.config_file = os.path.join(self.proj_dir, self.config_name)
-            self.model_dir = os.path.join(self.proj_dir, "models")  # hardcoded in train_infer.py
+            self.model_dir = os.path.join(self.proj_dir, MODELS_DIR)
 
     def _update_project_config(self, new_vals_dict=None, **kwargs):
         """triggered by button click in UI"""
@@ -195,6 +198,9 @@ class ProjectUI(LightningFlow):
                 os.makedirs(self.abspath(self.proj_dir))
             yaml.dump(config_dict, open(self.abspath(self.config_file), "w"))
 
+        # save current params
+        self.config_dict = config_dict
+
         # push data to drive and clean up local file
         self._put_to_drive_remove_local(self.config_file)
 
@@ -203,12 +209,12 @@ class ProjectUI(LightningFlow):
         from PIL import Image
 
         # get labeled data from drive
-        labeled_data_dir = os.path.join(self.proj_dir, "labeled-data")
+        labeled_data_dir = os.path.join(self.proj_dir, LABELED_DATA_DIR)
         # check to see if config exists locally; if not, try pulling from drive
         self._get_from_drive_if_not_local(labeled_data_dir)
 
         # load single frame from labeled data
-        imgs = glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*", "*.png"))
+        imgs = glob.glob(os.path.join(self.abspath(self.proj_dir), LABELED_DATA_DIR, "*", "*.png"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
@@ -225,13 +231,12 @@ class ProjectUI(LightningFlow):
                 }
             })
         else:
-            print(glob.glob(os.path.join(self.abspath(self.proj_dir), "labeled-data", "*")))
+            print(glob.glob(os.path.join(self.abspath(self.proj_dir), LABELED_DATA_DIR, "*")))
             print("did not find labeled data directory in FileSystem")
 
     def _compute_labeled_frame_fraction(self, timer=0.0):
-        # TODO: don't want to have metadata filename hard-coded here
 
-        metadata_file = os.path.join(self.proj_dir, "label_studio_metadata.yaml")
+        metadata_file = os.path.join(self.proj_dir, LABELSTUDIO_METADATA_FILENAME)
         self._get_from_drive_if_not_local(metadata_file)
 
         try:
@@ -449,8 +454,8 @@ def _render_streamlit_fn(state: AppState):
                 r_ear_bottom
                 corner1_top
                 ```
-                It is also possible to track keypoints that are only present in a subset of the views,
-                such as the keypoint `corner1_top` above.
+                It is also possible to track keypoints that are only present in a subset of the 
+                views, such as the keypoint `corner1_top` above.
             """
             st.markdown(keypoint_instructions)
             keypoints = st.text_area(
@@ -556,18 +561,17 @@ def _render_streamlit_fn(state: AppState):
                     "Duplicate entries in PCA Multiview selections; each entry should be unique")
 
         # store dataset-specific values in order to update config.yaml file later
-        # TODO: some of this is updated in ProjectDataIO.update_config also, should unify
         st_new_vals = {"data": {}, "hydra": {"run": {}, "sweep": {}}}
         st_new_vals["data"]["data_dir"] = os.path.join(state.data_dir[1:], st_project_name)
-        st_new_vals["data"]["video_dir"] = "videos"
-        st_new_vals["data"]["csv_file"] = "CollectedData.csv"
+        st_new_vals["data"]["video_dir"] = VIDEOS_DIR
+        st_new_vals["data"]["csv_file"] = COLLECTED_DATA_FILENAME
         st_new_vals["data"]["num_keypoints"] = st_n_keypoints
         st_new_vals["data"]["keypoints"] = st_keypoints
         data_dir = st_new_vals["data"]["data_dir"]
         st_new_vals["hydra"]["run"]["dir"] = os.path.join(
-            data_dir, "models", "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
+            data_dir, MODELS_DIR, "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
         st_new_vals["hydra"]["sweep"]["dir"] = os.path.join(
-            data_dir, "models", "multirun", "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
+            data_dir, MODELS_DIR, "multirun", "${now:%Y-%m-%d}", "${now:%H-%M-%S}")
 
         if len(st_pcasv_columns) > 0:
             # need to convert all elements to int instead of np.int, streamlit can't cache ow

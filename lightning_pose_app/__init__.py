@@ -1,0 +1,18 @@
+# directory name constants; relative to FileSystem root
+LABELSTUDIO_DB_DIR = "labelstudio_db"
+
+# directory name constants; relative to project_dir
+LABELED_DATA_DIR = "labeled-data"
+VIDEOS_DIR = "videos"
+VIDEOS_TMP_DIR = "videos_tmp"
+VIDEOS_INFER_DIR = "videos_infer"
+MODELS_DIR = "models"
+
+# file name constants; relative to project_dir
+COLLECTED_DATA_FILENAME = "CollectedData.csv"
+LABELSTUDIO_METADATA_FILENAME = "label_studio_metadata.yaml"
+LABELSTUDIO_TASKS_FILENAME = "label_studio_tasks.pkl"
+LABELSTUDIO_CONFIG_FILENAME = "label_studio_config.xml"
+
+# file name constants; relative to project_dir/<LABELED_DATA_DIR>/<video_name>
+SELECTED_FRAMES_FILENAME = "selected_frames.csv"

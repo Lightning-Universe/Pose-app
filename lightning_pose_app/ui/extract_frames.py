@@ -11,6 +11,8 @@ from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR
+from lightning_pose_app import SELECTED_FRAMES_FILENAME
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
 
@@ -25,7 +27,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         self.progress_delta = 0.5
         self.work_is_done_extract_frames = False
 
-    def read_nth_frames(self, video_file, n=1, resize_dims=64):
+    def _read_nth_frames(self, video_file, n=1, resize_dims=64):
 
         from tqdm import tqdm
 
@@ -66,11 +68,28 @@ class ExtractFramesWork(WorkWithFileSystem):
 
         return np.array(frames)
 
-    def select_frame_idxs(self, video_file, resize_dims=64, n_clusters=20, frame_skip=1):
+    def _select_frame_idxs(
+        self,
+        video_file,
+        resize_dims=64,
+        n_clusters=20,
+        frame_skip=1,
+        frame_range=[0, 1],
+    ):
 
-        frames = self.read_nth_frames(video_file, n=frame_skip, resize_dims=resize_dims)
-        batches = np.reshape(frames, (frames.shape[0], -1))[:-2]  # leave room for context
-        frame_count = batches.shape[0]
+        # check inputs
+        if frame_skip != 1:
+            raise NotImplementedError
+        assert frame_range[0] >= 0
+        assert frame_range[1] <= 1
+
+        # read all frames, reshape, chop off unwanted portions of beginning/end
+        frames = self._read_nth_frames(video_file, n=frame_skip, resize_dims=resize_dims)
+        frame_count = frames.shape[0]
+        beg_frame = int(float(frame_range[0]) * frame_count)
+        end_frame = int(float(frame_range[1]) * frame_count) - 2  # leave room for context
+        assert (end_frame - beg_frame) >= n_clusters, "valid video segment too short!"
+        batches = np.reshape(frames, (frames.shape[0], -1))[beg_frame:end_frame]
 
         # take temporal diffs
         print('computing motion energy...')
@@ -103,13 +122,13 @@ class ExtractFramesWork(WorkWithFileSystem):
         dists = np.linalg.norm(embedding[:, :, None] - centers, axis=1)
         # dists is shape (n_frames, n_clusters)
         idxs_prototypes_ = np.argmin(dists, axis=0)
-        # now index into high me frames to get overall indices
-        idxs_prototypes = idxs_high_me[idxs_prototypes_]
+        # now index into high me frames to get overall indices, add offset
+        idxs_prototypes = idxs_high_me[idxs_prototypes_] + beg_frame
 
         return idxs_prototypes
 
     @staticmethod
-    def export_frames(
+    def _export_frames(
         video_file: str,
         save_dir: str,
         frame_idxs: np.ndarray,
@@ -152,7 +171,7 @@ class ExtractFramesWork(WorkWithFileSystem):
                 img=frame[0],
             )
 
-    def _extract_frames(self, video_file, proj_dir, n_frames_per_video):
+    def _extract_frames(self, video_file, proj_dir, n_frames_per_video, frame_range=[0, 1]):
 
         print(f"============== extracting frames from {video_file} ================")
 
@@ -162,7 +181,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         # pull video from FileSystem
         self.get_from_drive([video_file])
 
-        data_dir_rel = os.path.join(proj_dir, "labeled-data")
+        data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
         data_dir = self.abspath(data_dir_rel)
         n_digits = 8
         extension = "png"
@@ -190,21 +209,25 @@ class ExtractFramesWork(WorkWithFileSystem):
             resize_dims = 32
         else:
             resize_dims = 64
-        idxs_selected = self.select_frame_idxs(
-            video_file=video_file_abs, resize_dims=resize_dims, n_clusters=n_frames_per_video)
+        idxs_selected = self._select_frame_idxs(
+            video_file=video_file_abs,
+            resize_dims=resize_dims,
+            n_clusters=n_frames_per_video,
+            frame_range=frame_range,
+        )
 
         # save csv file inside same output directory
         frames_to_label = np.array([
             "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
         np.savetxt(
-            os.path.join(save_dir, "selected_frames.csv"),
+            os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
             np.sort(frames_to_label),
             delimiter=",",
             fmt="%s"
         )
 
         # save frames
-        self.export_frames(
+        self._export_frames(
             video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected,
             format=extension, n_digits=n_digits, context_frames=context_frames)
 
@@ -219,7 +242,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         # get new names (ensure mp4 file extension, no tmp directory)
         ext = os.path.splitext(os.path.basename(video_file))[1]
         video_file_mp4_ext = video_file.replace(f"{ext}", ".mp4")
-        video_file_new = video_file_mp4_ext.replace("videos_tmp", "videos")
+        video_file_new = video_file_mp4_ext.replace(VIDEOS_TMP_DIR, VIDEOS_DIR)
         video_file_abs_new = self.abspath(video_file_new)
 
         # check 0: do we even need to reformat?
@@ -297,6 +320,7 @@ class ExtractFramesUI(LightningFlow):
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
         self.st_video_files_ = []
         self.st_submits = 0
+        self.st_frame_range = [0, 1]  # limits for frame selection
         self.st_n_frames_per_video = None
 
     @property
@@ -348,6 +372,7 @@ class ExtractFramesUI(LightningFlow):
                     video_file="/" + video_file,
                     proj_dir=self.proj_dir,
                     n_frames_per_video=n_frames_per_video,
+                    frame_range=self.st_frame_range,
                 )
                 self.st_extract_status[video_file] = "complete"
 
@@ -387,7 +412,7 @@ def _render_streamlit_fn(state: AppState):
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
     # upload video files to temporary directory
-    video_dir = os.path.join(state.proj_dir[1:], "videos_tmp")
+    video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
     os.makedirs(video_dir, exist_ok=True)
 
     # initialize the file uploader
@@ -407,9 +432,15 @@ def _render_streamlit_fn(state: AppState):
             with open(filepath, "wb") as f:
                 f.write(bytes_data)
 
-    # select number of frames to label per video
-    n_frames_per_video = st.text_input("Frames to label per video", 20)
-    st_n_frames_per_video = int(n_frames_per_video)
+    col0, col1 = st.columns(2, gap="large")
+    with col0:
+        # select number of frames to label per video
+        n_frames_per_video = st.text_input("Frames to label per video", 20)
+        st_n_frames_per_video = int(n_frames_per_video)
+    with col1:
+        # select range of video to pull frames from
+        st_frame_range = st.slider(
+            "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0))
 
     st_submit_button = st.button(
         "Extract frames",
@@ -449,6 +480,7 @@ def _render_streamlit_fn(state: AppState):
         state.st_video_files_ = st_videos
         state.st_extract_status = {s: 'initialized' for s in st_videos}
         state.st_n_frames_per_video = st_n_frames_per_video
+        state.st_frame_range = st_frame_range
         st.text("Request submitted!")
         state.run_script = True  # must the last to prevent race condition
 

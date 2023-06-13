@@ -15,6 +15,8 @@ from streamlit_autorefresh import st_autorefresh
 import time
 import yaml
 
+from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
+from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format
@@ -74,7 +76,7 @@ class LitPose(WorkWithFileSystem):
         # get new names (ensure mp4 file extension, no tmp directory)
         ext = os.path.splitext(os.path.basename(video_file))[1]
         video_file_mp4_ext = video_file.replace(f"{ext}", ".mp4")
-        video_file_new = video_file_mp4_ext.replace("videos_tmp", "videos_infer")
+        video_file_new = video_file_mp4_ext.replace(VIDEOS_TMP_DIR, VIDEOS_INFER_DIR)
         video_file_abs_new = self.abspath(video_file_new)
 
         # check 0: do we even need to reformat?
@@ -442,6 +444,7 @@ class TrainUI(LightningFlow):
         # updated externally by parent app
         self.trained_models = []
         self.proj_dir = None
+        self.config_dict = None
         self.n_labeled_frames = None
         self.n_total_frames = None
 
@@ -500,9 +503,9 @@ class TrainUI(LightningFlow):
     def _train(
         self,
         config_filename=None,
-        video_dirname="videos",
-        labeled_data_dirname="labeled-data",
-        csv_filename="CollectedData.csv",
+        video_dirname=VIDEOS_DIR,
+        labeled_data_dirname=LABELED_DATA_DIR,
+        csv_filename=COLLECTED_DATA_FILENAME,
     ):
 
         if config_filename is None:
@@ -510,7 +513,7 @@ class TrainUI(LightningFlow):
 
         # check to see if we're in demo mode or not
         base_dir = os.path.join(os.getcwd(), self.proj_dir[1:])
-        model_dir = os.path.join(self.proj_dir, "models")
+        model_dir = os.path.join(self.proj_dir, MODELS_DIR)
         cfg_overrides = {
             "data": {
                 "data_dir": base_dir,
@@ -543,7 +546,7 @@ class TrainUI(LightningFlow):
                 cfg_overrides["model"] = {"losses_to_use": self.st_losses[m]}
                 self.work.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
-                    results_dir=os.path.join(base_dir, "models", self.st_datetimes[m])
+                    results_dir=os.path.join(base_dir, MODELS_DIR, self.st_datetimes[m])
                 )
                 self.st_train_status[m] = "complete"
                 self.work.progress = 0.0  # reset for next model
@@ -555,7 +558,7 @@ class TrainUI(LightningFlow):
         self.work_is_done_inference = False
 
         if not model_dir:
-            model_dir = os.path.join(self.proj_dir, "models", self.st_inference_model)
+            model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
         if not video_files:
             video_files = self.st_inference_videos
 
@@ -633,14 +636,17 @@ def _render_streamlit_fn(state: AppState):
 
     # add a sidebar to show the labeling progress
     # Calculate percentage of frames labeled
-    labeling_progress = state.n_labeled_frames / state.n_total_frames
+    if state.n_total_frames == 0:
+        labeling_progress = 0.0
+    else:
+        labeling_progress = state.n_labeled_frames / state.n_total_frames
     st.sidebar.markdown('### Labeling Progress')
     st.sidebar.progress(labeling_progress)
-    st.sidebar.write(f"You have labeled {state.n_labeled_frames}/{state.n_total_frames} frames.")
+    st.sidebar.write(f"You have labeled {state.n_labeled_frames}/{state.n_total_frames} frames")
 
     st.sidebar.markdown("""### Existing models""")
     st.sidebar.selectbox("Browse", sorted(state.trained_models, reverse=True))
-    st.sidebar.write("Proceed to next tabs to analyze your previously trained models.")
+    st.sidebar.write("Proceed to next tabs to analyze previously trained models")
 
     with train_tab:
 
@@ -659,10 +665,18 @@ def _render_streamlit_fn(state: AppState):
             value=100,
         )
 
-        # unsupervised losses (semi-supervised only)
+        # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
-        st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
-        st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
+        pcamv = state.config_dict["data"]["mirrored_column_matches"]
+        if len(pcamv) > 0:
+            st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
+        else:
+            st_loss_pcamv = False
+        pcasv = state.config_dict["data"]["columns_for_singleview_pca"]
+        if len(pcasv) > 0:
+            st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
+        else:
+            st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)
 
         st.markdown(
@@ -747,7 +761,7 @@ def _render_streamlit_fn(state: AppState):
             "Choose model to run inference", sorted(state.trained_models, reverse=True))
 
         # upload video files
-        video_dir = os.path.join(state.proj_dir[1:], "videos_tmp")
+        video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
         os.makedirs(video_dir, exist_ok=True)
 
         # initialize the file uploader

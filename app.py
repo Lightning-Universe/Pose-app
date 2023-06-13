@@ -12,6 +12,7 @@ import os
 import time
 import yaml
 
+from lightning_pose_app import LABELSTUDIO_DB_DIR
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
@@ -70,7 +71,7 @@ class LitPoseApp(LightningFlow):
 
         # label studio (flow + work)
         self.label_studio = LitLabelStudio(
-            database_dir=os.path.join(self.data_dir, "labelstudio_db"),
+            database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
         # works for inference
@@ -160,6 +161,8 @@ class LitPoseApp(LightningFlow):
                 # create project from scratch
                 # load project defaults then overwrite certain fields with user input from app
                 self.project_ui.run(action="update_project_config")
+                # send params to train ui
+                self.train_ui.config_dict = self.project_ui.config_dict
                 if self.project_ui.st_keypoints:
                     # if statement here so that we only run "create_new_project" once we have data
                     self.label_studio.run(
@@ -182,6 +185,8 @@ class LitPoseApp(LightningFlow):
                 else:
                     # update project
                     self.project_ui.run(action="update_project_config")
+                    # send params to train ui
+                    self.train_ui.config_dict = self.project_ui.config_dict
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
