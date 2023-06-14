@@ -37,6 +37,11 @@ cd ~/Pose-app/lightning-pose
 pip install -e .
 ```
 
+If you are using Ubuntu 22.04 or newer, you'll need an additional update for the Fiftyone package:
+```console
+pip install fiftyone-db-ubuntu2204
+```
+
 #### Labling app and full app
 Install `LabelStudio` in a virtual environment. From `~/Pose-app`, run
 ```bash
