@@ -8,10 +8,21 @@ We provide three different apps:
 * `app.py`: [UNDER CONSTRUCTION!] full app that includes labeling, training, and evaluation
 
 The following instructions detail how to install the app locally for development purposes.
+Note these instructions are only for Linux machines; we will update the documentation for macOS 
+shortly.
 
 ## Environment setup
 
-First, create a conda environment:
+First, check to see if you have ffmpeg installed:
+```bash
+ffmpeg -version
+```
+If not, install ffmpeg:
+```bash
+sudo apt install ffmpeg
+```
+
+Next, create a conda environment:
 
 ```bash
 cd ~
@@ -38,7 +49,7 @@ pip install -e .
 ```
 
 If you are using Ubuntu 22.04 or newer, you'll need an additional update for the Fiftyone package:
-```console
+```bash
 pip install fiftyone-db-ubuntu2204
 ```
 
@@ -70,7 +81,7 @@ lightning run app <app_name.py>
 
 If you need to increase the file size limit for uploading videos, set the following environment
 variable (in units of MB). We recommend using videos less than 500MB for best performance.
-```
+```bash
 lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 ```
 
