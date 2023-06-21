@@ -90,3 +90,6 @@ Running the app on the cloud is easy!
 ```bash
 lightning run app <app_name.py> --cloud --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 ```
+
+Your data - videos, labels, models, etc. - will all be stored in a project directory detailed 
+[here](docs/directory_structure.md).

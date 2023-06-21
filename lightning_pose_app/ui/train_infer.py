@@ -366,7 +366,7 @@ class LitPose(WorkWithFileSystem):
         video_dir_abs = cfg.data.video_dir
         cfg.data.csv_file = os.path.join(data_dir_abs, cfg.data.csv_file)
 
-        pred_dir = os.path.join(model_dir, "videos_pred_infer")
+        pred_dir = os.path.join(model_dir, "video_preds_infer")
         preds_file = os.path.join(
             self.abspath(pred_dir), os.path.basename(video_file_abs).replace(".mp4", ".csv"))
 
