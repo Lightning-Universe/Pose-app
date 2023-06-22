@@ -11,9 +11,9 @@ The following instructions detail how to install the app locally for development
 Note these instructions are only for Linux machines; we will update the documentation for macOS 
 shortly.
 
-## Environment setup
+## Installation
 
-First, check to see if you have ffmpeg installed:
+First, check to see if you have ffmpeg installed by typing the following into the terminal:
 ```bash
 ffmpeg -version
 ```
@@ -25,13 +25,12 @@ sudo apt install ffmpeg
 Next, create a conda environment:
 
 ```bash
-cd ~
 conda create --yes --name lai python=3.8
 conda activate lai
 ```
 
-Next, install the `Pose-app` repo:
-
+Next, move to your home directory (or wherever you would like to download the code) 
+and install the `Pose-app` repo:
 ```bash
 cd ~
 git clone --recursive https://github.com/Lightning-Universe/Pose-app
@@ -42,6 +41,10 @@ pip install -e .
 There are additional installation steps based on which apps you would like to run.
 
 #### Demo app and full app
+Both the demo app and full app require access to a GPU machine for training and inference. See the
+[lightning pose requirements](https://github.com/danbider/lightning-pose#requirements) 
+to ensure you have the correct computational resources.
+
 Install the `lightning-pose` repo:
 ```bash
 cd ~/Pose-app/lightning-pose
@@ -53,8 +56,12 @@ If you are using Ubuntu 22.04 or newer, you'll need an additional update for the
 pip install fiftyone-db-ubuntu2204
 ```
 
-#### Labling app and full app
-Install `LabelStudio` in a virtual environment. From `~/Pose-app`, run
+#### Labeling app and full app
+The labeling app and full app require the installation of Label Studio for data annotation. 
+Because Label Studio and Lightning have conflicting dependencies, you will need to install 
+Label Studio in a virtual environment. 
+
+From `~/Pose-app`, run
 ```bash
 virtualenv ~/venv-label-studio
 source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
@@ -65,10 +72,11 @@ source ~/venv-label-studio/bin/activate; pip install label-studio label-studio-s
 
 (note that `libffi` install may downgrade python, but this is fine.)
 
-Test:
+Test the installation of Label Studio:
 ```bash
 source ~/venv-label-studio/bin/activate; label-studio version; deactivate
 ```
+If the installation was successful you will not see any error messages by running the above command.
 
 ## Run the apps
 
