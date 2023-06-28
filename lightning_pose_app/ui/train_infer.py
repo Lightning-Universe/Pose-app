@@ -121,6 +121,7 @@ class LitPose(WorkWithFileSystem):
 
     def _train(self, inputs, outputs, cfg_overrides, results_dir):
 
+        import gc
         from omegaconf import DictConfig, OmegaConf
         from lightning_pose.utils import pretty_print_str, pretty_print_cfg
         from lightning_pose.utils.io import (
@@ -140,6 +141,7 @@ class LitPose(WorkWithFileSystem):
             calculate_train_batches,
             compute_metrics,
         )
+        import torch
 
         self.work_is_done_training = False
 
@@ -160,6 +162,9 @@ class LitPose(WorkWithFileSystem):
         for key1, val1 in cfg_overrides.items():
             for key2, val2 in val1.items():
                 cfg[key1][key2] = val2
+
+        # reduce context batch sizes to fit on 8GB GPU; TODO: need to generalize this
+        cfg.dali.context.train.batch_size = 8
 
         # mimic hydra, change dir into results dir
         os.makedirs(results_dir, exist_ok=True)
@@ -316,6 +321,18 @@ class LitPose(WorkWithFileSystem):
 
         os.chdir(self.pwd)
         self.put_to_drive(outputs)  # IMPORTANT! must come after changing directories
+
+        # clean up memory
+        del imgaug_transform
+        del dataset
+        del data_module
+        del data_module_pred
+        del loss_factories
+        del model
+        del trainer
+        gc.collect()
+        torch.cuda.empty_cache()
+
         self.work_is_done_training = True
 
     def _run_inference(self, model_dir, video_file):
@@ -506,6 +523,7 @@ class TrainUI(LightningFlow):
         video_dirname=VIDEOS_DIR,
         labeled_data_dirname=LABELED_DATA_DIR,
         csv_filename=COLLECTED_DATA_FILENAME,
+        context_model=True,
     ):
 
         if config_filename is None:
@@ -522,6 +540,10 @@ class TrainUI(LightningFlow):
             "eval": {
                 "test_videos_directory": os.path.join(base_dir, video_dirname),
                 "predict_vids_after_training": True,
+            },
+            "model": {
+                "model_type": "heatmap_mhcrnn" if context_model else "heatmap",
+                "do_context": True if context_model else False,
             },
             "training": {
                 "imgaug": "dlc",
@@ -543,7 +565,7 @@ class TrainUI(LightningFlow):
             if status == "initialized" or status == "active":
                 self.st_train_status[m] = "active"
                 outputs = [os.path.join(model_dir, self.st_datetimes[m])]
-                cfg_overrides["model"] = {"losses_to_use": self.st_losses[m]}
+                cfg_overrides["model"]["losses_to_use"] = self.st_losses[m]
                 self.work.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
                     results_dir=os.path.join(base_dir, MODELS_DIR, self.st_datetimes[m])
