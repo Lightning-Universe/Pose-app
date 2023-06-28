@@ -662,7 +662,7 @@ def _render_streamlit_fn(state: AppState):
         # max epochs
         st_max_epochs = expander.text_input(
             "Max training epochs (supervised and semi-supervised)",
-            value=100,
+            value=300,
         )
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
