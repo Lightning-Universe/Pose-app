@@ -223,6 +223,7 @@ class LitPoseApp(LightningFlow):
                 video_dirname="unlabeled_videos",
                 labeled_data_dirname="barObstacleScaling1",
                 csv_filename="CollectedData_.csv",
+                context_model=False,  # our demo dataset is not a proper context dataset
             )
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
