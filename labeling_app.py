@@ -84,11 +84,6 @@ class LitPoseApp(LightningFlow):
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
 
-            # upload existing project
-            if self.project_ui.st_upload_existing_project:
-                self.project_ui.run(action="upload_existing_project")
-                self.project_ui.st_upload_existing_project = False
-
             # create/load project
             if self.project_ui.st_create_new_project and self.project_ui.count == 0:
                 # create project from scratch
@@ -100,6 +95,12 @@ class LitPoseApp(LightningFlow):
                         action="create_labeling_config_xml",
                         keypoints=self.project_ui.st_keypoints)
                     self.label_studio.run(action="create_new_project")
+                    # import existing project in another format
+                    if self.project_ui.st_upload_existing_project:
+                        self.project_ui.run(action="upload_existing_project")
+                        self.label_studio.run(action="import_existing_annotations")
+                        self.project_ui.st_upload_existing_project = False
+
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
