@@ -44,7 +44,7 @@ class LitPoseApp(LightningFlow):
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
-            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
 
         # extract frames tab (flow + work)
@@ -83,6 +83,11 @@ class LitPoseApp(LightningFlow):
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
+
+            # upload existing project
+            if self.project_ui.st_upload_existing_project:
+                self.project_ui.run(action="upload_existing_project")
+                self.project_ui.st_upload_existing_project = False
 
             # create/load project
             if self.project_ui.st_create_new_project and self.project_ui.count == 0:

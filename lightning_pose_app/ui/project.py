@@ -11,6 +11,7 @@ from streamlit_autorefresh import st_autorefresh
 import time
 import streamlit as st
 import yaml
+import zipfile
 
 from lightning_pose_app import LABELSTUDIO_DB_DIR, LABELED_DATA_DIR, VIDEOS_DIR, MODELS_DIR
 from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, COLLECTED_DATA_FILENAME
@@ -63,6 +64,8 @@ class ProjectUI(LightningFlow):
         self.initialized_projects = []
         self.st_project_name = None
         self.st_create_new_project = False
+        self.st_upload_existing_project = False
+        self.st_existing_project_format = None
         self.st_project_loaded = False
         self.st_new_vals = None
 
@@ -288,6 +291,18 @@ class ProjectUI(LightningFlow):
                     trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
 
+    def _upload_existing_project(self, **kwargs):
+        print("\n\n--------------- UPLOAD EXISTING PROJECT -----------------\n\n")
+        # extract all files to tmp directory
+        # copy files over
+        if self.st_existing_project_format == "Lightning Pose":
+            # rename csv file
+            pass
+        elif self.st_existing_project_format == "DLC":
+            pass
+        else:
+            raise NotImplementedError
+
     def run(self, action, **kwargs):
 
         if action == "find_initialized_projects":
@@ -306,9 +321,35 @@ class ProjectUI(LightningFlow):
             self._update_trained_models_list(**kwargs)
         elif action == "put_file_to_drive":
             self._put_to_drive_remove_local(**kwargs)
+        elif action == "upload_existing_project":
+            self._upload_existing_project(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
+
+
+def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose"):
+    if project_type not in ["DLC", "Lightning Pose"]:
+        raise NotImplementedError
+    keypoints = []
+    with zipfile.ZipFile(filepath) as z:
+        for filename in z.namelist():
+            if project_type in ["DLC", "Lightning Pose"]:
+                if filename.endswith('.csv'):
+                    with z.open(filename) as f:
+                        for idx, line in enumerate(f):
+                            if idx == 1:
+                                header = line.decode('utf-8').split(',')
+                                if len(header) % 2 == 0:
+                                    # new DLC format
+                                    keypoints = header[2::2]
+                                else:
+                                    # LP/old DLC format
+                                    keypoints = header[1::2]
+                                break
+            if len(keypoints) > 0:
+                break
+    return keypoints
 
 
 def _render_streamlit_fn(state: AppState):
@@ -319,11 +360,15 @@ def _render_streamlit_fn(state: AppState):
 
     st.markdown(""" ## Manage Lightning Pose project """)
 
+    CREATE_STR = "Create new project"
+    UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
+    LOAD_STR = "Load existing project"
+
     st_mode = st.radio(
         "",
-        options=["Create new project", "Load existing project"],
+        options=[CREATE_STR, UPLOAD_STR, LOAD_STR],
         disabled=state.st_project_loaded,
-        index=1 if (state.st_project_loaded and not state.st_create_new_project) else 0,
+        index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
     )
 
     st.text(f"Available projects: {state.initialized_projects}")
@@ -375,7 +420,7 @@ def _render_streamlit_fn(state: AppState):
                         state.st_submits += 1  # prevent this block from running again
                         time.sleep(2)  # allow main event loop to catch up
                         st.experimental_rerun()  # update everything
-        elif st_mode == "Create new project":
+        elif st_mode == CREATE_STR or st_mode == UPLOAD_STR:
             if state.st_project_loaded:
                 # when coming back to tab from another
                 enter_data = True
@@ -391,12 +436,46 @@ def _render_streamlit_fn(state: AppState):
             else:
                 # catch remaining errors
                 enter_data = False
+
+            if st_mode == UPLOAD_STR:
+                state.st_upload_existing_project = True
+                enter_data = False
+
         else:
             # catch remaining errors
             enter_data = False
     else:
         # cannot enter data until project name has been entered
         enter_data = False
+
+    # ----------------------------------------------------
+    # upload existing project
+    # ----------------------------------------------------
+    # initialize the file uploader
+    if st_project_name and st_mode == UPLOAD_STR:
+
+        st_prev_format = st.radio(
+            "Uploaded project format",
+            options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
+        )
+        state.st_existing_project_format = st_prev_format
+
+        uploaded_file = st.file_uploader(
+            "Upload project in .zip file", type="zip", accept_multiple_files=False)
+        if uploaded_file is not None:
+            # read it
+            bytes_data = uploaded_file.read()
+            # name it
+            filename = uploaded_file.name.replace(" ", "_")
+            filepath = os.path.join(os.getcwd(), "data", filename)
+            # write the content of the file to the path if it doesn't already exist
+            if not os.path.exists(filepath):
+                with open(filepath, "wb") as f:
+                    f.write(bytes_data)
+            # grab keypoint names
+            st_keypoints = get_keypoints_from_zipfile(filepath, project_type=st_prev_format)
+            enter_data = True
+            st_mode = CREATE_STR
 
     # ----------------------------------------------------
     # user input for data config
@@ -406,7 +485,10 @@ def _render_streamlit_fn(state: AppState):
     # - used as field defaults below
     # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
     st_n_views = state.st_n_views
-    st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+    if not state.st_upload_existing_project:
+        st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+        # if we are uploading existing project, we don't want to sort via np.unique, need to keep
+        # keypoints in the correct order
     st_n_keypoints = state.st_n_keypoints
     st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
     st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
@@ -458,10 +540,16 @@ def _render_streamlit_fn(state: AppState):
                 views, such as the keypoint `corner1_top` above.
             """
             st.markdown(keypoint_instructions)
+            if state.st_upload_existing_project:
+                value = "\n".join(st_keypoints)
+            elif not state.st_project_loaded:
+                value = ""
+            else:
+                value = "\n".join(st_keypoints)
             keypoints = st.text_area(
                 "Enter keypoint names (one per line, determines labeling order):",
                 disabled=not enter_data,
-                value="" if not state.st_project_loaded else "\n".join(st_keypoints),
+                value=value,
             )
             st_keypoints = keypoints.strip().split("\n")
             if len(st_keypoints) == 1 and st_keypoints[0] == "":
@@ -537,7 +625,7 @@ def _render_streamlit_fn(state: AppState):
 
         # construct config file
         if (st_n_keypoints > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
-                or (st_n_keypoints > 1 and st_n_views == 1):
+                or (st_n_keypoints > 0 and st_n_views == 1):
             pcamv_ready = True
         else:
             pcamv_ready = False
@@ -546,7 +634,7 @@ def _render_streamlit_fn(state: AppState):
     # export data
     # ----------------------------------------------------
 
-    if st_n_keypoints > 1 and st_n_views > 0 and pcamv_ready:
+    if st_n_keypoints > 0 and st_n_views > 0 and pcamv_ready:
 
         st.markdown("")
         st.markdown("")
