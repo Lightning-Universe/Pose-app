@@ -66,6 +66,9 @@ class ProjectUI(LightningFlow):
         self.st_create_new_project = False
         self.st_upload_existing_project = False
         self.st_existing_project_format = None
+        self.st_upload_existing_project_zippath = None
+        self.st_error_flag = False
+        self.st_error_msg = ""
         self.st_project_loaded = False
         self.st_new_vals = None
 
@@ -228,8 +231,8 @@ class ProjectUI(LightningFlow):
                         "width": image.width
                     },
                     "image_resize_dims": {
-                        "height": 2 ** (math.floor(math.log(image.height, 2))),
-                        "width": 2 ** (math.floor(math.log(image.width, 2))),
+                        "height": max(2 ** (math.floor(math.log(image.height, 2))), 128),
+                        "width": max(2 ** (math.floor(math.log(image.width, 2))), 128),
                     }
                 }
             })
@@ -293,15 +296,45 @@ class ProjectUI(LightningFlow):
 
     def _upload_existing_project(self, **kwargs):
         print("\n\n--------------- UPLOAD EXISTING PROJECT -----------------\n\n")
+
         # extract all files to tmp directory
+        if not os.path.exists(self.st_upload_existing_project_zippath):
+            print(
+                f"Could not find zipped project file at {self.st_upload_existing_project_zippath};"
+                f"aborting"
+            )
+            return
+        with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
+            unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
+            z.extractall(path=os.path.dirname(self.st_upload_existing_project_zippath))
+
         # copy files over
         if self.st_existing_project_format == "Lightning Pose":
-            # rename csv file
-            pass
+            files_and_dirs = os.listdir(unzipped_dir)
+            for file_or_dir in files_and_dirs:
+                src = os.path.join(unzipped_dir, file_or_dir)
+                if file_or_dir.endswith(".csv"):
+                    # copy labels csv file
+                    dst = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
+                    shutil.copyfile(src, dst)
+                else:
+                    # copy video data or other files
+                    dst = os.path.join(self.abspath(self.proj_dir), file_or_dir)
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copyfile(src, dst)
+
         elif self.st_existing_project_format == "DLC":
-            pass
+            raise NotImplementedError
         else:
             raise NotImplementedError
+
+        # update config file with frame shapes
+        self._update_frame_shapes()
+
+        # push files to FileSystem
+        self._put_to_drive_remove_local(self.proj_dir)
 
     def run(self, action, **kwargs):
 
@@ -328,7 +361,7 @@ class ProjectUI(LightningFlow):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
-def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose"):
+def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose") -> list:
     if project_type not in ["DLC", "Lightning Pose"]:
         raise NotImplementedError
     keypoints = []
@@ -350,6 +383,38 @@ def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pos
             if len(keypoints) > 0:
                 break
     return keypoints
+
+
+def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
+    if project_type not in ["DLC", "Lightning Pose"]:
+        raise NotImplementedError
+
+    error_flag = False
+    error_msg = ""
+    with zipfile.ZipFile(filepath) as z:
+        zipname = os.path.basename(filepath).replace(".zip", "")
+        files = z.namelist()
+        if project_type == "Lightning Pose":
+            if os.path.join(zipname, LABELED_DATA_DIR, "") not in files:
+                error_flag = True
+                error_msg += """
+                    ERROR: Your directory of labeled frames must be named "labeled-data"
+                    If you change this directory name, make sure to update the filepaths in the
+                    labeled data csv file as well!
+                    <br /><br />
+                """
+            if os.path.join(zipname, VIDEOS_DIR, "") not in files:
+                error_flag = True
+                error_msg += """
+                    ERROR: Your directory of videos must be named "videos" (can be empty)
+                    <br /><br />
+                """
+        else:
+            raise NotImplementedError
+
+    proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
+
+    return error_flag, proceed_fmt % error_msg
 
 
 def _render_streamlit_fn(state: AppState):
@@ -472,10 +537,19 @@ def _render_streamlit_fn(state: AppState):
             if not os.path.exists(filepath):
                 with open(filepath, "wb") as f:
                     f.write(bytes_data)
+            # check files
+            state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
+                filepath, project_type=st_prev_format)
             # grab keypoint names
             st_keypoints = get_keypoints_from_zipfile(filepath, project_type=st_prev_format)
+            # update relevant vars
+            state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
+
+    if state.st_error_flag:
+        st.markdown(state.st_error_msg, unsafe_allow_html=True)
+        enter_data = False
 
     # ----------------------------------------------------
     # user input for data config

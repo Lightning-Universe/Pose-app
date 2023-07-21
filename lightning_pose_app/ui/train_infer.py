@@ -658,7 +658,7 @@ def _render_streamlit_fn(state: AppState):
 
     # add a sidebar to show the labeling progress
     # Calculate percentage of frames labeled
-    if state.n_total_frames == 0:
+    if state.n_total_frames == 0 or state.n_total_frames is None:
         labeling_progress = 0.0
     else:
         labeling_progress = state.n_labeled_frames / state.n_total_frames

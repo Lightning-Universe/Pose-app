@@ -241,7 +241,7 @@ class LitLabelStudio(LightningFlow):
         )
 
     def _import_existing_annotations(self, **kwargs):
-        pass
+        print("\n\n--------------- IMPORT EXISTING ANNOTATIONS -----------------\n\n")
 
     def run(self, action=None, **kwargs):
 
@@ -260,7 +260,7 @@ class LitLabelStudio(LightningFlow):
         elif action == "update_paths":
             self._update_paths(**kwargs)
         elif action == "import_existing_annotations":
-            self._import_existing_annotation(**kwargs)
+            self._import_existing_annotations(**kwargs)
 
     def on_exit(self):
         # final save to drive

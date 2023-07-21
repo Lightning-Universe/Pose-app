@@ -100,7 +100,6 @@ class LitPoseApp(LightningFlow):
                         self.project_ui.run(action="upload_existing_project")
                         self.label_studio.run(action="import_existing_annotations")
                         self.project_ui.st_upload_existing_project = False
-
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
