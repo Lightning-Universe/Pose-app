@@ -20,6 +20,10 @@ from lightning_pose_app.build_configs import lightning_pose_dir
 
 # TODO
 # - update label studio xml and CollectedData.csv when user inputs new keypoint in project ui
+# - import previous projects
+#   - why don't predictions how up in label studio?
+#   - auto-convert vids to proper format (can this happen in litpose worker?)
+#   - DLC
 
 
 class LitPoseApp(LightningFlow):

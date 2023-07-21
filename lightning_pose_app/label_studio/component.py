@@ -43,9 +43,10 @@ class LitLabelStudio(LightningFlow):
         self.filenames = {
             "label_studio_config": "",
             "label_studio_metadata": "",
+            "label_studio_tasks": "",
             "labeled_data_dir": "",
             "collected_data": "",
-            "label_studio_tasks": "",
+            "config_file": "",
         }
 
         # these attributes get set by external app
@@ -116,12 +117,15 @@ class LitLabelStudio(LightningFlow):
         self.filenames["label_studio_metadata"] = os.path.join(
             self.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 
+        self.filenames["label_studio_tasks"] = os.path.join(
+            self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
+
         self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, LABELED_DATA_DIR)
 
         self.filenames["collected_data"] = os.path.join(self.proj_dir, COLLECTED_DATA_FILENAME)
 
-        self.filenames["label_studio_tasks"] = os.path.join(
-            self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
+        self.filenames["config_file"] = os.path.join(
+            self.proj_dir, f"model_config_{self.proj_name}.yaml")
 
     def _create_new_project(self):
         """Create a label studio project."""
@@ -246,18 +250,18 @@ class LitLabelStudio(LightningFlow):
     def _import_existing_annotations(self, **kwargs):
         """Import annotations into an existing, empty label studio project."""
 
-        print("\n\n--------------- IMPORT EXISTING ANNOTATIONS -----------------\n\n")
-
         if self.counts["import_existing_annotations"] > 0:
             return
 
         # build script command
         script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "import_tasks.py")
+            os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
                         f"--proj_dir {self.abspath(self.proj_dir)} " \
-                        f"--api_key {self.user_token} "
+                        f"--api_key {self.user_token} " \
+                        f"--config_file {self.abspath(self.filenames['config_file'])} " \
+                        f"--update_from_csv "
 
         self.label_studio.run(
             build_command,
@@ -267,6 +271,7 @@ class LitLabelStudio(LightningFlow):
                 self.filenames["labeled_data_dir"],
                 self.filenames["label_studio_metadata"],
                 self.filenames["collected_data"],
+                self.filenames["config_file"],
             ],
             outputs=[]
         )

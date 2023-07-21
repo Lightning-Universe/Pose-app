@@ -217,7 +217,7 @@ class ProjectUI(LightningFlow):
         self.config_dict = config_dict
 
         # push data to drive and clean up local file
-        self._put_to_drive_remove_local(self.config_file)
+        self._put_to_drive_remove_local(self.config_file, remove_local=False)
 
     def _update_frame_shapes(self):
 

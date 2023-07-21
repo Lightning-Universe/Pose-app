@@ -43,6 +43,11 @@ print("Exported %i tasks" % len(exported_tasks))
 
 # use our processor to convert into pandas dlc format
 if len(exported_tasks) > 0:
+    # save to pickle for resuming projects
+    print("Saving tasks to pickle file")
+    pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"))
+    # save to csv for lightning pose models
+    print("Saving annotations to csv file")
     processor = LabelStudioJSONProcessor(
         label_studio_json_export=exported_tasks,
         data_dir=args.proj_dir,
@@ -50,13 +55,7 @@ if len(exported_tasks) > 0:
         keypoint_names=args.keypoints_list.split("/"),
     )
     df = processor()
-    # print(df)
-    # save to csv for lightning pose models
-    # print("Saving to csv file")
     df.to_csv(os.path.join(args.proj_dir, COLLECTED_DATA_FILENAME))
-    # save to pickle for resuming projects
-    print("Saving tasks to pickle file")
-    pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"))
 
 # update metadata so app has access to labeling project info
 metadata_file = os.path.join(args.proj_dir, LABELSTUDIO_METADATA_FILENAME)
