@@ -1,3 +1,5 @@
+"""Check for new labels, export to lightning pose format, export database to FileSystem."""
+
 import argparse
 import os
 import pickle

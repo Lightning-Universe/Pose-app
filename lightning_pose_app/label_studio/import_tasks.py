@@ -1,4 +1,4 @@
-"""Update tasks after new video frames have been extracted."""
+"""Import annotations into an existing, empty label studio project."""
 
 import argparse
 import os
@@ -9,7 +9,7 @@ from lightning_pose_app.label_studio.utils import connect_to_label_studio
 from lightning_pose_app.label_studio.utils import get_project
 from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
 
-print("Executing update_tasks.py")
+print("Executing import_tasks.py")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--label_studio_url', type=str)
@@ -40,6 +40,9 @@ else:
     existing_imgs = []
 
 print("Importing tasks...")
+print(args.proj_dir)
+print(os.getcwd())
+print(f"labeled data exists? {os.path.isdir(os.path.join(args.proj_dir, 'labeled-data'))}")
 basedir = os.path.relpath(args.proj_dir, os.getcwd())
 rel_images = get_rel_image_paths_from_idx_files(args.proj_dir)
 print("relative image paths: {}".format(rel_images))
@@ -50,6 +53,7 @@ image_list = []
 for rel_img in rel_images:
     ls_img_path = os.path.join(label_studio_prefix, rel_img)
     if ls_img_path not in existing_imgs:
+        # TODO: add annotations here as predictions?
         image_list.append({"img": ls_img_path})
 label_studio_project.import_tasks(image_list)
 print("%i Tasks imported." % len(image_list))

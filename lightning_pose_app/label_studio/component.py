@@ -27,6 +27,7 @@ class LitLabelStudio(LightningFlow):
             "import_database": 0,
             "start_label_studio": 0,
             "create_new_project": 0,
+            "import_existing_annotations": 0,
         }
         self.label_studio_url = f"http://localhost:{self.label_studio.port}"
         self.username = "user@localhost"
@@ -61,7 +62,7 @@ class LitLabelStudio(LightningFlow):
         return os.path.abspath(path_)
 
     def _import_database(self):
-        # pull database from Drive if it exists
+        # pull database from FileSystem if it exists
         # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
         if self.counts["import_database"] > 0:
             return
@@ -123,6 +124,7 @@ class LitLabelStudio(LightningFlow):
             self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
 
     def _create_new_project(self):
+        """Create a label studio project."""
 
         if self.counts["create_new_project"] > 0:
             return
@@ -179,7 +181,7 @@ class LitLabelStudio(LightningFlow):
         )
 
     def _check_labeling_task_and_export(self, timer):
-        """Check for new labels, export to lightning pose format, export database to Drive"""
+        """Check for new labels, export to lightning pose format, export database to FileSystem."""
 
         script_path = os.path.join(
             os.getcwd(), "lightning_pose_app", "label_studio", "check_labeling_task_and_export.py")
@@ -216,6 +218,7 @@ class LitLabelStudio(LightningFlow):
         self.check_labels = True
 
     def _create_labeling_config_xml(self, keypoints):
+        """Create a label studio configuration xml file."""
 
         self.keypoints = keypoints
 
@@ -241,7 +244,34 @@ class LitLabelStudio(LightningFlow):
         )
 
     def _import_existing_annotations(self, **kwargs):
+        """Import annotations into an existing, empty label studio project."""
+
         print("\n\n--------------- IMPORT EXISTING ANNOTATIONS -----------------\n\n")
+
+        if self.counts["import_existing_annotations"] > 0:
+            return
+
+        # build script command
+        script_path = os.path.join(
+            os.getcwd(), "lightning_pose_app", "label_studio", "import_tasks.py")
+        build_command = f"python {script_path} " \
+                        f"--label_studio_url {self.label_studio_url} " \
+                        f"--proj_dir {self.abspath(self.proj_dir)} " \
+                        f"--api_key {self.user_token} "
+
+        self.label_studio.run(
+            build_command,
+            venv_name=label_studio_venv,
+            wait_for_exit=True,
+            inputs=[
+                self.filenames["labeled_data_dir"],
+                self.filenames["label_studio_metadata"],
+                self.filenames["collected_data"],
+            ],
+            outputs=[]
+        )
+
+        self.counts["import_existing_annotations"] += 1
 
     def run(self, action=None, **kwargs):
 

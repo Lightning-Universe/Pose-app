@@ -6,6 +6,7 @@ from lightning.app.utilities.state import AppState
 import math
 import numpy as np
 import os
+import pandas as pd
 import shutil
 from streamlit_autorefresh import st_autorefresh
 import time
@@ -14,7 +15,11 @@ import yaml
 import zipfile
 
 from lightning_pose_app import LABELSTUDIO_DB_DIR, LABELED_DATA_DIR, VIDEOS_DIR, MODELS_DIR
-from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, COLLECTED_DATA_FILENAME
+from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
+    LABELSTUDIO_METADATA_FILENAME,
+    SELECTED_FRAMES_FILENAME,
+)
 from lightning_pose_app.utilities import StreamlitFrontend
 
 
@@ -60,6 +65,7 @@ class ProjectUI(LightningFlow):
         self.run_script = False
         self.update_models = False
         self.count = 0  # counter for external app
+        self.count_upload_existing = 0
         self.st_submits = 0  # counter for this streamlit app
         self.initialized_projects = []
         self.st_project_name = None
@@ -84,7 +90,10 @@ class ProjectUI(LightningFlow):
 
     @property
     def st_keypoints(self):
-        return np.unique(self.st_keypoints_).tolist()
+        if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
+            return self.st_keypoints_
+        else:
+            return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
 
     def _get_from_drive_if_not_local(self, file_or_dir):
 
@@ -295,7 +304,10 @@ class ProjectUI(LightningFlow):
             self.trained_models = trained_models
 
     def _upload_existing_project(self, **kwargs):
-        print("\n\n--------------- UPLOAD EXISTING PROJECT -----------------\n\n")
+
+        # only run once
+        if self.count_upload_existing > 0:
+            return
 
         # extract all files to tmp directory
         if not os.path.exists(self.st_upload_existing_project_zippath):
@@ -330,11 +342,32 @@ class ProjectUI(LightningFlow):
         else:
             raise NotImplementedError
 
+        # create 'selected_frames.csv' file for each video subdirectory
+        # this is required to import frames into label studio, so that we don't confuse context
+        # frames with labeled frames
+        csv_file = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
+        df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+        frames = np.array(df.index)
+        vids = np.unique([f.split('/')[1] for f in frames])
+        for vid in vids:
+            frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
+            save_dir = os.path.join(
+                self.abspath(self.proj_dir), LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
+            np.savetxt(
+                save_dir,
+                np.sort(frames_to_label),
+                delimiter=",",
+                fmt="%s"
+            )
+
         # update config file with frame shapes
         self._update_frame_shapes()
 
         # push files to FileSystem
         self._put_to_drive_remove_local(self.proj_dir)
+
+        # update counter
+        self.count_upload_existing += 1
 
     def run(self, action, **kwargs):
 
@@ -439,7 +472,7 @@ def _render_streamlit_fn(state: AppState):
     st.text(f"Available projects: {state.initialized_projects}")
 
     st_project_name = st.text_input(
-        "Enter project name",
+        "Enter project name (must be at least 3 characters)",
         value="" if not state.st_project_loaded else state.st_project_name)
 
     # ----------------------------------------------------

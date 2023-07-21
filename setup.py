@@ -10,6 +10,7 @@ with open("README.md", "r") as fh:
 
 install_requires = [
     "opencv-python",
+    "pandas",
     "scikit-learn",
     "streamlit",
     "streamlit-ace",
