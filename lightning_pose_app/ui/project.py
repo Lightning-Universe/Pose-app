@@ -20,7 +20,7 @@ from lightning_pose_app import (
     LABELSTUDIO_METADATA_FILENAME,
     SELECTED_FRAMES_FILENAME,
 )
-from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
 
 
 class ProjectUI(LightningFlow):
@@ -320,7 +320,17 @@ class ProjectUI(LightningFlow):
             unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
             z.extractall(path=os.path.dirname(self.st_upload_existing_project_zippath))
 
-        # copy files over
+        def contains_videos(file_or_dir):
+            if os.path.isfile(file_or_dir):
+                return False
+            else:
+                files_or_dirs = os.listdir(file_or_dir)
+                if any([f.endswith(".avi") or f.endswith(".mp4") for f in files_or_dirs]):
+                    return True
+                else:
+                    return False
+
+        # copy files over; not great that this is in a Flow, might take time
         if self.st_existing_project_format == "Lightning Pose":
             files_and_dirs = os.listdir(unzipped_dir)
             for file_or_dir in files_and_dirs:
@@ -329,8 +339,33 @@ class ProjectUI(LightningFlow):
                     # copy labels csv file
                     dst = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
                     shutil.copyfile(src, dst)
+                elif contains_videos(src):
+                    # copy videos over, make sure they are in proper format
+                    os.makedirs(
+                        os.path.join(self.abspath(self.proj_dir), file_or_dir), exist_ok=True)
+                    video_dir_contents = os.listdir(src)
+                    for f_or_d in video_dir_contents:
+                        src2 = os.path.join(src, f_or_d)
+                        if os.path.isdir(src2):
+                            # don't copy subdirectories in video directory
+                            continue
+                        else:
+                            dst = os.path.join(self.abspath(self.proj_dir), file_or_dir, f_or_d)
+                            if src2.endswith(".mp4") or src2.endswith(".avi"):
+                                video_file_correct_codec = check_codec_format(src2)
+                                if not video_file_correct_codec:
+                                    print(
+                                        "re-encoding video to be compatable with Lightning Pose "
+                                        "video reader")
+                                    reencode_video(src2, dst.replace(".avi", ".mp4"))
+                                else:
+                                    # copy already-formatted video
+                                    shutil.copyfile(src2, dst)
+                            else:
+                                # copy non-videos
+                                shutil.copyfile(src2, dst)
                 else:
-                    # copy video data or other files
+                    # copy other files
                     dst = os.path.join(self.abspath(self.proj_dir), file_or_dir)
                     if os.path.isdir(src):
                         shutil.copytree(src, dst)
@@ -340,7 +375,7 @@ class ProjectUI(LightningFlow):
         elif self.st_existing_project_format == "DLC":
             raise NotImplementedError
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
 
         # create 'selected_frames.csv' file for each video subdirectory
         # this is required to import frames into label studio, so that we don't confuse context

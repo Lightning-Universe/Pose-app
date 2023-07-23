@@ -52,7 +52,7 @@ class LitPoseApp(LightningFlow):
         )
 
         # training tab (flow + work)
-        self.train_ui = TrainUI()
+        self.train_ui = TrainUI(allow_context=False)  # demo dataset is not proper context dataset
         self.train_ui.n_labeled_frames = 90  # hard-code these values for now
         self.train_ui.n_total_frames = 90
 
@@ -223,7 +223,6 @@ class LitPoseApp(LightningFlow):
                 video_dirname="unlabeled_videos",
                 labeled_data_dirname="barObstacleScaling1",
                 csv_filename="CollectedData_.csv",
-                context_model=False,  # our demo dataset is not a proper context dataset
             )
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
