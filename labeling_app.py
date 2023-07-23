@@ -20,6 +20,7 @@ from lightning_pose_app.build_configs import lightning_pose_dir
 
 # TODO
 # - update label studio xml and CollectedData.csv when user inputs new keypoint in project ui
+# - import previous projects: DLC
 
 
 class LitPoseApp(LightningFlow):
@@ -44,7 +45,7 @@ class LitPoseApp(LightningFlow):
         self.project_ui = ProjectUI(
             data_dir=self.data_dir,
             default_config_dict=default_config_dict,
-            debug=True,  # if True, hard-code project details like n_views, keypoint_names, etc.
+            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
         )
 
         # extract frames tab (flow + work)
@@ -95,6 +96,11 @@ class LitPoseApp(LightningFlow):
                         action="create_labeling_config_xml",
                         keypoints=self.project_ui.st_keypoints)
                     self.label_studio.run(action="create_new_project")
+                    # import existing project in another format
+                    if self.project_ui.st_upload_existing_project:
+                        self.project_ui.run(action="upload_existing_project")
+                        self.label_studio.run(action="import_existing_annotations")
+                        self.project_ui.st_upload_existing_project = False
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False

@@ -451,7 +451,7 @@ class LitPose(WorkWithFileSystem):
 class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, allow_context=True, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -473,6 +473,7 @@ class TrainUI(LightningFlow):
             cloud_compute=CloudCompute("gpu"),
             cloud_build_config=LitPoseBuildConfig(),
         )
+        self.allow_context = allow_context  # hack; force this to be False for demo dataset
 
         # flag; used internally and externally
         self.run_script_train = False
@@ -523,7 +524,6 @@ class TrainUI(LightningFlow):
         video_dirname=VIDEOS_DIR,
         labeled_data_dirname=LABELED_DATA_DIR,
         csv_filename=COLLECTED_DATA_FILENAME,
-        context_model=True,
     ):
 
         if config_filename is None:
@@ -542,8 +542,8 @@ class TrainUI(LightningFlow):
                 "predict_vids_after_training": True,
             },
             "model": {
-                "model_type": "heatmap_mhcrnn" if context_model else "heatmap",
-                "do_context": True if context_model else False,
+                "model_type": "heatmap",
+                "do_context": False,
             },
             "training": {
                 "imgaug": "dlc",
@@ -560,12 +560,15 @@ class TrainUI(LightningFlow):
         ]
 
         # train models
-        for m in ["super", "semisuper"]:
+        for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
             status = self.st_train_status[m]
             if status == "initialized" or status == "active":
                 self.st_train_status[m] = "active"
                 outputs = [os.path.join(model_dir, self.st_datetimes[m])]
                 cfg_overrides["model"]["losses_to_use"] = self.st_losses[m]
+                if m.find("ctx") > -1:
+                    cfg_overrides["model"]["model_type"] = "heatmap_mhcrnn"
+                    cfg_overrides["model"]["do_context"] = True
                 self.work.run(
                     action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
                     results_dir=os.path.join(base_dir, MODELS_DIR, self.st_datetimes[m])
@@ -658,7 +661,7 @@ def _render_streamlit_fn(state: AppState):
 
     # add a sidebar to show the labeling progress
     # Calculate percentage of frames labeled
-    if state.n_total_frames == 0:
+    if state.n_total_frames == 0 or state.n_total_frames is None:
         labeling_progress = 0.0
     else:
         labeling_progress = state.n_labeled_frames / state.n_total_frames
@@ -708,12 +711,18 @@ def _render_streamlit_fn(state: AppState):
         )
         st_train_super = st.checkbox("Supervised", value=True)
         st_train_semisuper = st.checkbox("Semi-supervised", value=True)
+        if state.allow_context:
+            st_train_super_ctx = st.checkbox("Supervised context", value=True)
+            st_train_semisuper_ctx = st.checkbox("Semi-supervised context", value=True)
+        else:
+            st_train_super_ctx = False
+            st_train_semisuper_ctx = False
 
         st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
 
         # give user training updates
         if state.run_script_train:
-            for m in ["super", "semisuper"]:
+            for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
                 if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
                     status = state.st_train_status[m]
                     if status == "initialized":
@@ -727,7 +736,8 @@ def _render_streamlit_fn(state: AppState):
                     st.progress(p / 100.0, f"{m} progress ({status}: {int(p)}\% complete)")
 
         if st_submit_button_train:
-            if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) and st_train_semisuper:
+            if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) \
+                    and (st_train_semisuper or st_train_semisuper_ctx):
                 st.warning("Must select at least one semi-supervised loss if training that model")
                 st_submit_button_train = False
 
@@ -746,6 +756,8 @@ def _render_streamlit_fn(state: AppState):
             state.st_train_status = {
                 "super": "initialized" if st_train_super else "none", 
                 "semisuper": "initialized" if st_train_semisuper else "none",
+                "super ctx": "initialized" if st_train_super_ctx else "none",
+                "semisuper ctx": "initialized" if st_train_semisuper_ctx else "none",
             }
 
             # construct semi-supervised loss list
@@ -756,17 +768,28 @@ def _render_streamlit_fn(state: AppState):
                 semi_losses.append("pca_singleview")
             if st_loss_temp:
                 semi_losses.append("temporal")
-            state.st_losses = {"super": [], "semisuper": semi_losses}
+            state.st_losses = {
+                "super": [],
+                "semisuper": semi_losses,
+                "super ctx": [],
+                "semisuper ctx": semi_losses,
+            }
 
             # set model times
             st_datetimes = {}
-            for i in range(2):
+            for i in range(4):
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
                 if i == 0:  # supervised model
                     st_datetimes["super"] = dtime
                     time.sleep(1)  # allow date/time to update
                 if i == 1:  # semi-supervised model
                     st_datetimes["semisuper"] = dtime
+                    time.sleep(1)
+                if i == 2:  # supervised context model
+                    st_datetimes["super ctx"] = dtime
+                    time.sleep(1)
+                if i == 3:  # semi-supervised context model
+                    st_datetimes["semisuper ctx"] = dtime
 
             # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
             state.st_datetimes = st_datetimes

@@ -6,15 +6,21 @@ from lightning.app.utilities.state import AppState
 import math
 import numpy as np
 import os
+import pandas as pd
 import shutil
 from streamlit_autorefresh import st_autorefresh
 import time
 import streamlit as st
 import yaml
+import zipfile
 
 from lightning_pose_app import LABELSTUDIO_DB_DIR, LABELED_DATA_DIR, VIDEOS_DIR, MODELS_DIR
-from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, COLLECTED_DATA_FILENAME
-from lightning_pose_app.utilities import StreamlitFrontend
+from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
+    LABELSTUDIO_METADATA_FILENAME,
+    SELECTED_FRAMES_FILENAME,
+)
+from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
 
 
 class ProjectUI(LightningFlow):
@@ -59,10 +65,16 @@ class ProjectUI(LightningFlow):
         self.run_script = False
         self.update_models = False
         self.count = 0  # counter for external app
+        self.count_upload_existing = 0
         self.st_submits = 0  # counter for this streamlit app
         self.initialized_projects = []
         self.st_project_name = None
         self.st_create_new_project = False
+        self.st_upload_existing_project = False
+        self.st_existing_project_format = None
+        self.st_upload_existing_project_zippath = None
+        self.st_error_flag = False
+        self.st_error_msg = ""
         self.st_project_loaded = False
         self.st_new_vals = None
 
@@ -78,7 +90,10 @@ class ProjectUI(LightningFlow):
 
     @property
     def st_keypoints(self):
-        return np.unique(self.st_keypoints_).tolist()
+        if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
+            return self.st_keypoints_
+        else:
+            return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
 
     def _get_from_drive_if_not_local(self, file_or_dir):
 
@@ -202,7 +217,7 @@ class ProjectUI(LightningFlow):
         self.config_dict = config_dict
 
         # push data to drive and clean up local file
-        self._put_to_drive_remove_local(self.config_file)
+        self._put_to_drive_remove_local(self.config_file, remove_local=False)
 
     def _update_frame_shapes(self):
 
@@ -225,8 +240,8 @@ class ProjectUI(LightningFlow):
                         "width": image.width
                     },
                     "image_resize_dims": {
-                        "height": 2 ** (math.floor(math.log(image.height, 2))),
-                        "width": 2 ** (math.floor(math.log(image.width, 2))),
+                        "height": max(2 ** (math.floor(math.log(image.height, 2))), 128),
+                        "width": max(2 ** (math.floor(math.log(image.width, 2))), 128),
                     }
                 }
             })
@@ -288,6 +303,107 @@ class ProjectUI(LightningFlow):
                     trained_models.append('/'.join(dir_time.split('/')[-2:]))
             self.trained_models = trained_models
 
+    def _upload_existing_project(self, **kwargs):
+
+        # only run once
+        if self.count_upload_existing > 0:
+            return
+
+        # extract all files to tmp directory
+        if not os.path.exists(self.st_upload_existing_project_zippath):
+            print(
+                f"Could not find zipped project file at {self.st_upload_existing_project_zippath};"
+                f"aborting"
+            )
+            return
+        with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
+            unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
+            z.extractall(path=os.path.dirname(self.st_upload_existing_project_zippath))
+
+        def contains_videos(file_or_dir):
+            if os.path.isfile(file_or_dir):
+                return False
+            else:
+                files_or_dirs = os.listdir(file_or_dir)
+                if any([f.endswith(".avi") or f.endswith(".mp4") for f in files_or_dirs]):
+                    return True
+                else:
+                    return False
+
+        # copy files over; not great that this is in a Flow, might take time
+        if self.st_existing_project_format == "Lightning Pose":
+            files_and_dirs = os.listdir(unzipped_dir)
+            for file_or_dir in files_and_dirs:
+                src = os.path.join(unzipped_dir, file_or_dir)
+                if file_or_dir.endswith(".csv"):
+                    # copy labels csv file
+                    dst = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
+                    shutil.copyfile(src, dst)
+                elif contains_videos(src):
+                    # copy videos over, make sure they are in proper format
+                    os.makedirs(
+                        os.path.join(self.abspath(self.proj_dir), file_or_dir), exist_ok=True)
+                    video_dir_contents = os.listdir(src)
+                    for f_or_d in video_dir_contents:
+                        src2 = os.path.join(src, f_or_d)
+                        if os.path.isdir(src2):
+                            # don't copy subdirectories in video directory
+                            continue
+                        else:
+                            dst = os.path.join(self.abspath(self.proj_dir), file_or_dir, f_or_d)
+                            if src2.endswith(".mp4") or src2.endswith(".avi"):
+                                video_file_correct_codec = check_codec_format(src2)
+                                if not video_file_correct_codec:
+                                    print(
+                                        "re-encoding video to be compatable with Lightning Pose "
+                                        "video reader")
+                                    reencode_video(src2, dst.replace(".avi", ".mp4"))
+                                else:
+                                    # copy already-formatted video
+                                    shutil.copyfile(src2, dst)
+                            else:
+                                # copy non-videos
+                                shutil.copyfile(src2, dst)
+                else:
+                    # copy other files
+                    dst = os.path.join(self.abspath(self.proj_dir), file_or_dir)
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copyfile(src, dst)
+
+        elif self.st_existing_project_format == "DLC":
+            raise NotImplementedError
+        else:
+            raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
+
+        # create 'selected_frames.csv' file for each video subdirectory
+        # this is required to import frames into label studio, so that we don't confuse context
+        # frames with labeled frames
+        csv_file = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
+        df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+        frames = np.array(df.index)
+        vids = np.unique([f.split('/')[1] for f in frames])
+        for vid in vids:
+            frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
+            save_dir = os.path.join(
+                self.abspath(self.proj_dir), LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
+            np.savetxt(
+                save_dir,
+                np.sort(frames_to_label),
+                delimiter=",",
+                fmt="%s"
+            )
+
+        # update config file with frame shapes
+        self._update_frame_shapes()
+
+        # push files to FileSystem
+        self._put_to_drive_remove_local(self.proj_dir)
+
+        # update counter
+        self.count_upload_existing += 1
+
     def run(self, action, **kwargs):
 
         if action == "find_initialized_projects":
@@ -306,9 +422,67 @@ class ProjectUI(LightningFlow):
             self._update_trained_models_list(**kwargs)
         elif action == "put_file_to_drive":
             self._put_to_drive_remove_local(**kwargs)
+        elif action == "upload_existing_project":
+            self._upload_existing_project(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
+
+
+def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose") -> list:
+    if project_type not in ["DLC", "Lightning Pose"]:
+        raise NotImplementedError
+    keypoints = []
+    with zipfile.ZipFile(filepath) as z:
+        for filename in z.namelist():
+            if project_type in ["DLC", "Lightning Pose"]:
+                if filename.endswith('.csv'):
+                    with z.open(filename) as f:
+                        for idx, line in enumerate(f):
+                            if idx == 1:
+                                header = line.decode('utf-8').split(',')
+                                if len(header) % 2 == 0:
+                                    # new DLC format
+                                    keypoints = header[2::2]
+                                else:
+                                    # LP/old DLC format
+                                    keypoints = header[1::2]
+                                break
+            if len(keypoints) > 0:
+                break
+    return keypoints
+
+
+def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
+    if project_type not in ["DLC", "Lightning Pose"]:
+        raise NotImplementedError
+
+    error_flag = False
+    error_msg = ""
+    with zipfile.ZipFile(filepath) as z:
+        zipname = os.path.basename(filepath).replace(".zip", "")
+        files = z.namelist()
+        if project_type == "Lightning Pose":
+            if os.path.join(zipname, LABELED_DATA_DIR, "") not in files:
+                error_flag = True
+                error_msg += """
+                    ERROR: Your directory of labeled frames must be named "labeled-data"
+                    If you change this directory name, make sure to update the filepaths in the
+                    labeled data csv file as well!
+                    <br /><br />
+                """
+            if os.path.join(zipname, VIDEOS_DIR, "") not in files:
+                error_flag = True
+                error_msg += """
+                    ERROR: Your directory of videos must be named "videos" (can be empty)
+                    <br /><br />
+                """
+        else:
+            raise NotImplementedError
+
+    proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
+
+    return error_flag, proceed_fmt % error_msg
 
 
 def _render_streamlit_fn(state: AppState):
@@ -319,17 +493,21 @@ def _render_streamlit_fn(state: AppState):
 
     st.markdown(""" ## Manage Lightning Pose project """)
 
+    CREATE_STR = "Create new project"
+    UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
+    LOAD_STR = "Load existing project"
+
     st_mode = st.radio(
         "",
-        options=["Create new project", "Load existing project"],
+        options=[CREATE_STR, UPLOAD_STR, LOAD_STR],
         disabled=state.st_project_loaded,
-        index=1 if (state.st_project_loaded and not state.st_create_new_project) else 0,
+        index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
     )
 
     st.text(f"Available projects: {state.initialized_projects}")
 
     st_project_name = st.text_input(
-        "Enter project name",
+        "Enter project name (must be at least 3 characters)",
         value="" if not state.st_project_loaded else state.st_project_name)
 
     # ----------------------------------------------------
@@ -375,7 +553,7 @@ def _render_streamlit_fn(state: AppState):
                         state.st_submits += 1  # prevent this block from running again
                         time.sleep(2)  # allow main event loop to catch up
                         st.experimental_rerun()  # update everything
-        elif st_mode == "Create new project":
+        elif st_mode == CREATE_STR or st_mode == UPLOAD_STR:
             if state.st_project_loaded:
                 # when coming back to tab from another
                 enter_data = True
@@ -391,11 +569,54 @@ def _render_streamlit_fn(state: AppState):
             else:
                 # catch remaining errors
                 enter_data = False
+
+            if st_mode == UPLOAD_STR:
+                state.st_upload_existing_project = True
+                enter_data = False
+
         else:
             # catch remaining errors
             enter_data = False
     else:
         # cannot enter data until project name has been entered
+        enter_data = False
+
+    # ----------------------------------------------------
+    # upload existing project
+    # ----------------------------------------------------
+    # initialize the file uploader
+    if st_project_name and st_mode == UPLOAD_STR:
+
+        st_prev_format = st.radio(
+            "Uploaded project format",
+            options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
+        )
+        state.st_existing_project_format = st_prev_format
+
+        uploaded_file = st.file_uploader(
+            "Upload project in .zip file", type="zip", accept_multiple_files=False)
+        if uploaded_file is not None:
+            # read it
+            bytes_data = uploaded_file.read()
+            # name it
+            filename = uploaded_file.name.replace(" ", "_")
+            filepath = os.path.join(os.getcwd(), "data", filename)
+            # write the content of the file to the path if it doesn't already exist
+            if not os.path.exists(filepath):
+                with open(filepath, "wb") as f:
+                    f.write(bytes_data)
+            # check files
+            state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
+                filepath, project_type=st_prev_format)
+            # grab keypoint names
+            st_keypoints = get_keypoints_from_zipfile(filepath, project_type=st_prev_format)
+            # update relevant vars
+            state.st_upload_existing_project_zippath = filepath
+            enter_data = True
+            st_mode = CREATE_STR
+
+    if state.st_error_flag:
+        st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
 
     # ----------------------------------------------------
@@ -406,7 +627,10 @@ def _render_streamlit_fn(state: AppState):
     # - used as field defaults below
     # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
     st_n_views = state.st_n_views
-    st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+    if not state.st_upload_existing_project:
+        st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+        # if we are uploading existing project, we don't want to sort via np.unique, need to keep
+        # keypoints in the correct order
     st_n_keypoints = state.st_n_keypoints
     st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
     st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
@@ -458,10 +682,16 @@ def _render_streamlit_fn(state: AppState):
                 views, such as the keypoint `corner1_top` above.
             """
             st.markdown(keypoint_instructions)
+            if state.st_upload_existing_project:
+                value = "\n".join(st_keypoints)
+            elif not state.st_project_loaded:
+                value = ""
+            else:
+                value = "\n".join(st_keypoints)
             keypoints = st.text_area(
                 "Enter keypoint names (one per line, determines labeling order):",
                 disabled=not enter_data,
-                value="" if not state.st_project_loaded else "\n".join(st_keypoints),
+                value=value,
             )
             st_keypoints = keypoints.strip().split("\n")
             if len(st_keypoints) == 1 and st_keypoints[0] == "":
@@ -537,7 +767,7 @@ def _render_streamlit_fn(state: AppState):
 
         # construct config file
         if (st_n_keypoints > 1 and st_n_views > 1 and st_n_bodyparts > 0) \
-                or (st_n_keypoints > 1 and st_n_views == 1):
+                or (st_n_keypoints > 0 and st_n_views == 1):
             pcamv_ready = True
         else:
             pcamv_ready = False
@@ -546,7 +776,7 @@ def _render_streamlit_fn(state: AppState):
     # export data
     # ----------------------------------------------------
 
-    if st_n_keypoints > 1 and st_n_views > 0 and pcamv_ready:
+    if st_n_keypoints > 0 and st_n_views > 0 and pcamv_ready:
 
         st.markdown("")
         st.markdown("")

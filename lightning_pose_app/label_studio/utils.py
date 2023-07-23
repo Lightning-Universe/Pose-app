@@ -119,8 +119,8 @@ class LabelStudioJSONProcessor:
             # we need these to resize images
             return None
 
-        value: Dict[str, Any] = result[
-            'value']  # includes the keypoint name and x,y values, relative to the image size
+        # includes the keypoint name and x,y values, relative to the image size
+        value: Dict[str, Any] = result['value']
         width, height = result['original_width'], result['original_height']
 
         if all([key in value for key in ['x', 'y']]):  # if both x and y are in the dict
