@@ -39,9 +39,9 @@ def get_annotation(
         if not isnan:
             kp_dict = {
                 "value": {
-                    "x": x_val,
-                    "y": y_val,
-                    "width": 0.5,
+                    "x": x_val / dims["width"] * 100.0,  # percentage of image width
+                    "y": y_val / dims["height"] * 100.0,  # percentage of image height
+                    "width": 0.5,  # point size by percentage of image size
                     "keypointlabels": [keypoint],
                 },
                 "original_width": dims["width"],
