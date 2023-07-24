@@ -24,6 +24,15 @@ from lightning_pose_app.build_configs import TensorboardBuildConfig, LitPoseBuil
 from lightning_pose_app.build_configs import lightning_pose_dir
 
 
+# TODO
+# - ProjectUI._put_to_drive_remove_local does NOT overwrite dirs already on FileSystem - ok?
+# - launch training in parallel (get this working with `extract_frames` standalone app first)
+# - update label studio xml and CollectedData.csv when user inputs new keypoint in project ui
+# - import previous projects
+#   * should this be done with a Work, and a frame upload status bar?
+#   * automatically create context datasets
+
+
 class LitPoseApp(LightningFlow):
 
     def __init__(self):

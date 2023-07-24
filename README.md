@@ -133,3 +133,14 @@ Set the following environment variable (in units of MB);
 ```bash
 lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 ```
+* **What if I encounter a CUDA out of memory error?** 
+We recommend a GPU with at least 8GB of memory. 
+Note that both semi-supervised and context models will increase memory usage (with semi-supervised 
+context models needing the most memory).
+If you encounter this error, reduce batch sizes during training or inference.
+This feature is currently not supported in the app, so you will need to manually open the config
+file, located at `Pose-app/.shared/data/<proj_name>/model_config_<proj_name>.yaml`, update bactch
+sizes, save the file, then close. 
+We also recommend restarting the app after config updates.
+You can find the relevant parameters to adjust 
+[here](https://github.com/danbider/lightning-pose/blob/main/docs/config.md). 
