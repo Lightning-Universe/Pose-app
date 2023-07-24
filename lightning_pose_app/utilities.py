@@ -1,10 +1,13 @@
 import cv2
+import glob
 from lightning import LightningWork
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 from lightning.app.storage import FileSystem
 import numpy as np
 import os
+import pandas as pd
 import shlex
+import shutil
 import subprocess
 
 
@@ -109,7 +112,7 @@ def reencode_video(input_file: str, output_file: str) -> None:
     subprocess.run(ffmpeg_cmd, shell=True)
 
 
-def check_codec_format(input_file: str):
+def check_codec_format(input_file: str) -> bool:
     """Run FFprobe command to get video codec and pixel format."""
 
     ffmpeg_cmd = f'ffmpeg -i {input_file}'
@@ -127,7 +130,32 @@ def check_codec_format(input_file: str):
     return is_codec
 
 
-def get_frames_from_idxs(cap, idxs):
+def copy_and_reformat_video_directory(src_dir: str, dst_dir: str) -> None:
+    """Copy a directory of videos, reencoding to be DALI compatible if necessary."""
+
+    os.makedirs(dst_dir, exist_ok=True)
+    video_dir_contents = os.listdir(src_dir)
+    for file_or_dir in video_dir_contents:
+        src = os.path.join(src_dir, file_or_dir)
+        dst = os.path.join(dst_dir, file_or_dir)
+        if os.path.isdir(src):
+            # don't copy subdirectories in video directory
+            continue
+        else:
+            if src.endswith(".mp4") or src.endswith(".avi"):
+                video_file_correct_codec = check_codec_format(src)
+                if not video_file_correct_codec:
+                    print(f"re-encoding {src} to be compatable with Lightning Pose video reader")
+                    reencode_video(src, dst.replace(".avi", ".mp4"))
+                else:
+                    # copy already-formatted video
+                    shutil.copyfile(src, dst)
+            else:
+                # copy non-video files
+                shutil.copyfile(src, dst)
+
+
+def get_frames_from_idxs(cap, idxs) -> np.ndarray:
     """Helper function to load video segments.
 
     Parameters
@@ -160,3 +188,53 @@ def get_frames_from_idxs(cap, idxs):
             )
             break
     return frames
+
+
+def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
+    """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
+
+    dirs = os.listdir(os.path.join(dlc_dir, "labeled-data"))
+    dirs.sort()
+    dfs = []
+    for d in dirs:
+        try:
+            csv_file = glob.glob(os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.csv"))[0]
+            df_tmp = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+            if len(df_tmp.index.unique()) != df_tmp.shape[0]:
+                # new DLC labeling scheme that splits video/image in different cells
+                vids = df_tmp.loc[
+                       :, ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")]
+                imgs = df_tmp.loc[
+                       :, ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")]
+                new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
+                df_tmp1 = df_tmp.drop(
+                    ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2"), axis=1,
+                )
+                df_tmp2 = df_tmp1.drop(
+                    ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2"), axis=1,
+                )
+                df_tmp2.index = new_col
+                df_tmp = df_tmp2
+        except IndexError:
+            try:
+                h5_file = glob.glob(
+                    os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
+                )[0]
+                df_tmp = pd.read_hdf(h5_file)
+                if type(df_tmp.index) == pd.core.indexes.multi.MultiIndex:
+                    # new DLC labeling scheme that splits video/image in different cells
+                    imgs = [i[2] for i in df_tmp.index]
+                    vids = [df_tmp.index[0][1] for _ in imgs]
+                    new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
+                    df_tmp1 = df_tmp.reset_index().drop(
+                        columns="level_0").drop(columns="level_1").drop(columns="level_2")
+                    df_tmp1.index = new_col
+                    df_tmp = df_tmp1
+            except IndexError:
+                print(f"Could not find labels for {d}; skipping")
+                continue
+
+        dfs.append(df_tmp)
+    df_all = pd.concat(dfs)
+
+    return df_all
