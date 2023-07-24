@@ -18,11 +18,6 @@ from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.build_configs import lightning_pose_dir
 
 
-# TODO
-# - update label studio xml and CollectedData.csv when user inputs new keypoint in project ui
-# - import previous projects: DLC
-
-
 class LitPoseApp(LightningFlow):
 
     def __init__(self):

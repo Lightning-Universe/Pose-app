@@ -14,13 +14,20 @@ import streamlit as st
 import yaml
 import zipfile
 
-from lightning_pose_app import LABELSTUDIO_DB_DIR, LABELED_DATA_DIR, VIDEOS_DIR, MODELS_DIR
 from lightning_pose_app import (
+    LABELSTUDIO_DB_DIR,
+    LABELED_DATA_DIR,
+    VIDEOS_DIR,
+    MODELS_DIR,
     COLLECTED_DATA_FILENAME,
     LABELSTUDIO_METADATA_FILENAME,
     SELECTED_FRAMES_FILENAME,
 )
-from lightning_pose_app.utilities import StreamlitFrontend, reencode_video, check_codec_format
+from lightning_pose_app.utilities import (
+    StreamlitFrontend,
+    collect_dlc_labels,
+    copy_and_reformat_video_directory,
+)
 
 
 class ProjectUI(LightningFlow):
@@ -313,7 +320,7 @@ class ProjectUI(LightningFlow):
         if not os.path.exists(self.st_upload_existing_project_zippath):
             print(
                 f"Could not find zipped project file at {self.st_upload_existing_project_zippath};"
-                f"aborting"
+                f" aborting"
             )
             return
         with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
@@ -330,6 +337,8 @@ class ProjectUI(LightningFlow):
                 else:
                     return False
 
+        proj_dir_abs = self.abspath(self.proj_dir)
+
         # copy files over; not great that this is in a Flow, might take time
         if self.st_existing_project_format == "Lightning Pose":
             files_and_dirs = os.listdir(unzipped_dir)
@@ -337,43 +346,38 @@ class ProjectUI(LightningFlow):
                 src = os.path.join(unzipped_dir, file_or_dir)
                 if file_or_dir.endswith(".csv"):
                     # copy labels csv file
-                    dst = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
+                    dst = os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME)
                     shutil.copyfile(src, dst)
                 elif contains_videos(src):
                     # copy videos over, make sure they are in proper format
-                    os.makedirs(
-                        os.path.join(self.abspath(self.proj_dir), file_or_dir), exist_ok=True)
-                    video_dir_contents = os.listdir(src)
-                    for f_or_d in video_dir_contents:
-                        src2 = os.path.join(src, f_or_d)
-                        if os.path.isdir(src2):
-                            # don't copy subdirectories in video directory
-                            continue
-                        else:
-                            dst = os.path.join(self.abspath(self.proj_dir), file_or_dir, f_or_d)
-                            if src2.endswith(".mp4") or src2.endswith(".avi"):
-                                video_file_correct_codec = check_codec_format(src2)
-                                if not video_file_correct_codec:
-                                    print(
-                                        "re-encoding video to be compatable with Lightning Pose "
-                                        "video reader")
-                                    reencode_video(src2, dst.replace(".avi", ".mp4"))
-                                else:
-                                    # copy already-formatted video
-                                    shutil.copyfile(src2, dst)
-                            else:
-                                # copy non-videos
-                                shutil.copyfile(src2, dst)
+                    dst_dir = os.path.join(proj_dir_abs, file_or_dir)
+                    copy_and_reformat_videos(src_dir=src, dst_dir=dst_dir)
                 else:
                     # copy other files
-                    dst = os.path.join(self.abspath(self.proj_dir), file_or_dir)
+                    dst = os.path.join(proj_dir_abs, file_or_dir)
                     if os.path.isdir(src):
                         shutil.copytree(src, dst)
                     else:
                         shutil.copyfile(src, dst)
 
         elif self.st_existing_project_format == "DLC":
-            raise NotImplementedError
+
+            # copy files
+            files_and_dirs = os.listdir(unzipped_dir)
+            req_dlc_dirs = ["labeled-data", "videos"]
+            for d in req_dlc_dirs:
+                assert d in files_and_dirs, f"zipped DLC directory must include folder named {d}"
+                src = os.path.join(unzipped_dir, d)
+                dst = os.path.join(proj_dir_abs, d)
+                if d == "labeled-data":
+                    shutil.copytree(src, dst)
+                else:
+                    copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
+
+            # create single csv file of labels out of video-specific label files
+            df_all = collect_dlc_labels(proj_dir_abs)
+            df_all.to_csv(os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME))
+
         else:
             raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
 
@@ -462,19 +466,19 @@ def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") 
     with zipfile.ZipFile(filepath) as z:
         zipname = os.path.basename(filepath).replace(".zip", "")
         files = z.namelist()
-        if project_type == "Lightning Pose":
+        if project_type == "Lightning Pose" or project_type == "DLC":
             if os.path.join(zipname, LABELED_DATA_DIR, "") not in files:
                 error_flag = True
-                error_msg += """
-                    ERROR: Your directory of labeled frames must be named "labeled-data"
+                error_msg += f"""
+                    ERROR: Your directory of labeled frames must be named "{LABELED_DATA_DIR}"
                     If you change this directory name, make sure to update the filepaths in the
                     labeled data csv file as well!
                     <br /><br />
                 """
             if os.path.join(zipname, VIDEOS_DIR, "") not in files:
                 error_flag = True
-                error_msg += """
-                    ERROR: Your directory of videos must be named "videos" (can be empty)
+                error_msg += f"""
+                    ERROR: Your directory of videos must be named "{VIDEOS_DIR}" (can be empty)
                     <br /><br />
                 """
         else:
@@ -599,7 +603,7 @@ def _render_streamlit_fn(state: AppState):
             # read it
             bytes_data = uploaded_file.read()
             # name it
-            filename = uploaded_file.name.replace(" ", "_")
+            filename = uploaded_file.name
             filepath = os.path.join(os.getcwd(), "data", filename)
             # write the content of the file to the path if it doesn't already exist
             if not os.path.exists(filepath):

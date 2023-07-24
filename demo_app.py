@@ -21,11 +21,6 @@ from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
 
 
-# TODO
-# - ProjectDataIO._put_to_drive_remove_local does NOT overwrite directories already on Drive - bad!
-# - launch training in parallel (get this working with `extract_frames` standalone app first)
-
-
 class LitPoseApp(LightningFlow):
 
     def __init__(self):
