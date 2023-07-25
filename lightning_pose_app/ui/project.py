@@ -252,9 +252,9 @@ class ProjectUI(LightningFlow):
                         "height": image.height,
                         "width": image.width
                     },
-                    "image_resize_dims": {
-                        "height": max(2 ** (math.floor(math.log(image.height, 2))), 128),
-                        "width": max(2 ** (math.floor(math.log(image.width, 2))), 128),
+                    "image_resize_dims": {  # automatically scale between 128 and 256 for now
+                        "height": min(max(2 ** (math.floor(math.log(image.height, 2))), 128), 256),
+                        "width": min(max(2 ** (math.floor(math.log(image.width, 2))), 128), 256),
                     }
                 }
             })
