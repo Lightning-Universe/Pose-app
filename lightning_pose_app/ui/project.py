@@ -102,6 +102,10 @@ class ProjectUI(LightningFlow):
         else:
             return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
 
+    @property
+    def proj_dir_abs(self):
+        return self.abspath(self.proj_dir)
+
     def _get_from_drive_if_not_local(self, file_or_dir):
 
         if not os.path.exists(self.abspath(file_or_dir)):
@@ -216,8 +220,8 @@ class ProjectUI(LightningFlow):
                     else:
                         config_dict[sconfig_name][key] = val
             # save out updated config file locally
-            if not os.path.exists(self.abspath(self.proj_dir)):
-                os.makedirs(self.abspath(self.proj_dir))
+            if not os.path.exists(self.proj_dir_abs):
+                os.makedirs(self.proj_dir_abs)
             yaml.dump(config_dict, open(self.abspath(self.config_file), "w"))
 
         # save current params
@@ -236,7 +240,9 @@ class ProjectUI(LightningFlow):
         self._get_from_drive_if_not_local(labeled_data_dir)
 
         # load single frame from labeled data
-        imgs = glob.glob(os.path.join(self.abspath(self.proj_dir), LABELED_DATA_DIR, "*", "*.png"))
+        imgs = glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.png")) \
+                   + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpg")) \
+                   + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
@@ -253,7 +259,7 @@ class ProjectUI(LightningFlow):
                 }
             })
         else:
-            print(glob.glob(os.path.join(self.abspath(self.proj_dir), LABELED_DATA_DIR, "*")))
+            print(glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*")))
             print("did not find labeled data directory in FileSystem")
 
     def _compute_labeled_frame_fraction(self, timer=0.0):
@@ -337,8 +343,6 @@ class ProjectUI(LightningFlow):
                 else:
                     return False
 
-        proj_dir_abs = self.abspath(self.proj_dir)
-
         # copy files over; not great that this is in a Flow, might take time
         if self.st_existing_project_format == "Lightning Pose":
             files_and_dirs = os.listdir(unzipped_dir)
@@ -346,15 +350,15 @@ class ProjectUI(LightningFlow):
                 src = os.path.join(unzipped_dir, file_or_dir)
                 if file_or_dir.endswith(".csv"):
                     # copy labels csv file
-                    dst = os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME)
+                    dst = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
                     shutil.copyfile(src, dst)
                 elif contains_videos(src):
                     # copy videos over, make sure they are in proper format
-                    dst_dir = os.path.join(proj_dir_abs, file_or_dir)
+                    dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
                     copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
                 else:
                     # copy other files
-                    dst = os.path.join(proj_dir_abs, file_or_dir)
+                    dst = os.path.join(self.proj_dir_abs, file_or_dir)
                     if os.path.isdir(src):
                         shutil.copytree(src, dst)
                     else:
@@ -368,15 +372,15 @@ class ProjectUI(LightningFlow):
             for d in req_dlc_dirs:
                 assert d in files_and_dirs, f"zipped DLC directory must include folder named {d}"
                 src = os.path.join(unzipped_dir, d)
-                dst = os.path.join(proj_dir_abs, d)
+                dst = os.path.join(self.proj_dir_abs, d)
                 if d == "labeled-data":
                     shutil.copytree(src, dst)
                 else:
                     copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
 
             # create single csv file of labels out of video-specific label files
-            df_all = collect_dlc_labels(proj_dir_abs)
-            df_all.to_csv(os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME))
+            df_all = collect_dlc_labels(self.proj_dir_abs)
+            df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
 
         else:
             raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
@@ -384,14 +388,14 @@ class ProjectUI(LightningFlow):
         # create 'selected_frames.csv' file for each video subdirectory
         # this is required to import frames into label studio, so that we don't confuse context
         # frames with labeled frames
-        csv_file = os.path.join(self.abspath(self.proj_dir), COLLECTED_DATA_FILENAME)
+        csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
         df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
         frames = np.array(df.index)
         vids = np.unique([f.split('/')[1] for f in frames])
         for vid in vids:
             frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
             save_dir = os.path.join(
-                self.abspath(self.proj_dir), LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
+                self.proj_dir_abs, LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
             np.savetxt(
                 save_dir,
                 np.sort(frames_to_label),
