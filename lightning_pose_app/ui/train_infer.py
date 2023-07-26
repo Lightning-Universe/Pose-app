@@ -540,6 +540,7 @@ class TrainUI(LightningFlow):
             "eval": {
                 "test_videos_directory": os.path.join(base_dir, video_dirname),
                 "predict_vids_after_training": True,
+                "save_vids_after_training": True,
             },
             "model": {
                 "model_type": "heatmap",
