@@ -24,6 +24,11 @@ from lightning_pose_app.utilities import reencode_video, check_codec_format
 
 st.set_page_config(layout="wide")
 
+# options for handling video labeling
+VIDEO_LABEL_NONE = "Do not run inference on videos after training"
+VIDEO_LABEL_INFER = "Run inference on videos"
+VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
+
 
 class TrainerProgress(Callback):
 
@@ -485,6 +490,7 @@ class TrainUI(LightningFlow):
         self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
         self.st_losses = {}
         self.st_datetimes = {}
+        self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
 
         # ------------------------
@@ -502,6 +508,7 @@ class TrainUI(LightningFlow):
         # output from the UI
         self.st_infer_status = {}  # 'initialized' | 'active' | 'complete'
         self.st_inference_model = None
+        self.st_infer_label_opt = None  # what to do with video evaluation
         self.st_inference_videos = []
 
     def _push_video(self, video_file):
@@ -530,9 +537,20 @@ class TrainUI(LightningFlow):
         if config_filename is None:
             print("ERROR: config_filename must be specified for training models")
 
-        # check to see if we're in demo mode or not
+        # set config overrides
         base_dir = os.path.join(os.getcwd(), self.proj_dir[1:])
         model_dir = os.path.join(self.proj_dir, MODELS_DIR)
+
+        if self.st_train_label_opt == VIDEO_LABEL_NONE:
+            predict_vids = False
+            save_vids = False
+        elif self.st_train_label_opt == VIDEO_LABEL_INFER:
+            predict_vids = True
+            save_vids = False
+        else:
+            predict_vids = True
+            save_vids = True
+
         cfg_overrides = {
             "data": {
                 "data_dir": base_dir,
@@ -540,10 +558,10 @@ class TrainUI(LightningFlow):
             },
             "eval": {
                 "test_videos_directory": os.path.join(base_dir, video_dirname),
-                "predict_vids_after_training": True,
-                "save_vids_after_training": True,
+                "predict_vids_after_training": predict_vids,
+                "save_vids_after_training": save_vids,
             },
-            "model": {
+            "model": {  # update these below if necessary
                 "model_type": "heatmap",
                 "do_context": False,
             },
@@ -733,30 +751,39 @@ def _render_streamlit_fn(state: AppState):
 
         st.markdown(
             """
-            #### Defaults
+            #### Training options
             """
         )
         expander = st.expander("Change Defaults")
 
         # max epochs
-        st_max_epochs = expander.text_input(
-            "Max training epochs (supervised and semi-supervised)",
-            value=300,
-        )
+        st_max_epochs = expander.text_input("Max training epochs (all models)", value=300)
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
-        pcamv = state.config_dict["data"]["mirrored_column_matches"]
+        pcamv = state.config_dict["data"].get("mirrored_column_matches", [])
         if len(pcamv) > 0:
             st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
         else:
             st_loss_pcamv = False
-        pcasv = state.config_dict["data"]["columns_for_singleview_pca"]
+        pcasv = state.config_dict["data"].get("columns_for_singleview_pca", [])
         if len(pcasv) > 0:
             st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
         else:
             st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)
+
+        st.markdown(
+            """
+            #### Video handling options
+            """
+        )
+        st_train_label_opt = st.radio(
+            "",
+            options=[VIDEO_LABEL_NONE, VIDEO_LABEL_INFER, VIDEO_LABEL_INFER_LABEL],
+            label_visibility="collapsed",
+            index=1,  # default to inference but no labeled movie
+        )
 
         st.markdown(
             """
@@ -807,6 +834,7 @@ def _render_streamlit_fn(state: AppState):
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
+            state.st_train_label_opt = st_train_label_opt
             state.st_train_status = {
                 "super": "initialized" if st_train_super else "none", 
                 "semisuper": "initialized" if st_train_semisuper else "none",
