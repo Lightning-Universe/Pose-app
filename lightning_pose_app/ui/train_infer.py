@@ -11,16 +11,21 @@ from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
 import numpy as np
 import os
+import pandas as pd
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+import shutil
+import subprocess
 import time
 import yaml
 
 from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
 from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME, SELECTED_FRAMES_FILENAME
+from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format
+
 
 st.set_page_config(layout="wide")
 
@@ -287,7 +292,7 @@ class LitPose(WorkWithFileSystem):
                 assert os.path.isfile(video_file)
                 pretty_print_str(f"Predicting video: {video_file}...")
                 # get save name for prediction csv file
-                video_pred_dir = os.path.join(hydra_output_directory, "video_preds")
+                video_pred_dir = os.path.join(hydra_output_directory, MODEL_VIDEO_PREDS_TRAIN_DIR)
                 video_pred_name = os.path.splitext(os.path.basename(video_file))[0]
                 prediction_csv_file = os.path.join(video_pred_dir, video_pred_name + ".csv")
                 # get save name labeled video csv
@@ -351,12 +356,10 @@ class LitPose(WorkWithFileSystem):
             get_dataset,
             get_imgaug_transform,
             compute_metrics,
+            export_predictions_and_labeled_video,
         )
 
-        print(
-            f"============ launching inference\nvideo: {video_file}\nmodel: {model_dir}\n"
-            f"============"
-        )
+        print(f"========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n=========")
 
         # set flag for parent app
         self.work_is_done_inference = False
@@ -389,7 +392,7 @@ class LitPose(WorkWithFileSystem):
         video_dir_abs = cfg.data.video_dir
         cfg.data.csv_file = os.path.join(data_dir_abs, cfg.data.csv_file)
 
-        pred_dir = os.path.join(model_dir, "video_preds_infer")
+        pred_dir = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR)
         preds_file = os.path.join(
             self.abspath(pred_dir), os.path.basename(video_file_abs).replace(".mp4", ".csv"))
 
@@ -437,6 +440,20 @@ class LitPose(WorkWithFileSystem):
         except Exception as e:
             print(f"Error predicting on {video_file}:\n{e}")
 
+        # make short labeled snippet for manual inspection
+        video_file_abs_short = self._make_video_snippet(
+            video_file=video_file_abs, preds_file=preds_file)
+        preds_file_short = preds_file.replace(".csv", ".short.csv")
+        export_predictions_and_labeled_video(
+            video_file=video_file_abs_short,
+            cfg=cfg,
+            prediction_csv_file=preds_file_short,
+            labeled_mp4_file=preds_file_short.replace(".csv", ".labeled.mp4"),
+            ckpt_file=ckpt_file,
+            trainer=trainer,
+            data_module=data_module,
+        )
+
         # ----------------------------------------------------------------------------------
         # Push results to FileSystem, clean up
         # ----------------------------------------------------------------------------------
@@ -444,6 +461,50 @@ class LitPose(WorkWithFileSystem):
 
         # set flag for parent app
         self.work_is_done_inference = True
+
+    @staticmethod
+    def _make_video_snippet(video_file, preds_file, clip_length=60, likelihood_thresh=0.9):
+
+        import cv2
+
+        # save videos with csv file
+        save_dir = os.path.dirname(preds_file)
+
+        df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
+
+        # how large is the clip window?
+        video = cv2.VideoCapture(video_file)
+        fps = video.get(cv2.CAP_PROP_FPS)
+        win_len = int(fps * clip_length)
+
+        # make a `clip_length` second video clip that contains the highest keypoint motion energy
+        src = video_file
+        dst = os.path.join(save_dir, os.path.basename(video_file).replace(".mp4", ".short.mp4"))
+        if win_len >= df.shape[0]:
+            # short video, no need to shorten further. just copy existing video
+            shutil.copyfile(src, dst)
+        else:
+            # compute motion energy (averaged over keypoints)
+            kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
+            kps = kps_and_conf[:, :, :2]
+            conf = kps_and_conf[:, :, -1]
+            conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
+            kps[conf2 < likelihood_thresh] = np.nan
+            me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
+
+            # find window
+            df_me = pd.DataFrame({"me": np.concatenate([[0], me])})
+            df_me_win = df_me.rolling(window=win_len, center=False).mean()
+            # rolling places results in right edge of window, need to subtract this
+            clip_start_idx = df_me_win.me.argmax() - win_len
+            # convert to seconds
+            clip_start_sec = int(clip_start_idx / fps)
+
+            # make clip
+            ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
+            subprocess.run(ffmpeg_cmd, shell=True)
+
+        return dst
 
     def run(self, action=None, **kwargs):
         if action == "train":

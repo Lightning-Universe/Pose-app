@@ -152,7 +152,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
         # -------------------------------------------------------------
-        if self.project_ui.run_script and run_while_training:
+        if self.project_ui.run_script and run_while_training and run_while_inferring:
             # update paths now that we know which project we're working with
             self.project_ui.run(action="update_paths")
             self.extract_ui.proj_dir = self.project_ui.proj_dir
@@ -181,6 +181,7 @@ class LitPoseApp(LightningFlow):
                     # import existing project in another format
                     if self.project_ui.st_upload_existing_project:
                         self.project_ui.run(action="upload_existing_project")
+                        self.train_ui.run(action="determine_dataset_type")
                         self.label_studio.run(action="import_existing_annotations")
                         self.project_ui.st_upload_existing_project = False
                     # allow app to advance
@@ -197,6 +198,7 @@ class LitPoseApp(LightningFlow):
                 if self.project_ui.count == 0:
                     # load project configuration from config file
                     self.project_ui.run(action="load_project_defaults")
+                    self.train_ui.config_dict = self.project_ui.config_dict
                     # update label studio object
                     self.label_studio.keypoints = self.project_ui.st_keypoints
                     # allow app to advance
