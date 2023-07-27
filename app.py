@@ -192,6 +192,8 @@ class LitPoseApp(LightningFlow):
                 self.project_ui.run_script = False
             else:
                 # project already created
+                # figure out if this is a context dataset; won't expose option to user otherwise
+                self.train_ui.run(action="determine_dataset_type")
                 if self.project_ui.count == 0:
                     # load project configuration from config file
                     self.project_ui.run(action="load_project_defaults")

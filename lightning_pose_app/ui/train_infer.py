@@ -9,6 +9,7 @@ from lightning.app.structures import Dict
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
+import numpy as np
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -16,7 +17,7 @@ import time
 import yaml
 
 from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
-from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME
+from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME, SELECTED_FRAMES_FILENAME
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format
@@ -473,7 +474,7 @@ class TrainUI(LightningFlow):
             cloud_compute=CloudCompute("gpu"),
             cloud_build_config=LitPoseBuildConfig(),
         )
-        self.allow_context = allow_context  # hack; force this to be False for demo dataset
+        self.allow_context = allow_context  # this will be updated if/when project is loaded
 
         # flag; used internally and externally
         self.run_script_train = False
@@ -624,6 +625,56 @@ class TrainUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_inference = True
 
+    def _determine_dataset_type(self, **kwargs):
+        """Check if labeled data directory contains context frames."""
+
+        def get_frame_number(basename):
+            ext = basename.split(".")[-1]  # get base name
+            split_idx = None
+            for c_idx, c in enumerate(basename):
+                try:
+                    int(c)
+                    split_idx = c_idx
+                    break
+                except ValueError:
+                    continue
+            # remove prefix
+            prefix = basename[:split_idx]
+            idx = basename[split_idx:]
+            # remove file extension
+            idx = idx.replace(f".{ext}", "")
+            return int(idx), prefix, ext
+
+        # pull labeled data
+        src = os.path.join(self.proj_dir, LABELED_DATA_DIR)
+        dst = os.path.join(os.getcwd(), self.proj_dir[1:], LABELED_DATA_DIR)
+        if not os.path.exists(dst):
+            self._drive.get(src, dst)
+
+        # loop over all labeled frames, break as soon as single frame fails
+        for d in os.listdir(dst):
+            frames_in_dir_file = os.path.join(dst, d, SELECTED_FRAMES_FILENAME)
+            if not os.path.exists(frames_in_dir_file):
+                continue
+            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
+            for frame in frames_in_dir:
+                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
+                # get the frames -> t-2, t-1, t, t+1, t + 2
+                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
+                for fr_num in list_idx:
+                    # replace frame number with 0 if we're at the beginning of the video
+                    fr_num = max(0, fr_num)
+                    # split name into pieces
+                    img_pieces = frame.split("/")
+                    # figure out length of integer
+                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
+                    # replace original frame number with context frame number
+                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
+                    img_name = "/".join(img_pieces)
+                    if not os.path.exists(os.path.join(dst, d, img_name)):
+                        self.allow_context = False
+                        break
+
     def run(self, action, **kwargs):
         if action == "push_video":
             self._push_video(**kwargs)
@@ -631,6 +682,8 @@ class TrainUI(LightningFlow):
             self._train(**kwargs)
         elif action == "run_inference":
             self._run_inference(**kwargs)
+        elif action == "determine_dataset_type":
+            self._determine_dataset_type(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
