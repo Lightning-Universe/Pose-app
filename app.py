@@ -165,7 +165,7 @@ class LitPoseApp(LightningFlow):
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
 
-            # create/load project
+            # create/load/delete project
             if self.project_ui.st_create_new_project and self.project_ui.count == 0:
                 # create project from scratch
                 # load project defaults then overwrite certain fields with user input from app
@@ -186,6 +186,10 @@ class LitPoseApp(LightningFlow):
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
+            elif self.project_ui.st_delete_project:
+                self.extract_ui.proj_dir = None  # stop tabs from opening
+                self.project_ui.run(action="delete_project")
+                self.project_ui.run_script = False
             else:
                 # project already created
                 if self.project_ui.count == 0:
