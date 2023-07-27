@@ -7,6 +7,8 @@ VIDEOS_DIR = "videos"
 VIDEOS_TMP_DIR = "videos_tmp"
 VIDEOS_INFER_DIR = "videos_infer"
 MODELS_DIR = "models"
+MODEL_VIDEO_PREDS_TRAIN_DIR = "video_preds"
+MODEL_VIDEO_PREDS_INFER_DIR = "video_preds_infer"
 
 # file name constants; relative to project_dir
 COLLECTED_DATA_FILENAME = "CollectedData.csv"
