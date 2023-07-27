@@ -9,6 +9,7 @@ from lightning.app.structures import Dict
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
+import numpy as np
 import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -16,12 +17,17 @@ import time
 import yaml
 
 from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
-from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME
+from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME, SELECTED_FRAMES_FILENAME
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format
 
 st.set_page_config(layout="wide")
+
+# options for handling video labeling
+VIDEO_LABEL_NONE = "Do not run inference on videos after training"
+VIDEO_LABEL_INFER = "Run inference on videos"
+VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
 
 class TrainerProgress(Callback):
@@ -473,7 +479,7 @@ class TrainUI(LightningFlow):
             cloud_compute=CloudCompute("gpu"),
             cloud_build_config=LitPoseBuildConfig(),
         )
-        self.allow_context = allow_context  # hack; force this to be False for demo dataset
+        self.allow_context = allow_context  # this will be updated if/when project is loaded
 
         # flag; used internally and externally
         self.run_script_train = False
@@ -484,6 +490,7 @@ class TrainUI(LightningFlow):
         self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
         self.st_losses = {}
         self.st_datetimes = {}
+        self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
 
         # ------------------------
@@ -501,6 +508,7 @@ class TrainUI(LightningFlow):
         # output from the UI
         self.st_infer_status = {}  # 'initialized' | 'active' | 'complete'
         self.st_inference_model = None
+        self.st_infer_label_opt = None  # what to do with video evaluation
         self.st_inference_videos = []
 
     def _push_video(self, video_file):
@@ -529,9 +537,20 @@ class TrainUI(LightningFlow):
         if config_filename is None:
             print("ERROR: config_filename must be specified for training models")
 
-        # check to see if we're in demo mode or not
+        # set config overrides
         base_dir = os.path.join(os.getcwd(), self.proj_dir[1:])
         model_dir = os.path.join(self.proj_dir, MODELS_DIR)
+
+        if self.st_train_label_opt == VIDEO_LABEL_NONE:
+            predict_vids = False
+            save_vids = False
+        elif self.st_train_label_opt == VIDEO_LABEL_INFER:
+            predict_vids = True
+            save_vids = False
+        else:
+            predict_vids = True
+            save_vids = True
+
         cfg_overrides = {
             "data": {
                 "data_dir": base_dir,
@@ -539,10 +558,10 @@ class TrainUI(LightningFlow):
             },
             "eval": {
                 "test_videos_directory": os.path.join(base_dir, video_dirname),
-                "predict_vids_after_training": True,
-                "save_vids_after_training": True,
+                "predict_vids_after_training": predict_vids,
+                "save_vids_after_training": save_vids,
             },
-            "model": {
+            "model": {  # update these below if necessary
                 "model_type": "heatmap",
                 "do_context": False,
             },
@@ -624,6 +643,56 @@ class TrainUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_inference = True
 
+    def _determine_dataset_type(self, **kwargs):
+        """Check if labeled data directory contains context frames."""
+
+        def get_frame_number(basename):
+            ext = basename.split(".")[-1]  # get base name
+            split_idx = None
+            for c_idx, c in enumerate(basename):
+                try:
+                    int(c)
+                    split_idx = c_idx
+                    break
+                except ValueError:
+                    continue
+            # remove prefix
+            prefix = basename[:split_idx]
+            idx = basename[split_idx:]
+            # remove file extension
+            idx = idx.replace(f".{ext}", "")
+            return int(idx), prefix, ext
+
+        # pull labeled data
+        src = os.path.join(self.proj_dir, LABELED_DATA_DIR)
+        dst = os.path.join(os.getcwd(), self.proj_dir[1:], LABELED_DATA_DIR)
+        if not os.path.exists(dst):
+            self._drive.get(src, dst)
+
+        # loop over all labeled frames, break as soon as single frame fails
+        for d in os.listdir(dst):
+            frames_in_dir_file = os.path.join(dst, d, SELECTED_FRAMES_FILENAME)
+            if not os.path.exists(frames_in_dir_file):
+                continue
+            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
+            for frame in frames_in_dir:
+                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
+                # get the frames -> t-2, t-1, t, t+1, t + 2
+                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
+                for fr_num in list_idx:
+                    # replace frame number with 0 if we're at the beginning of the video
+                    fr_num = max(0, fr_num)
+                    # split name into pieces
+                    img_pieces = frame.split("/")
+                    # figure out length of integer
+                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
+                    # replace original frame number with context frame number
+                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
+                    img_name = "/".join(img_pieces)
+                    if not os.path.exists(os.path.join(dst, d, img_name)):
+                        self.allow_context = False
+                        break
+
     def run(self, action, **kwargs):
         if action == "push_video":
             self._push_video(**kwargs)
@@ -631,6 +700,8 @@ class TrainUI(LightningFlow):
             self._train(**kwargs)
         elif action == "run_inference":
             self._run_inference(**kwargs)
+        elif action == "determine_dataset_type":
+            self._determine_dataset_type(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -680,30 +751,39 @@ def _render_streamlit_fn(state: AppState):
 
         st.markdown(
             """
-            #### Defaults
+            #### Training options
             """
         )
         expander = st.expander("Change Defaults")
 
         # max epochs
-        st_max_epochs = expander.text_input(
-            "Max training epochs (supervised and semi-supervised)",
-            value=300,
-        )
+        st_max_epochs = expander.text_input("Max training epochs (all models)", value=300)
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
-        pcamv = state.config_dict["data"]["mirrored_column_matches"]
+        pcamv = state.config_dict["data"].get("mirrored_column_matches", [])
         if len(pcamv) > 0:
             st_loss_pcamv = expander.checkbox("PCA Multiview", value=True)
         else:
             st_loss_pcamv = False
-        pcasv = state.config_dict["data"]["columns_for_singleview_pca"]
+        pcasv = state.config_dict["data"].get("columns_for_singleview_pca", [])
         if len(pcasv) > 0:
             st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
         else:
             st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)
+
+        st.markdown(
+            """
+            #### Video handling options
+            """
+        )
+        st_train_label_opt = st.radio(
+            "",
+            options=[VIDEO_LABEL_NONE, VIDEO_LABEL_INFER, VIDEO_LABEL_INFER_LABEL],
+            label_visibility="collapsed",
+            index=1,  # default to inference but no labeled movie
+        )
 
         st.markdown(
             """
@@ -754,6 +834,7 @@ def _render_streamlit_fn(state: AppState):
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
+            state.st_train_label_opt = st_train_label_opt
             state.st_train_status = {
                 "super": "initialized" if st_train_super else "none", 
                 "semisuper": "initialized" if st_train_semisuper else "none",

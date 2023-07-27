@@ -74,9 +74,13 @@ class ProjectUI(LightningFlow):
         self.count = 0  # counter for external app
         self.count_upload_existing = 0
         self.st_submits = 0  # counter for this streamlit app
+        self.st_submits_delete = 0  # counter for this streamlit app
         self.initialized_projects = []
+
         self.st_project_name = None
+        self.st_reset_project_name = False
         self.st_create_new_project = False
+        self.st_delete_project = False
         self.st_upload_existing_project = False
         self.st_existing_project_format = None
         self.st_upload_existing_project_zippath = None
@@ -412,6 +416,27 @@ class ProjectUI(LightningFlow):
         # update counter
         self.count_upload_existing += 1
 
+    def _delete_project(self, **kwargs):
+
+        # delete project locally
+        if os.path.exists(self.proj_dir_abs):
+            shutil.rmtree(self.proj_dir_abs)
+
+        # recursively delete project on FileSystem
+        def rmdir(directory, drive):
+            for item in drive.listdir(directory):
+                if drive.isdir("/" + item):
+                    rmdir("/" + item, drive)
+                else:
+                    drive.rm("/" + item)
+            drive.rm(directory)
+        rmdir(self.proj_dir, self._drive)
+
+        # update project info
+        self.st_project_name = ""
+        self.st_delete_project = False
+        self.run(action="find_initialized_projects")
+
     def run(self, action, **kwargs):
 
         if action == "find_initialized_projects":
@@ -432,6 +457,8 @@ class ProjectUI(LightningFlow):
             self._put_to_drive_remove_local(**kwargs)
         elif action == "upload_existing_project":
             self._upload_existing_project(**kwargs)
+        elif action == "delete_project":
+            self._delete_project(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -504,10 +531,11 @@ def _render_streamlit_fn(state: AppState):
     CREATE_STR = "Create new project"
     UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
     LOAD_STR = "Load existing project"
+    DELETE_STR = "Delete existing project"
 
     st_mode = st.radio(
         "",
-        options=[CREATE_STR, UPLOAD_STR, LOAD_STR],
+        options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
     )
@@ -516,14 +544,16 @@ def _render_streamlit_fn(state: AppState):
 
     st_project_name = st.text_input(
         "Enter project name (must be at least 3 characters)",
-        value="" if not state.st_project_loaded else state.st_project_name)
+        value="" if (not state.st_project_loaded or state.st_reset_project_name)
+        else state.st_project_name
+    )
 
     # ----------------------------------------------------
     # determine project status - load existing, create new
     # ----------------------------------------------------
     # we'll only allow config updates once the user has defined an allowable project name
     if st_project_name:
-        if st_mode == "Load existing project":
+        if st_mode == LOAD_STR:
             if st_project_name not in state.initialized_projects:
                 # catch user error
                 st.error(f"No project named {st_project_name} found; "
@@ -561,6 +591,7 @@ def _render_streamlit_fn(state: AppState):
                         state.st_submits += 1  # prevent this block from running again
                         time.sleep(2)  # allow main event loop to catch up
                         st.experimental_rerun()  # update everything
+
         elif st_mode == CREATE_STR or st_mode == UPLOAD_STR:
             if state.st_project_loaded:
                 # when coming back to tab from another
@@ -581,6 +612,18 @@ def _render_streamlit_fn(state: AppState):
             if st_mode == UPLOAD_STR:
                 state.st_upload_existing_project = True
                 enter_data = False
+
+        elif st_mode == DELETE_STR:
+            if st_project_name not in state.initialized_projects:
+                # catch user error
+                st.error(f"A project named {st_project_name} does not exist; "
+                         f"choose an existing project name from the list above")
+                st_project_name = ""  # stop downstream actions on this run
+                state.st_reset_project_name = True  # stop downstream actions on future runs
+            else:
+                state.st_reset_project_name = False
+                state.st_delete_project = True
+            enter_data = False
 
         else:
             # catch remaining errors
@@ -856,3 +899,17 @@ def _render_streamlit_fn(state: AppState):
             st.text("Request submitted!")
             state.run_script = True  # must the last to prevent race condition
             st_autorefresh(interval=2000, key="refresh_project_ui")
+
+    elif st_project_name and st_mode == DELETE_STR:
+
+        st_submit_button = st.button("Delete project")
+
+        if st_submit_button:
+
+            state.st_submits_delete += 1
+            state.st_project_name = st_project_name
+            state.st_reset_project_name = True
+
+            st.text("Request submitted!")
+            state.run_script = True  # must the last to prevent race condition
+            st_autorefresh(interval=1000, key="refresh_project_ui")
