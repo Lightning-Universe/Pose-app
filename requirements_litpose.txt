@@ -1,0 +1,24 @@
+botocore==1.27.59  # freeze this for app
+fiftyone==0.20.1
+h5py==3.8.0
+hydra-core==1.3.2
+imgaug==0.4.0
+kaleido==0.2.1
+kornia==0.6.12
+lightning
+matplotlib==3.7.1
+moviepy==1.0.3
+nvidia-dali-cuda110  # freeze this to be cuda 11 for now
+opencv-python==4.7.0.72
+pandas==2.0.1
+pillow==9.5.0
+plotly
+pytest==7.3.1
+scikit-learn==1.2.2
+seaborn==0.12.2
+streamlit==1.22.0
+tensorboard==2.13.0
+torchtyping==0.1.4
+torchvision==0.15.2
+typeguard==3.0.2
+typing==3.7.4.3

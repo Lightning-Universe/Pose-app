@@ -61,10 +61,9 @@ Both the demo app and full app require access to a GPU machine for training and 
 [lightning pose requirements](https://github.com/danbider/lightning-pose#requirements) 
 to ensure you have the correct computational resources.
 
-Install the `lightning-pose` repo:
+Install the `lightning-pose` repo with frozen requirements:
 ```bash
-cd ~/Pose-app/lightning-pose
-pip install -e .
+pip install --no-deps -r requirements_litpose.txt -e lightning-pose
 ```
 
 If you are using Ubuntu 22.04 or newer, you'll need an additional update for the Fiftyone package:
