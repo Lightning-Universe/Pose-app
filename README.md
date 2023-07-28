@@ -63,7 +63,7 @@ to ensure you have the correct computational resources.
 
 Install the `lightning-pose` repo with frozen requirements:
 ```bash
-pip install --no-deps -r requirements_litpose.txt -e lightning-pose
+pip install -r requirements_litpose.txt -e lightning-pose
 ```
 
 If you are using Ubuntu 22.04 or newer, you'll need an additional update for the Fiftyone package:
@@ -98,7 +98,6 @@ If the installation was successful you will not see any error messages by runnin
 #### Running locally
 Run any of the above three apps from the command line:
 ```bash
-cd ~/Pose-app
 lightning run app <app_name.py>
 ```
 
