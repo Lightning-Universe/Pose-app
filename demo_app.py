@@ -75,13 +75,13 @@ class LitPoseApp(LightningFlow):
 
         # copy config file
         toy_config_file_src = os.path.join(
-            lightning_pose_dir, "scripts/configs/config_toy-dataset.yaml")
+            lightning_pose_dir, "scripts/configs/config_mirror-mouse-example.yaml")
         toy_config_file_dst = os.path.join(
             os.getcwd(), self.data_dir[1:], self.proj_name, "model_config_demo.yaml")
         self._copy_file(toy_config_file_src, toy_config_file_dst)
 
         # frames, videos, and labels
-        toy_data_src = os.path.join(lightning_pose_dir, "toy_datasets/toymouseRunningData")
+        toy_data_src = os.path.join(lightning_pose_dir, "data/mirror-mouse-example")
         toy_data_dst = os.path.join(os.getcwd(), self.data_dir[1:], self.proj_name)
         self._copy_dir(toy_data_src, toy_data_dst)
 
@@ -212,13 +212,7 @@ class LitPoseApp(LightningFlow):
         # train models on ui button press
         # -------------------------------------------------------------
         if self.train_ui.run_script_train and run_while_inferring:
-            self.train_ui.run(
-                action="train",
-                config_filename=self.project_ui.config_name,
-                video_dirname="unlabeled_videos",
-                labeled_data_dirname="barObstacleScaling1",
-                csv_filename="CollectedData_.csv",
-            )
+            self.train_ui.run(action="train", config_filename=self.project_ui.config_name)
             inputs = [self.project_ui.model_dir]
             # have tensorboard pull the new data
             self.tensorboard.run(
