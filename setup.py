@@ -2,13 +2,14 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 
 # add the README.md file to the long_description
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
+    "lightning==2.0.9",
     "numpy",
     "opencv-python",
     "pandas",
@@ -20,7 +21,8 @@ install_requires = [
     "tqdm",
     "watchdog",
     "google-auth-oauthlib==0.7.1",  # freeze this for compatibility between tensorboard and label-studio
-    
+    "label-studio==1.9.1",
+    "label-studio-sdk==0.0.32",
 ]
 
 setup(

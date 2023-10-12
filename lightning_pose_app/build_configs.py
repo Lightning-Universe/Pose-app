@@ -24,11 +24,7 @@ class LabelStudioBuildConfig(BuildConfig):
     @staticmethod
     def build_commands() -> List[str]:
         return [
-            "sudo apt-get update",
-            "sudo apt-get install libpq-dev",
-            "conda install libffi==3.3",
             "pip install -e .",  # install lightning app to have access to packages
-            "pip install label-studio label-studio-sdk",
         ]
 
 

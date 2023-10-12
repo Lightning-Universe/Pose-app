@@ -891,7 +891,6 @@ def _render_streamlit_fn(state: AppState):
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
         if st_submit_button_train:
-
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
@@ -920,19 +919,17 @@ def _render_streamlit_fn(state: AppState):
 
             # set model times
             st_datetimes = {}
+            dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+            # force different datetimes
             for i in range(4):
-                dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
                 if i == 0:  # supervised model
-                    st_datetimes["super"] = dtime
-                    time.sleep(1)  # allow date/time to update
+                    st_datetimes["super"] = dtime[:-2] + "00"
                 if i == 1:  # semi-supervised model
-                    st_datetimes["semisuper"] = dtime
-                    time.sleep(1)
+                    st_datetimes["semisuper"] = dtime[:-2] + "01"
                 if i == 2:  # supervised context model
-                    st_datetimes["super ctx"] = dtime
-                    time.sleep(1)
+                    st_datetimes["super ctx"] = dtime[:-2] + "02"
                 if i == 3:  # semi-supervised context model
-                    st_datetimes["semisuper ctx"] = dtime
+                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03"
 
             # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
             state.st_datetimes = st_datetimes

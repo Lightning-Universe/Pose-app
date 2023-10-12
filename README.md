@@ -41,7 +41,6 @@ sudo apt install ffmpeg
 ```
 
 Next, create a conda environment:
-
 ```bash
 conda create --yes --name lai python=3.8
 conda activate lai
@@ -56,14 +55,12 @@ cd Pose-app
 pip install -e .
 ```
 
-There are additional installation steps based on which apps you would like to run.
-
-#### Demo app and full app
-Both the demo app and full app require access to a GPU machine for training and inference. See the
-[lightning pose requirements](https://github.com/danbider/lightning-pose#requirements) 
+Next, while still inside of the `Pose-app` directory, install the lightning pose package 
+(with frozen requirements).
+Both the demo app and full app (but not the stand-alone labeling app) require access to a GPU 
+machine for training and inference. 
+See the [lightning pose requirements](https://github.com/danbider/lightning-pose#requirements) 
 to ensure you have the correct computational resources.
-
-Install the `lightning-pose` repo with frozen requirements:
 ```bash
 pip install -r requirements_litpose.txt -e lightning-pose
 ```
@@ -72,24 +69,6 @@ If you are using Ubuntu 22.04 or newer, you'll need an additional update for the
 ```bash
 pip install fiftyone-db-ubuntu2204
 ```
-
-#### Labeling app and full app
-The labeling app and full app require the installation of Label Studio for data annotation.
-
-From `~/Pose-app`, run
-```bash
-sudo apt-get install libpq-dev
-conda install libffi==3.3
-pip install label-studio==1.9.1 label-studio-sdk==0.0.32
-```
-
-(note that `libffi` install may downgrade python, but this is fine.)
-
-Test the installation of Label Studio:
-```bash
-label-studio version
-```
-If the installation was successful you will not see any error messages by running the above command.
 
 ## Run the apps
 
