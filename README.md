@@ -29,6 +29,8 @@ Come chat with us in Discord.
 
 ## Installation
 
+See [these instructions](docs/studio_installation.md) for installation in a fresh Lightning Studio.
+
 First, check to see if you have ffmpeg installed by typing the following into the terminal:
 ```bash
 ffmpeg -version
@@ -72,24 +74,20 @@ pip install fiftyone-db-ubuntu2204
 ```
 
 #### Labeling app and full app
-The labeling app and full app require the installation of Label Studio for data annotation. 
-Because Label Studio and Lightning have conflicting dependencies, you will need to install 
-Label Studio in a virtual environment. 
+The labeling app and full app require the installation of Label Studio for data annotation.
 
 From `~/Pose-app`, run
 ```bash
-virtualenv ~/venv-label-studio
-source ~/venv-label-studio/bin/activate; sudo apt-get install libpq-dev; deactivate
-source ~/venv-label-studio/bin/activate; conda install libffi==3.3; deactivate
-source ~/venv-label-studio/bin/activate; pip install -e .; deactivate
-source ~/venv-label-studio/bin/activate; pip install label-studio label-studio-sdk; deactivate
+sudo apt-get install libpq-dev
+conda install libffi==3.3
+pip install label-studio==1.9.1 label-studio-sdk==0.0.32
 ```
 
 (note that `libffi` install may downgrade python, but this is fine.)
 
 Test the installation of Label Studio:
 ```bash
-source ~/venv-label-studio/bin/activate; label-studio version; deactivate
+label-studio version
 ```
 If the installation was successful you will not see any error messages by running the above command.
 
@@ -125,12 +123,14 @@ Finally, when you run the labeling app or full app select "Create new project fr
 upload your zip file. As of 07/2023 context datasets are not automatically created upon import; if
 this is a feature you would like to see, 
 please [open an issue](https://github.com/Lightning-Universe/Pose-app/issues). 
+
 * **How do I increase the file upload size limit?**
 Set the following environment variable (in units of MB);
  we recommend using videos less than 500MB for best performance.
 ```bash
 lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 ```
+
 * **What if I encounter a CUDA out of memory error?** 
 We recommend a GPU with at least 8GB of memory. 
 Note that both semi-supervised and context models will increase memory usage (with semi-supervised 
@@ -142,3 +142,8 @@ sizes, save the file, then close.
 We also recommend restarting the app after config updates.
 You can find the relevant parameters to adjust 
 [here](https://github.com/danbider/lightning-pose/blob/main/docs/config.md). 
+
+* **What Label Studio username and password should I use?** 
+The app uses generic login info:
+    * username: user@localhost
+    * password: pw

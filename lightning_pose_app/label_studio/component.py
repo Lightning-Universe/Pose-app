@@ -29,7 +29,7 @@ class LitLabelStudio(LightningFlow):
             "create_new_project": 0,
             "import_existing_annotations": 0,
         }
-        self.label_studio_url = f"http://localhost:{self.label_studio.port}"
+        self.label_studio_url = None
         self.username = "user@localhost"
         self.password = "pw"
         self.user_token = "whitenoise"
@@ -75,6 +75,7 @@ class LitLabelStudio(LightningFlow):
             input_output_only=True,
             inputs=[self.database_dir],
             wait_for_exit=True,
+            env={"LOG_LEVEL": "DEBUG"},
         )
 
         self.counts["import_database"] += 1
@@ -84,12 +85,18 @@ class LitLabelStudio(LightningFlow):
         if self.counts["start_label_studio"] > 0:
             return
 
-        # start label-studio on the default port 8080
+        # assign label studio url here; note that, in a lightning studio, if you "share" the port
+        # display it will increment the port info. therefore, you must start label studio in the
+        # same window that you will be using it in
+        self.label_studio_url = f"http://localhost:{self.label_studio.port}"
+
+        # start label-studio
         self.label_studio.run(
             f"label-studio start --no-browser --internal-host $host --port $port",
             venv_name=label_studio_venv,
             wait_for_exit=False,
             env={
+                "LOG_LEVEL": "DEBUG",
                 "LABEL_STUDIO_USERNAME": self.username,
                 "LABEL_STUDIO_PASSWORD": self.password,
                 "LABEL_STUDIO_USER_TOKEN": self.user_token,
@@ -144,11 +151,15 @@ class LitLabelStudio(LightningFlow):
                         f"--project_name {self.proj_name} " \
                         f"--label_config {label_studio_config_file} "
 
+        # put this here to make sure `self.label_studio.run()` is only called once
+        self.counts["create_new_project"] += 1
+
         # run command to create new label studio project
         self.label_studio.run(
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
+            env={"LOG_LEVEL": "DEBUG"},
             inputs=[
                 self.filenames["label_studio_config"],
                 self.filenames["labeled_data_dir"],
@@ -157,8 +168,6 @@ class LitLabelStudio(LightningFlow):
                 self.filenames["label_studio_metadata"],
             ],
         )
-
-        self.counts["create_new_project"] += 1
 
     def _update_tasks(self, videos=[]):
         """Update tasks after new video frames have been extracted."""
@@ -176,6 +185,7 @@ class LitLabelStudio(LightningFlow):
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
+            env={"LOG_LEVEL": "DEBUG"},
             timer=videos,
             inputs=[
                 self.filenames["labeled_data_dir"],
@@ -206,6 +216,7 @@ class LitLabelStudio(LightningFlow):
                 run_command,
                 venv_name=label_studio_venv,
                 wait_for_exit=True,
+                env={"LOG_LEVEL": "DEBUG"},
                 timer=timer,
                 inputs=[
                     self.filenames["labeled_data_dir"],
@@ -242,6 +253,7 @@ class LitLabelStudio(LightningFlow):
         self.label_studio.run(
             build_command,
             wait_for_exit=True,
+            env={"LOG_LEVEL": "DEBUG"},
             timer=keypoints,
             inputs=[],
             outputs=[self.filenames["label_studio_config"]],
@@ -267,6 +279,7 @@ class LitLabelStudio(LightningFlow):
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
+            env={"LOG_LEVEL": "DEBUG"},
             inputs=[
                 self.filenames["labeled_data_dir"],
                 self.filenames["label_studio_metadata"],

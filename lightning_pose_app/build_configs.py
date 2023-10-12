@@ -5,7 +5,7 @@ from typing import List
 lightning_pose_dir = "lightning-pose"
 
 # dir where label studio python venv will be set up
-label_studio_venv = "venv-label-studio"
+label_studio_venv = None
 
 
 class LitPoseBuildConfig(BuildConfig):
@@ -23,14 +23,12 @@ class LabelStudioBuildConfig(BuildConfig):
 
     @staticmethod
     def build_commands() -> List[str]:
-        # keep virtualenv because of local package clash with google-oauth
         return [
             "sudo apt-get update",
             "sudo apt-get install libpq-dev",
-            ". ~/{label_studio_venv}/bin/activate; ",
             "conda install libffi==3.3",
-            "pip install -e .; ",  # install lightning app to have access to packages
-            "pip install label-studio label-studio-sdk; deactivate",
+            "pip install -e .",  # install lightning app to have access to packages
+            "pip install label-studio label-studio-sdk",
         ]
 
 

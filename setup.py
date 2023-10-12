@@ -18,8 +18,9 @@ install_requires = [
     "streamlit_autorefresh",
     "tables",
     "tqdm",
-    "virtualenv",
     "watchdog",
+    "google-auth-oauthlib==0.7.1",  # freeze this for compatibility between tensorboard and label-studio
+    
 ]
 
 setup(
