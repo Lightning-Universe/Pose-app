@@ -5,12 +5,13 @@ To run from the command line (inside the conda environment named "lai" here):
 
 """
 
-from lightning import CloudCompute, LightningApp, LightningFlow
+from lightning.app import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
 import logging
 import os
 import shutil
+import sys
 import time
 import yaml
 
@@ -52,7 +53,7 @@ class LitPoseApp(LightningFlow):
         )
 
         # training tab (flow + work)
-        self.train_ui = TrainUI(allow_context=False)  # demo dataset is not proper context dataset
+        self.train_ui = TrainUI(allow_context=False, max_epochs_default=150)
         self.train_ui.n_labeled_frames = 90  # hard-code these values for now
         self.train_ui.n_total_frames = 90
 

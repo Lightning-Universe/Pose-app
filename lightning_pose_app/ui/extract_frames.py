@@ -1,5 +1,5 @@
 import cv2
-from lightning import CloudCompute, LightningFlow
+from lightning.app import CloudCompute, LightningFlow
 from lightning.app.storage import FileSystem
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud

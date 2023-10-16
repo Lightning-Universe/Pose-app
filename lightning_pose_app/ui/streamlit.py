@@ -1,4 +1,4 @@
-from lightning import CloudCompute, LightningFlow
+from lightning.app import CloudCompute, LightningFlow
 import os
 
 from lightning_pose_app import MODELS_DIR

@@ -1,6 +1,6 @@
 import errno
 from functools import partial
-from lightning import LightningWork
+from lightning.app import LightningWork
 from lightning.app.utilities.app_helpers import _collect_child_process_pids
 import logging
 import os

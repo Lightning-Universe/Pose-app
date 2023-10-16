@@ -1,6 +1,6 @@
 import copy
 import glob
-from lightning import LightningFlow, LightningWork
+from lightning.app import LightningFlow, LightningWork
 from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import logging

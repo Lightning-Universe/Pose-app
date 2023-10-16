@@ -1,4 +1,4 @@
-from lightning import CloudCompute, LightningFlow
+from lightning.app import CloudCompute, LightningFlow
 from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import os

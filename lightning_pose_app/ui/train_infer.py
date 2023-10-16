@@ -1,11 +1,11 @@
 """UI for training models."""
 
 from datetime import datetime
-from lightning import CloudCompute, LightningFlow
-from lightning.app.utilities.cloud import is_running_in_cloud
-from lightning.app.utilities.state import AppState
+from lightning.app import CloudCompute, LightningFlow
 from lightning.app.storage import FileSystem
 from lightning.app.structures import Dict
+from lightning.app.utilities.cloud import is_running_in_cloud
+from lightning.app.utilities.state import AppState
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
@@ -548,7 +548,7 @@ class TrainUI(LightningFlow):
             cloud_build_config=LitPoseBuildConfig(),
         )
         self.allow_context = allow_context  # this will be updated if/when project is loaded
-        self.max_epochs_default=max_epochs_default
+        self.max_epochs_default = max_epochs_default
 
         # flag; used internally and externally
         self.run_script_train = False
@@ -826,7 +826,8 @@ def _render_streamlit_fn(state: AppState):
         expander = st.expander("Change Defaults")
 
         # max epochs
-        st_max_epochs = expander.text_input("Max training epochs (all models)", value=state.max_epochs_default)
+        st_max_epochs = expander.text_input(
+            "Max training epochs (all models)", value=state.max_epochs_default)
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")

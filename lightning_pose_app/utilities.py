@@ -1,6 +1,6 @@
 import cv2
 import glob
-from lightning import LightningWork
+from lightning.app import LightningWork
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 from lightning.app.storage import FileSystem
 import logging

@@ -1,4 +1,4 @@
-from lightning import CloudCompute, LightningFlow
+from lightning.app import CloudCompute, LightningFlow
 import logging
 import os
 

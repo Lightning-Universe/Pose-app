@@ -5,7 +5,7 @@ To run from the command line (inside the conda environment named "lai" here):
 
 """
 
-from lightning import CloudCompute, LightningApp, LightningFlow
+from lightning.app import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
 import logging
