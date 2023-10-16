@@ -499,6 +499,9 @@ class LitPose(WorkWithFileSystem):
             clip_start_idx = df_me_win.me.argmax() - win_len
             # convert to seconds
             clip_start_sec = int(clip_start_idx / fps)
+            # if all predictions are bad, make sure we still create a valid snippet video
+            if np.isnan(clip_start_sec) or clip_start_sec < 0:
+                clip_start_sec = 0
 
             # make clip
             ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
@@ -518,7 +521,7 @@ class LitPose(WorkWithFileSystem):
 class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
-    def __init__(self, *args, allow_context=True, **kwargs):
+    def __init__(self, *args, allow_context=True, max_epochs_default=300, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -541,6 +544,7 @@ class TrainUI(LightningFlow):
             cloud_build_config=LitPoseBuildConfig(),
         )
         self.allow_context = allow_context  # this will be updated if/when project is loaded
+        self.max_epochs_default=max_epochs_default
 
         # flag; used internally and externally
         self.run_script_train = False
@@ -818,7 +822,7 @@ def _render_streamlit_fn(state: AppState):
         expander = st.expander("Change Defaults")
 
         # max epochs
-        st_max_epochs = expander.text_input("Max training epochs (all models)", value=300)
+        st_max_epochs = expander.text_input("Max training epochs (all models)", value=state.max_epochs_default)
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
