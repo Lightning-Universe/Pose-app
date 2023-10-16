@@ -1,6 +1,10 @@
+import datetime
 from lightning.app import CloudCompute, LightningFlow
 import logging
 import os
+import pandas as pd
+import subprocess
+import yaml
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -9,25 +13,22 @@ from lightning_pose_app import (
     LABELSTUDIO_TASKS_FILENAME,
     COLLECTED_DATA_FILENAME,
 )
-from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studio_venv
+from lightning_pose_app.bashwork import add_to_system_env
+from lightning_pose_app.label_studio.utils import connect_to_label_studio
+from lightning_pose_app.utilities import WorkWithFileSystem
 
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 log_level = "ERROR"  # log level sent to label studio sdk
 
 
-class LitLabelStudio(LightningFlow):
+class LitLabelStudio(WorkWithFileSystem):
 
     def __init__(self, *args, database_dir="/data", proj_dir=None, **kwargs) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, name="labelstudio", **kwargs)
+        self.pid = None
 
-        self.label_studio = LitBashWork(
-            name="labelstudio",
-            cloud_compute=CloudCompute("default"),
-            cloud_build_config=LabelStudioBuildConfig(),
-        )
         self.counts = {
             "import_database": 0,
             "start_label_studio": 0,
@@ -59,30 +60,12 @@ class LitLabelStudio(LightningFlow):
         self.proj_name = None
         self.keypoints = None
 
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
-
     def _import_database(self):
         # pull database from FileSystem if it exists
         # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
         if self.counts["import_database"] > 0:
             return
-
-        self.label_studio.run(
-            "null command",
-            venv_name=label_studio_venv,
-            cwd=os.getcwd(),
-            input_output_only=True,
-            inputs=[self.database_dir],
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-        )
-
+        self.get_from_drive([self.database_dir])
         self.counts["import_database"] += 1
 
     def _start_label_studio(self):
@@ -93,28 +76,34 @@ class LitLabelStudio(LightningFlow):
         # assign label studio url here; note that, in a lightning studio, if you "share" the port
         # display it will increment the port info. therefore, you must start label studio in the
         # same window that you will be using it in
-        self.label_studio_url = f"http://localhost:{self.label_studio.port}"
+        self.label_studio_url = f"http://localhost:{self.port}"
 
-        # start label-studio
-        self.label_studio.run(
-            f"label-studio start --no-browser --internal-host $host --port $port",
-            venv_name=label_studio_venv,
-            wait_for_exit=False,
-            env={
-                "LOG_LEVEL": log_level,
-                "LABEL_STUDIO_USERNAME": self.username,
-                "LABEL_STUDIO_PASSWORD": self.password,
-                "LABEL_STUDIO_USER_TOKEN": self.user_token,
-                "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
-                "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
-                "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
-                "LABEL_STUDIO_BASE_DATA_DIR": self.abspath(self.database_dir),
-                "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
-                "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
-                "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
-                "LABEL_STUDIO_USE_ENFORCE_CSRF_CHECKS": "0",
-            },
+        cmd = f"label-studio start --no-browser --internal-host {self.host} --port {self.port}"
+        env = {
+            "LOG_LEVEL": log_level,
+            "LABEL_STUDIO_USERNAME": self.username,
+            "LABEL_STUDIO_PASSWORD": self.password,
+            "LABEL_STUDIO_USER_TOKEN": self.user_token,
+            "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
+            "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
+            "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
+            "LABEL_STUDIO_BASE_DATA_DIR": self.abspath(self.database_dir),
+            "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
+            "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
+            "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
+            "LABEL_STUDIO_USE_ENFORCE_CSRF_CHECKS": "0",
+        }
+
+        kwargs = {'env': add_to_system_env(env=env)}
+        _logger.info(cmd, kwargs)
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            executable='/bin/bash',
+            close_fds=True,
+            **kwargs
         )
+        self.pid = proc.pid
 
         self.counts["start_label_studio"] += 1
 
@@ -122,7 +111,7 @@ class LitLabelStudio(LightningFlow):
 
         self.proj_dir = proj_dir
         self.proj_name = proj_name
-
+        print(" ----------------- HERE 1 -------------------")
         self.filenames["label_studio_config"] = os.path.join(
             self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
 
@@ -132,12 +121,17 @@ class LitLabelStudio(LightningFlow):
         self.filenames["label_studio_tasks"] = os.path.join(
             self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
 
-        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, LABELED_DATA_DIR)
+        self.filenames["labeled_data_dir"] = os.path.join(
+            self.proj_dir, LABELED_DATA_DIR)
 
-        self.filenames["collected_data"] = os.path.join(self.proj_dir, COLLECTED_DATA_FILENAME)
+        self.filenames["collected_data"] = os.path.join(
+            self.proj_dir, COLLECTED_DATA_FILENAME)
 
         self.filenames["config_file"] = os.path.join(
             self.proj_dir, f"model_config_{self.proj_name}.yaml")
+        print(" ----------------- HERE 2 -------------------")
+        print(self.proj_dir)
+        print(self.filenames)
 
     def _create_new_project(self):
         """Create a label studio project."""
@@ -145,95 +139,72 @@ class LitLabelStudio(LightningFlow):
         if self.counts["create_new_project"] > 0:
             return
 
-        # build script command
-        script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "create_new_project.py")
-        label_studio_config_file = self.abspath(self.filenames["label_studio_config"])
-        build_command = f"python {script_path} " \
-                        f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
-                        f"--api_key {self.user_token} " \
-                        f"--project_name {self.proj_name} " \
-                        f"--label_config {label_studio_config_file} "
-
         # put this here to make sure `self.label_studio.run()` is only called once
         self.counts["create_new_project"] += 1
 
-        # run command to create new label studio project
-        self.label_studio.run(
-            build_command,
-            venv_name=label_studio_venv,
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-            inputs=[
-                self.filenames["label_studio_config"],
-                self.filenames["labeled_data_dir"],
-            ],
-            outputs=[
-                self.filenames["label_studio_metadata"],
-            ],
+        # pull data from FileSystem
+        inputs=[
+            self.filenames["label_studio_config"],
+            self.filenames["labeled_data_dir"],
+        ]
+        self.get_from_drive(inputs)
+
+        # create new project
+        create_new_project(
+            label_studio_url=self.label_studio_url,
+            proj_dir=self.abspath(self.proj_dir),
+            api_key=self.user_token,
+            project_name=self.proj_name,
+            label_config_file=self.abspath(self.filenames["label_studio_config"]),
         )
+
+        # put data to FileSystem
+        self.put_to_drive([self.filenames["label_studio_metadata"]])
 
     def _update_tasks(self, videos=[]):
         """Update tasks after new video frames have been extracted."""
 
-        # build script command
-        script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
-        build_command = f"python {script_path} " \
-                        f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
-                        f"--api_key {self.user_token} "
+        # pull data from FileSystem
+        inputs = [
+            self.filenames["labeled_data_dir"],
+            self.filenames["label_studio_metadata"],
+        ]
+        self.get_from_drive(inputs)
 
-        # run command to update label studio tasks
-        self.label_studio.run(
-            build_command,
-            venv_name=label_studio_venv,
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-            timer=videos,
-            inputs=[
-                self.filenames["labeled_data_dir"],
-                self.filenames["label_studio_metadata"],
-            ],
-            outputs=[],
+        # update tasks
+        update_tasks(
+            label_studio_url=self.label_studio_url, 
+            proj_dir=self.abspath(self.proj_dir), 
+            api_key=self.user_token, 
         )
 
     def _check_labeling_task_and_export(self, timer):
         """Check for new labels, export to lightning pose format, export database to FileSystem."""
 
-        script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "check_labeling_task_and_export.py")
-
         if self.keypoints is not None:
             # only check task if keypoints attribute has been populated
 
-            # build script command
-            keypoints_list = "/".join(self.keypoints)
-            run_command = f"python {script_path} " \
-                          f"--label_studio_url {self.label_studio_url} " \
-                          f"--proj_dir {self.abspath(self.proj_dir)} " \
-                          f"--api_key {self.user_token} " \
-                          f"--keypoints_list '{keypoints_list}' "
+            # pull data from FileSystem
+            inputs=[
+                self.filenames["labeled_data_dir"],
+                self.filenames["label_studio_metadata"],
+            ]
 
-            # run command to check labeling task
-            self.label_studio.run(
-                run_command,
-                venv_name=label_studio_venv,
-                wait_for_exit=True,
-                env={"LOG_LEVEL": log_level},
-                timer=timer,
-                inputs=[
-                    self.filenames["labeled_data_dir"],
-                    self.filenames["label_studio_metadata"],
-                ],
-                outputs=[
-                    self.filenames["collected_data"],
-                    self.filenames["label_studio_tasks"],
-                    self.filenames["label_studio_metadata"],
-                    self.database_dir,  # sqlite database
-                ],
+            # check task
+            check_labeling_task_and_export(
+                label_studio_url=self.label_studio_url,
+                proj_dir=self.abspath(self.proj_dir),
+                api_key=self.user_token,
+                keypoints=self.keypoints,
             )
+
+            # put data to FileSystem
+            outputs=[
+                self.filenames["collected_data"],
+                self.filenames["label_studio_tasks"],
+                self.filenames["label_studio_metadata"],
+                self.database_dir,  # sqlite database
+            ]
 
         self.check_labels = True
 
@@ -242,27 +213,24 @@ class LitLabelStudio(LightningFlow):
 
         self.keypoints = keypoints
 
-        # build script command
-        keypoints_list = "/".join(keypoints)
-        script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "create_labeling_config.py")
-        build_command = f"python {script_path} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
-                        f"--filename {os.path.basename(self.filenames['label_studio_config'])} " \
-                        f"--keypoints_list {keypoints_list} "
+        # ---------------------------
+        # create new project
+        # ---------------------------
+        _logger.info("Executing create_labeling_config.py")
 
-        # run command to save out xml
-        # NOTE: we cannot just save out the xml from this function, since we are inside a Flow. We
-        # need a Work to save the xml so that the Work has local access to that file; the Work can
-        # then put that file to a Drive
-        self.label_studio.run(
-            build_command,
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-            timer=keypoints,
-            inputs=[],
-            outputs=[self.filenames["label_studio_config"]],
-        )
+        xml_str = build_xml(self.keypoints)
+
+        proj_dir = self.abspath(self.proj_dir)
+        config_file = os.path.join(proj_dir, os.path.basename(self.filenames['label_studio_config']))
+        if not os.path.exists(proj_dir):
+            os.makedirs(proj_dir)
+        with open(config_file, 'wt') as outfile:
+            outfile.write(xml_str)
+
+        # ---------------------------
+        # put data to FileSystem
+        # ---------------------------
+        self.put_to_drive([self.filenames["label_studio_config"]])
 
     def _import_existing_annotations(self, **kwargs):
         """Import annotations into an existing, empty label studio project."""
@@ -270,28 +238,22 @@ class LitLabelStudio(LightningFlow):
         if self.counts["import_existing_annotations"] > 0:
             return
 
-        # build script command
-        script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
-        build_command = f"python {script_path} " \
-                        f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
-                        f"--api_key {self.user_token} " \
-                        f"--config_file {self.abspath(self.filenames['config_file'])} " \
-                        f"--update_from_csv "
+        # pull data from FileSystem
+        inputs=[
+            self.filenames["labeled_data_dir"],
+            self.filenames["label_studio_metadata"],
+            self.filenames["collected_data"],
+            self.filenames["config_file"],
+        ]
+        self.get_from_drive(inputs)
 
-        self.label_studio.run(
-            build_command,
-            venv_name=label_studio_venv,
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-            inputs=[
-                self.filenames["labeled_data_dir"],
-                self.filenames["label_studio_metadata"],
-                self.filenames["collected_data"],
-                self.filenames["config_file"],
-            ],
-            outputs=[]
+        # update tasks
+        update_tasks(
+            label_studio_url=self.label_studio_url, 
+            proj_dir=self.abspath(self.proj_dir), 
+            api_key=self.user_token,
+            config_file=self.abspath(self.filenames['config_file']),
+            update_from_csv=True,
         )
 
         self.counts["import_existing_annotations"] += 1
@@ -319,3 +281,272 @@ class LitLabelStudio(LightningFlow):
         # final save to drive
         _logger.info("SAVING DATA ONE LAST TIME")
         self._check_labeling_task_and_export(timer=0.0)
+
+
+def create_new_project(
+    label_studio_url: str,
+    proj_dir: str,
+    api_key: str,
+    project_name: str,
+    label_config_file: str,
+) -> None:
+    
+    from lightning_pose_app.label_studio.utils import start_project
+    from lightning_pose_app.label_studio.utils import create_data_source
+
+    _logger.info("Executing create_new_project.py")
+
+    _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)
+    label_studio_client = connect_to_label_studio(url=label_studio_url, api_key=user_token)
+    _logger.debug("Connected to LabelStudio at %s" % label_studio_url)
+
+    _logger.info("Creating LabelStudio project...")
+    try:
+        with open(label_config_file, 'r') as f:
+            label_config = f.read()
+    except FileNotFoundError:
+        _logger.warning(f"Cannot find label studio labeling config at {label_config_file}")
+        exit()
+    label_studio_project = start_project(
+        label_studio_client=label_studio_client,
+        title=project_name,
+        label_config=label_config,
+    )
+    _logger.info("LabelStudio project created.")
+
+    # save out project details
+    proj_details = {
+        "project_name": project_name,
+        "id": label_studio_project.id,
+        "created_at": str(datetime.datetime.now()),
+        "api_key": api_key,
+        "n_labeled_tasks": 0,
+        "n_total_tasks": 0,
+    }
+    metadata_file = os.path.join(proj_dir, LABELSTUDIO_METADATA_FILENAME)
+    if not os.path.exists(proj_dir):
+        os.makedirs(proj_dir)
+    yaml.safe_dump(proj_details, open(metadata_file, "w"))
+
+    # connect label studio to local data source
+    _logger.info("Creating LabelStudio data source...")
+    json = {  # there are other args to json, but these are the only ones that are required
+        "path": proj_dir,
+        "project": label_studio_project.id
+    }
+    create_data_source(label_studio_project=label_studio_project, json=json)
+    _logger.info("LabelStudio data source created.")
+
+
+def update_tasks(
+    label_studio_url: str, 
+    proj_dir: str, 
+    api_key: str, 
+    config_file: str = "", 
+    update_from_csv: bool = False,
+) -> None:
+
+    from lightning_pose_app.label_studio.utils import get_project
+    from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
+
+    _logger.info("Executing update_tasks.py")
+
+    _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)
+    label_studio_client = connect_to_label_studio(url=label_studio_url, api_key=api_key)
+    _logger.debug("Connected to LabelStudio at %s" % label_studio_url)
+
+    # get current project
+    metadata_file = os.path.join(proj_dir, LABELSTUDIO_METADATA_FILENAME)
+    try:
+        metadata = yaml.safe_load(open(metadata_file, "r"))
+    except FileNotFoundError:
+        _logger.warning(f"Cannot find {metadata_file} in {proj_dir}")
+        exit()
+    label_studio_project = get_project(label_studio_client=label_studio_client, id=metadata["id"])
+    _logger.debug("Fetched Project ID: %s, Project Title: %s" % (
+        label_studio_project.id, label_studio_project.title))
+
+    # get tasks that already exist
+    existing_tasks = label_studio_project.get_tasks()
+    if len(existing_tasks) > 0:
+        existing_imgs = [t["data"]["img"] for t in existing_tasks]
+    else:
+        existing_imgs = []
+
+    _logger.debug("Importing tasks...")
+    basedir = os.path.relpath(proj_dir, os.getcwd())
+    rel_images = get_rel_image_paths_from_idx_files(proj_dir)
+    _logger.debug("relative image paths: {}".format(rel_images))
+    label_studio_prefix = f"data/local-files?d={basedir}/"
+    # loop over files and add them as dicts to the list, using label studio path format
+    # ignore files that are already registered as tasks
+    image_list = []
+    for r, rel_img in enumerate(rel_images):
+        ls_img_path = os.path.join(label_studio_prefix, rel_img)
+        if ls_img_path not in existing_imgs:
+            image_list.append({"img": ls_img_path})
+
+    label_studio_project.import_tasks(image_list)
+    _logger.debug("%i Tasks imported." % len(image_list))
+
+    # add annotations to tasks when importing from another project (e.g. previous DLC project)
+    if update_from_csv:
+
+        csv_file = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
+        df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+        config = yaml.safe_load(open(config_file, "r"))
+
+        tasks = label_studio_project.get_tasks()
+        for task in tasks:
+            if len(task["annotations"]) == 0:
+                task_id = task["id"]
+                rel_img_idx = task["data"]["img"].find("labeled-data")
+                rel_img = task["data"]["img"][rel_img_idx:]
+                annotation = get_annotation(
+                    rel_path=rel_img,
+                    labels=df.loc[rel_img].to_frame().reset_index(),
+                    dims=config["data"]["image_orig_dims"],
+                    task_id=task_id,
+                    project_id=label_studio_project.id,
+                )
+                label_studio_project.create_annotation(task_id=task_id, **annotation)
+
+        # update metadata so app has access to labeling project info
+        metadata_file = os.path.join(proj_dir, LABELSTUDIO_METADATA_FILENAME)
+        proj_details = yaml.safe_load(open(metadata_file, "r"))
+        proj_details["n_labeled_tasks"] = len(image_list)
+        proj_details["n_total_tasks"] = len(label_studio_project.get_tasks())
+        yaml.safe_dump(proj_details, open(metadata_file, "w"))
+
+
+def check_labeling_task_and_export(
+    label_studio_url: str,
+    proj_dir: str,
+    api_key: str,
+    keypoints: list,
+) -> None:
+    
+    import pickle
+
+    from lightning_pose_app.label_studio.utils import get_project
+    from lightning_pose_app.label_studio.utils import LabelStudioJSONProcessor
+
+    _logger.info("Executing check_labeling_task_and_export.py")
+
+    # connect to label studio
+    _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)
+    label_studio_client = connect_to_label_studio(url=label_studio_url, api_key=api_key)
+    _logger.debug("Connected to LabelStudio at %s" % label_studio_url)
+
+    # get current project
+    metadata_file = os.path.join(proj_dir, LABELSTUDIO_METADATA_FILENAME)
+    try:
+        metadata = yaml.safe_load(open(metadata_file, "r"))
+    except FileNotFoundError:
+        _logger.warning(f"Cannot find {metadata_file} in {proj_dir}")
+        exit()
+    label_studio_project = get_project(label_studio_client=label_studio_client, id=metadata["id"])
+    print("Fetched Project ID: %s, Project Title: %s" % (
+        label_studio_project.id, label_studio_project.title))
+
+    # export the labeled tasks
+    _logger.debug("Exporting labeled tasks...")
+    exported_tasks = label_studio_project.export_tasks()
+    _logger.debug("Exported %i tasks" % len(exported_tasks))
+
+    # use our processor to convert into pandas dlc format
+    if len(exported_tasks) > 0:
+        # save to pickle for resuming projects
+        _logger.debug("Saving tasks to pickle file")
+        pickle.dump(exported_tasks, open(os.path.join(proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"))
+        # save to csv for lightning pose models
+        _logger.debug("Saving annotations to csv file")
+        processor = LabelStudioJSONProcessor(
+            label_studio_json_export=exported_tasks,
+            data_dir=proj_dir,
+            relative_image_dir="",
+            keypoint_names=keypoints,
+        )
+        df = processor()
+        df.to_csv(os.path.join(proj_dir, COLLECTED_DATA_FILENAME))
+
+    # update metadata so app has access to labeling project info
+    metadata_file = os.path.join(proj_dir, LABELSTUDIO_METADATA_FILENAME)
+    proj_details = yaml.safe_load(open(metadata_file, "r"))
+    proj_details["n_labeled_tasks"] = len(exported_tasks)
+    proj_details["n_total_tasks"] = len(label_studio_project.get_tasks())
+    yaml.safe_dump(proj_details, open(metadata_file, "w"))
+
+
+# -------------------------
+# helpers
+# -------------------------
+
+def build_xml(bodypart_names: list) -> str:
+    """Builds the XML file for Label Studio"""
+    # 25 colors
+    colors = ["red", "blue", "green", "yellow", "orange", "purple", "brown", "pink", "gray",
+            "black", "white", "cyan", "magenta", "lime", "maroon", "olive", "navy", "teal",
+            "aqua", "fuchsia", "silver", "gold", "indigo", "violet", "coral"]
+    # replicate just to be safe
+    colors = colors + colors + colors + colors
+    colors_to_use = colors[:len(bodypart_names)]  # practically ignoring colors
+    view_str = "<!--Basic keypoint image labeling configuration for multiple regions-->"
+    view_str += "\n<View>"
+    view_str += "\n<Header value=\"Select keypoint name with the cursor/number button, " \
+                "then click on the image.\"/>"
+    view_str += "\n<Text name=\"text1\" value=\"Important: Click Submit after you have labeled " \
+                "all visible keypoints in this image.\"/>"
+    view_str += "\n<Text name=\"text2\" value=\"Also useful: Press H for hand tool, " \
+                "CTRL+ to zoom in and CTRL- to zoom out\"/>"
+    view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\" strokeWidth=\"3\">"  # indent 2
+    for keypoint, color in zip(bodypart_names, colors_to_use):
+        view_str += f"\n    <Label value=\"{keypoint}\" />"  # indent 4
+    view_str += "\n  </KeyPointLabels>"  # indent 2
+    view_str += "\n  <Image name=\"img-1\" value=\"$img\" />"  # indent 2
+    view_str += "\n</View>"  # indent 0
+    return view_str
+
+
+def get_annotation(
+    rel_path: str, labels: pd.DataFrame, dims: dict, task_id: int, project_id: int,
+) -> dict:
+    task_dict = {
+        "completed_by": 1,
+        "result": [],
+        "was_cancelled": False,  # user skipped the task
+        "ground_truth": False,
+        "lead_time": 1,  # how much time it took to annotate task
+        "last_action": "imported",
+        "task": task_id,
+        "project": project_id,
+        "updated_by": 1,  # last user who updated this annotation
+        "parent_prediction": None,
+        "parent_annotation": None,
+        "last_created_by": None,
+    }
+    scorer = labels.scorer[0]
+    keypoints = labels.bodyparts.unique()
+    for keypoint in keypoints:
+        idx_x = (labels.scorer == scorer) & (labels.bodyparts == keypoint) & (labels.coords == "x")
+        idx_y = (labels.scorer == scorer) & (labels.bodyparts == keypoint) & (labels.coords == "y")
+        x_val = labels[idx_x][rel_path].iloc[0]
+        y_val = labels[idx_y][rel_path].iloc[0]
+        isnan = labels[idx_x][rel_path].isna().iloc[0]
+        if not isnan:
+            kp_dict = {
+                "value": {
+                    "x": x_val / dims["width"] * 100.0,  # percentage of image width
+                    "y": y_val / dims["height"] * 100.0,  # percentage of image height
+                    "width": 0.5,  # point size by percentage of image size
+                    "keypointlabels": [keypoint],
+                },
+                "original_width": dims["width"],
+                "original_height": dims["height"],
+                "image_rotation": 0,
+                "from_name": "kp-1",
+                "to_name": "img-1",
+                "type": "keypointlabels",
+            }
+            task_dict["result"].append(kp_dict)
+    return task_dict
