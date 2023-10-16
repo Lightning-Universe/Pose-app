@@ -8,6 +8,7 @@ To run from the command line (inside the conda environment named "lai" here):
 from lightning import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
+import logging
 import os
 import shutil
 import time
@@ -19,6 +20,10 @@ from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
+
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+_logger = logging.getLogger('APP')
 
 
 class LitPoseApp(LightningFlow):
@@ -94,11 +99,11 @@ class LitPoseApp(LightningFlow):
             os.makedirs(os.path.dirname(dst_path), exist_ok=True)
             if not os.path.isfile(dst_path):
                 shutil.copy(src_path, dst_path)
-                print(f"File copied from {src_path} to {dst_path}")
+                _logger.debug(f"File copied from {src_path} to {dst_path}")
             else:
-                print(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
+                _logger.debug(f"Did not copy {src_path} to {dst_path}; {dst_path} already exists")
         except IOError as e:
-            print(f"Unable to copy file. {e}")
+            _logger.warning(f"Unable to copy file. {e}")
 
     def _copy_dir(self, src_path, dst_path):
         """Copy a directory from the source path to the destination path."""
@@ -116,11 +121,12 @@ class LitPoseApp(LightningFlow):
                     dst_dir = os.path.join(dst_path, src_file_or_dir)
                     if not os.path.isdir(dst_dir):
                         shutil.copytree(src_dir, dst_dir)
-                        print(f"Directory copied from {src_dir} to {dst_dir}")
+                        _logger.debug(f"Directory copied from {src_dir} to {dst_dir}")
                     else:
-                        print(f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
+                        _logger.debug(
+                            f"Did not copy {src_dir} to {dst_dir}; {dst_dir} already exists")
         except IOError as e:
-            print(f"Unable to copy directory. {e}")
+            _logger.warning(f"Unable to copy directory. {e}")
 
     # @property
     # def ready(self) -> bool:
@@ -192,7 +198,7 @@ class LitPoseApp(LightningFlow):
                 file_or_dir=self.project_ui.proj_dir,
                 remove_local=False,
             )
-            print("Demo data transferred to FileSystem")
+            _logger.info("Demo data transferred to FileSystem")
             self.demo_data_transferred = True
 
         # find previously trained models for project, expose to training and diagnostics UIs

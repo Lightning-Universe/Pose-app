@@ -4,6 +4,7 @@ from lightning.app.storage import FileSystem
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
+import logging
 import numpy as np
 import os
 from sklearn.decomposition import PCA
@@ -15,6 +16,9 @@ from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR
 from lightning_pose_app import SELECTED_FRAMES_FILENAME
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
+
+
+_logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
 
 class ExtractFramesWork(WorkWithFileSystem):
@@ -35,7 +39,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         cap = cv2.VideoCapture(video_file)
 
         if not cap.isOpened():
-            print(f"Error opening video file {video_file}")
+            _logger.error(f"Error opening video file {video_file}")
 
         frames = []
         frame_counter = 0
@@ -92,7 +96,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         batches = np.reshape(frames, (frames.shape[0], -1))[beg_frame:end_frame]
 
         # take temporal diffs
-        print('computing motion energy...')
+        _logger.info('computing motion energy...')
         me = np.concatenate([
             np.zeros((1, batches.shape[1])),
             np.diff(batches, axis=0)
@@ -105,13 +109,13 @@ class ExtractFramesWork(WorkWithFileSystem):
         idxs_high_me = np.where(me > np.percentile(me, prctile))[0]
 
         # compute pca over high me frames
-        print('performing pca over high motion energy frames...')
+        _logger.info('performing pca over high motion energy frames...')
         pca_obj = PCA(n_components=np.min([batches[idxs_high_me].shape[0], 32]))
         embedding = pca_obj.fit_transform(X=batches[idxs_high_me])
         del batches  # free up memory
 
         # cluster low-d pca embeddings
-        print('performing kmeans clustering...')
+        _logger.info('performing kmeans clustering...')
         kmeans_obj = KMeans(n_clusters=n_clusters, n_init="auto")
         kmeans_obj.fit(X=embedding)
 
@@ -173,7 +177,7 @@ class ExtractFramesWork(WorkWithFileSystem):
 
     def _extract_frames(self, video_file, proj_dir, n_frames_per_video, frame_range=[0, 1]):
 
-        print(f"============== extracting frames from {video_file} ================")
+        _logger.info(f"============== extracting frames from {video_file} ================")
 
         # set flag for parent app
         self.work_is_done_extract_frames = False
@@ -190,9 +194,9 @@ class ExtractFramesWork(WorkWithFileSystem):
         # check: does file exist?
         video_file_abs = self.abspath(video_file)
         video_file_exists = os.path.exists(video_file_abs)
-        print(f"video file exists? {video_file_exists}")
+        _logger.info(f"video file exists? {video_file_exists}")
         if not video_file_exists:
-            print("skipping frame extraction")
+            _logger.info("skipping frame extraction")
             return
 
         # create folder to save images
@@ -256,7 +260,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         # check 1: does file exist?
         video_file_exists = os.path.exists(video_file_abs)
         if not video_file_exists:
-            print(f"{video_file_abs} does not exist! skipping")
+            _logger.info(f"{video_file_abs} does not exist! skipping")
             return None
 
         # check 2: is file in the correct format for DALI?
@@ -264,7 +268,7 @@ class ExtractFramesWork(WorkWithFileSystem):
 
         # reencode/rename
         if not video_file_correct_codec:
-            print("re-encoding video to be compatable with Lightning Pose video reader")
+            _logger.info("re-encoding video to be compatable with Lightning Pose video reader")
             reencode_video(video_file_abs, video_file_abs_new)
             # remove old video from local files
             os.remove(video_file_abs)
@@ -338,9 +342,9 @@ class ExtractFramesUI(LightningFlow):
             # only put to FileSystem under two conditions:
             # 1. file exists locally; if it doesn't, maybe it has already been deleted for a reason
             # 2. file does not already exist on FileSystem; avoids excessive file transfers
-            print(f"EXTRACT UI try put {dst}")
+            _logger.debug(f"UI try put {dst}")
             self._drive.put(src, dst)
-            print(f"EXTRACT UI success put {dst}")
+            _logger.debug(f"UI success put {dst}")
 
     def _extract_frames(self, video_files=None, n_frames_per_video=None):
 
@@ -382,7 +386,7 @@ class ExtractFramesUI(LightningFlow):
                 if (video_key in self.works_dict.keys()) \
                         and self.works_dict[video_key].work_is_done_extract_frames:
                     # kill work
-                    print(f"killing work from video {video_key}")
+                    _logger.info(f"killing work from video {video_key}")
                     self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 

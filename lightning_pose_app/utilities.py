@@ -3,12 +3,16 @@ import glob
 from lightning import LightningWork
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 from lightning.app.storage import FileSystem
+import logging
 import numpy as np
 import os
 import pandas as pd
 import shlex
 import shutil
 import subprocess
+
+
+_logger = logging.getLogger('APP.UTILS')
 
 
 def args_to_dict(script_args: str) -> dict:
@@ -42,7 +46,7 @@ class StreamlitFrontend(LitStreamlitFrontend):
     def start_server(self, *args, **kwargs):
         super().start_server(*args, **kwargs)
         try:
-            print(f"Running streamlit on http://{kwargs['host']}:{kwargs['port']}")
+            _logging.info(f"Running streamlit on http://{kwargs['host']}:{kwargs['port']}")
         except:
             # on the cloud, args[0] = host, args[1] = port
             pass
@@ -62,19 +66,19 @@ class WorkWithFileSystem(LightningWork):
 
     def get_from_drive(self, inputs, overwrite=True):
         for i in inputs:
-            print(f"{self.work_name.upper()} get {i}")
+            _logger.debug(f"{self.work_name.upper()} get {i}")
             try:  # file may not be ready
                 src = i  # shared
                 dst = self.abspath(i)  # local
                 self._drive.get(src, dst, overwrite=overwrite)
-                print(f"{self.work_name.upper()} data saved at {dst}")
+                _logger.debug(f"{self.work_name.upper()} data saved at {dst}")
             except Exception as e:
-                print(f"{self.work_name.upper()} did not load {i} from FileSystem: {e}")
+                _logger.debug(f"{self.work_name.upper()} did not load {i} from FileSystem: {e}")
                 continue
 
     def put_to_drive(self, outputs):
         for o in outputs:
-            print(f"{self.work_name.upper()} drive try put {o}")
+            _logger.debug(f"{self.work_name.upper()} drive try put {o}")
             src = self.abspath(o)  # local
             dst = o  # shared
             # make sure dir ends with / so that put works correctly
@@ -85,7 +89,7 @@ class WorkWithFileSystem(LightningWork):
             if not os.path.exists(src):
                 continue
             self._drive.put(src, dst)
-            print(f"{self.work_name.upper()} drive success put {dst}")
+            _logger.debug(f"{self.work_name.upper()} drive success put {dst}")
 
     @staticmethod
     def abspath(path):
@@ -145,7 +149,8 @@ def copy_and_reformat_video_directory(src_dir: str, dst_dir: str) -> None:
             if src.endswith(".mp4") or src.endswith(".avi"):
                 video_file_correct_codec = check_codec_format(src)
                 if not video_file_correct_codec:
-                    print(f"re-encoding {src} to be compatable with Lightning Pose video reader")
+                    _logger.info(
+                        f"re-encoding {src} to be compatable with Lightning Pose video reader")
                     reencode_video(src, dst.replace(".avi", ".mp4"))
                 else:
                     # copy already-formatted video
@@ -182,7 +187,7 @@ def get_frames_from_idxs(cap, idxs) -> np.ndarray:
                 frames = np.zeros((n_frames, 1, height, width), dtype="uint8")
             frames[fr, 0, :, :] = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
-            print(
+            _logger.debug(
                 "warning! reached end of video; returning blank frames for remainder of "
                 + "requested indices"
             )
@@ -231,7 +236,7 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
                     df_tmp1.index = new_col
                     df_tmp = df_tmp1
             except IndexError:
-                print(f"Could not find labels for {d}; skipping")
+                _logger.error(f"Could not find labels for {d}; skipping")
                 continue
 
         dfs.append(df_tmp)

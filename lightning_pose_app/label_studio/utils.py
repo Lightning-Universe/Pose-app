@@ -1,13 +1,17 @@
-"""This module has to be called within the label-studio venv"""
+"""Utility functions for label studio"""
 
-import time
-from label_studio_sdk import Client  # currently in its own venv, conflicting with lightning
-import pandas as pd
+from label_studio_sdk import Client
+import logging
 import numpy as np
 import os
+import pandas as pd
+import time
 from typing import Any, Tuple, List, Dict
 
 from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME
+
+
+_logger = logging.getLogger('APP.LABELSTUDIO')
 
 MAX_CONNECT_ATTEMPTS = 30
 
@@ -21,7 +25,7 @@ def retry(func):
             try:
                 return func(*args, **kwargs)
             except:
-                print("Could not execute {}, retrying in one second...".format(func.__name__))
+                _logging.debug("Could not execute {}, retrying in one second...".format(func.__name__))
                 attempts += 1
                 time.sleep(1)
                 if attempts > MAX_CONNECT_ATTEMPTS:

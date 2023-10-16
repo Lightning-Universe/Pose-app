@@ -9,6 +9,7 @@ from lightning.app.structures import Dict
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
+import logging
 import numpy as np
 import os
 import pandas as pd
@@ -16,6 +17,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import shutil
 import subprocess
+import sys
 import time
 import yaml
 
@@ -26,6 +28,8 @@ from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format
 
+
+_logger = logging.getLogger('APP.TRAIN_INFER')
 
 st.set_page_config(layout="wide")
 
@@ -101,7 +105,7 @@ class LitPose(WorkWithFileSystem):
         # check 1: does file exist?
         video_file_exists = os.path.exists(video_file_abs)
         if not video_file_exists:
-            print(f"{video_file_abs} does not exist! skipping")
+            _logger.info(f"{video_file_abs} does not exist! skipping")
             return None
 
         # check 2: is file in the correct format for DALI?
@@ -109,7 +113,7 @@ class LitPose(WorkWithFileSystem):
 
         # reencode/rename
         if not video_file_correct_codec:
-            print("re-encoding video to be compatable with Lightning Pose video reader")
+            _logger.info("re-encoding video to be compatable with Lightning Pose video reader")
             reencode_video(video_file_abs, video_file_abs_new)
             # remove old video from local files
             os.remove(video_file_abs)
@@ -239,7 +243,7 @@ class LitPose(WorkWithFileSystem):
         # Post-training analysis
         # ----------------------------------------------------------------------------------
         hydra_output_directory = os.getcwd()
-        print("Hydra output directory: {}".format(hydra_output_directory))
+        _logger.info("Hydra output directory: {}".format(hydra_output_directory))
         # get best ckpt
         best_ckpt = os.path.abspath(trainer.checkpoint_callback.best_model_path)
         # check if best_ckpt is a file
@@ -275,7 +279,7 @@ class LitPose(WorkWithFileSystem):
         try:
             compute_metrics(cfg=cfg, preds_file=preds_file, data_module=data_module_pred)
         except Exception as e:
-            print(f"Error computing metrics\n{e}")
+            _logger.error(f"Error computing metrics\n{e}")
 
         # predict folder of videos
         if cfg.eval.predict_vids_after_training:
@@ -319,7 +323,7 @@ class LitPose(WorkWithFileSystem):
                         cfg=cfg, preds_file=prediction_csv_file, data_module=data_module_pred
                     )
                 except Exception as e:
-                    print(f"Error predicting on video {video_file}:\n{e}")
+                    _logger.error(f"Error predicting on video {video_file}:\n{e}")
                     continue
 
         # ----------------------------------------------------------------------------------
@@ -374,9 +378,9 @@ class LitPose(WorkWithFileSystem):
         # check: does file exist?
         video_file_abs = self.abspath(video_file)
         video_file_exists = os.path.exists(video_file_abs)
-        print(f"video file exists? {video_file_exists}")
+        _logger.info(f"video file exists? {video_file_exists}")
         if not video_file_exists:
-            print("skipping inference")
+            _logger.info("skipping inference")
             return
 
         # pull model from FileSystem
@@ -438,7 +442,7 @@ class LitPose(WorkWithFileSystem):
         try:
             compute_metrics(cfg=cfg, preds_file=preds_file, data_module=data_module)
         except Exception as e:
-            print(f"Error predicting on {video_file}:\n{e}")
+            _logger.error(f"Error predicting on {video_file}:\n{e}")
 
         # make short labeled snippet for manual inspection
         video_file_abs_short = self._make_video_snippet(
@@ -587,9 +591,9 @@ class TrainUI(LightningFlow):
             # only put to FileSystem under two conditions:
             # 1. file exists locally; if it doesn't, maybe it has already been deleted for a reason
             # 2. file does not already exist on FileSystem; avoids excessive file transfers
-            print(f"TRAIN_INFER UI try put {dst}")
+            _logger.debug(f"TRAIN_INFER UI try put {dst}")
             self._drive.put(src, dst)
-            print(f"TRAIN_INFER UI success put {dst}")
+            _logger.debug(f"TRAIN_INFER UI success put {dst}")
 
     def _train(
         self,
@@ -600,7 +604,7 @@ class TrainUI(LightningFlow):
     ):
 
         if config_filename is None:
-            print("ERROR: config_filename must be specified for training models")
+            _logger.error("config_filename must be specified for training models")
 
         # set config overrides
         base_dir = os.path.join(os.getcwd(), self.proj_dir[1:])
@@ -701,7 +705,7 @@ class TrainUI(LightningFlow):
                 if (video_key in self.works_dict.keys()) \
                         and self.works_dict[video_key].work_is_done_inference:
                     # kill work
-                    print(f"killing work from video {video_key}")
+                    _logger.info(f"killing work from video {video_key}")
                     self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 

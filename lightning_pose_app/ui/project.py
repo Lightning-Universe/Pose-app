@@ -3,6 +3,7 @@ import glob
 from lightning import LightningFlow, LightningWork
 from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
+import logging
 import math
 import numpy as np
 import os
@@ -28,6 +29,9 @@ from lightning_pose_app.utilities import (
     collect_dlc_labels,
     copy_and_reformat_video_directory,
 )
+
+
+_logger = logging.getLogger('APP.PROJECT')
 
 
 class ProjectUI(LightningFlow):
@@ -114,19 +118,19 @@ class ProjectUI(LightningFlow):
 
         if not os.path.exists(self.abspath(file_or_dir)):
             try:
-                print(f"PROJECT drive try get {file_or_dir}")
+                _logger.debug(f"drive try get {file_or_dir}")
                 src = file_or_dir  # shared
                 dst = self.abspath(file_or_dir)  # local
                 self._drive.get(src, dst, overwrite=True)
-                print(f"PROJECT drive success get {file_or_dir}")
+                _logger.debug(f"drive success get {file_or_dir}")
             except Exception as e:
-                print(e)
-                print(f"could not find {file_or_dir} in {self.data_dir}")
+                _logger.debug(e)
+                _logger.debug(f"could not find {file_or_dir} in {self.data_dir}")
         else:
-            print(f"loading local version of {file_or_dir}")
+            _logger.debug(f"loading local version of {file_or_dir}")
 
     def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
-        print(f"PROJECT put to drive {file_or_dir}")
+        _logger.debug(f"put to drive {file_or_dir}")
         src = self.abspath(file_or_dir)  # local
         if os.path.isfile(src):
             dst = file_or_dir  # shared
@@ -141,7 +145,7 @@ class ProjectUI(LightningFlow):
                     dst = rel_path
                     self._drive.put(src, dst)
                 else:
-                    print(f"{rel_path} already exists on FileSystem! not updating")
+                    _logger.debug(f"{rel_path} already exists on FileSystem! not updating")
         # clean up the local object
         if remove_local:
             if os.path.isfile(self.abspath(file_or_dir)):
@@ -190,8 +194,8 @@ class ProjectUI(LightningFlow):
 
         # check to see if config exists; copy default config if not
         if (self.config_file is None) or (not os.path.exists(self.abspath(self.config_file))):
-            print(f"no config file at {self.config_file}")
-            print("loading default config")
+            _logger.debug(f"no config file at {self.config_file}")
+            _logger.debug("loading default config")
             # copy default config
             config_dict = copy.deepcopy(self.default_config_dict)
             # empty out project-specific entries
@@ -205,7 +209,7 @@ class ProjectUI(LightningFlow):
             config_dict["data"]["columns_for_singleview_pca"] = None
             config_dict["data"]["mirrored_column_matches"] = None
         else:
-            print("loading existing config")
+            _logger.debug("loading existing config")
             # load existing config
             config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
 
@@ -263,8 +267,8 @@ class ProjectUI(LightningFlow):
                 }
             })
         else:
-            print(glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*")))
-            print("did not find labeled data directory in FileSystem")
+            _logger.debug(glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*")))
+            _logger.debug("did not find labeled data directory in FileSystem")
 
     def _compute_labeled_frame_fraction(self, timer=0.0):
 
@@ -276,11 +280,11 @@ class ProjectUI(LightningFlow):
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
-            print(f"could not find {metadata_file}")
+            _logger.debug(f"could not find {metadata_file}")
             n_labeled_frames = None
             n_total_frames = None
         except Exception as e:
-            print(e)
+            _logger.warning(e)
             n_labeled_frames = None
             n_total_frames = None
 
@@ -328,7 +332,7 @@ class ProjectUI(LightningFlow):
 
         # extract all files to tmp directory
         if not os.path.exists(self.st_upload_existing_project_zippath):
-            print(
+            _logger.error(
                 f"Could not find zipped project file at {self.st_upload_existing_project_zippath};"
                 f" aborting"
             )

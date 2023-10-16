@@ -1,7 +1,11 @@
 """Create a label studio configuration xml file."""
 
 import argparse
+import logging
 import os
+
+
+_logger = logging.getLogger('APP.LABELSTUDIO')
 
 
 def build_xml(bodypart_names):
@@ -30,7 +34,7 @@ def build_xml(bodypart_names):
     return view_str
 
 
-print("Executing create_labeling_config.py")
+_logger.info("Executing create_labeling_config.py")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--proj_dir", type=str)

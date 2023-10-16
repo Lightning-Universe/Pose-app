@@ -7,6 +7,7 @@ To run from the command line (inside the conda environment named "lai" here):
 
 from lightning import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
+import logging
 import os
 import time
 import yaml
@@ -16,6 +17,10 @@ from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.build_configs import lightning_pose_dir
+
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+_logger = logging.getLogger('APP')
 
 
 class LitPoseApp(LightningFlow):

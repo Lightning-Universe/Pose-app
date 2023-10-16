@@ -8,7 +8,9 @@ To run from the command line (inside the conda environment named "lai" here):
 from lightning import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
+import logging
 import os
+import sys
 import time
 import yaml
 
@@ -22,6 +24,10 @@ from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI, LitPose
 from lightning_pose_app.build_configs import TensorboardBuildConfig, LitPoseBuildConfig
 from lightning_pose_app.build_configs import lightning_pose_dir
+
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+_logger = logging.getLogger('APP')
 
 
 # TODO: HIGH PRIORITY

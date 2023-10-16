@@ -2,6 +2,7 @@ import errno
 from functools import partial
 from lightning import LightningWork
 from lightning.app.utilities.app_helpers import _collect_child_process_pids
+import logging
 import os
 import shlex
 import signal
@@ -12,6 +13,9 @@ import threading
 import time
 
 from lightning_pose_app.utilities import args_to_dict, WorkWithFileSystem
+
+
+_logger = logging.getLogger('APP.BASHWORK')
 
 
 def add_to_system_env(env_key='env', **kwargs) -> dict:
@@ -35,10 +39,10 @@ def is_port_in_use(host: str, port: int) -> bool:
     except socket.error as e:
         in_use = True
         if e.errno == errno.EADDRINUSE:
-            print("Port is already in use")
+            _logger.debug("Port is already in use")
         else:
             # something else raised the socket.error exception
-            print(e)
+            _logger.debug(e)
 
     s.close()
     return in_use
@@ -152,7 +156,6 @@ class LitBashWork(WorkWithFileSystem):
                     for line in iter(self._wait_proc.stdout.readline, b""):
                         # logger.info("%s", line.decode().rstrip())
                         line = line.decode().rstrip()
-                        print(line)
                         if save_stdout:
                             if self.stdout is None:
                                 self.stdout = []
@@ -186,13 +189,13 @@ class LitBashWork(WorkWithFileSystem):
         cmd = Template(cmd).substitute({'host': self.host, 'port': self.port})
         # convert multiline to a single line
         cmd = ' '.join(shlex.split(cmd))
-        print(cmd, kwargs)
+        _logger.info(cmd, kwargs)
         kwargs['env'] = add_to_system_env(**kwargs)
         if venv_name:
             cmd = f"source ~/{venv_name}/bin/activate; which python; {cmd}; deactivate"
 
         if wait_for_exit:
-            print("wait popen")
+            _logger.debug("wait popen")
             # start the thread
             target = partial(
                 self.popen_wait, cmd, save_stdout=save_stdout,
@@ -202,16 +205,16 @@ class LitBashWork(WorkWithFileSystem):
             # tr
             thread.join(timeout)
             if thread.is_alive() and timeout > 0:
-                print(f"terminating after waiting {timeout}")
+                _logger.debug(f"terminating after waiting {timeout}")
                 self._wait_proc.terminate()
             # should either wait, process is already done, or kill
             thread.join()
-            # print(self._wait_proc.returncode)
-            print("wait completed", cmd)
+            # _logger.debug(self._wait_proc.returncode)
+            _logger.debug("wait completed", cmd)
         else:
-            print("no wait popen")
+            _logger.debug("no wait popen")
             self.popen_nowait(cmd, **kwargs)
-            print("no wait completed", cmd)
+            _logger.debug("no wait completed", cmd)
 
     def run(
         self,
@@ -229,7 +232,7 @@ class LitBashWork(WorkWithFileSystem):
         **kwargs
     ):
 
-        print(args, kwargs)
+        _logger.info(args, kwargs)
 
         # pre processing
         self.on_before_run()
@@ -242,11 +245,11 @@ class LitBashWork(WorkWithFileSystem):
 
             # kill previous process
             if self.pid and kill_pid:
-                print(f"***killing {self.pid}")
+                _logger.debug(f"***killing {self.pid}")
                 os.kill(self.pid, signal.SIGTERM)
                 info = os.waitpid(self.pid, 0)
                 while is_port_in_use(self.host, self.port):
-                    print(f"***killed. pid {self.pid} waiting to free port")
+                    _logger.debug(f"***killed. pid {self.pid} waiting to free port")
                     time.sleep(self.wait_seconds_after_kill)
 
             # start a new process
@@ -262,7 +265,7 @@ class LitBashWork(WorkWithFileSystem):
         self.put_to_drive(outputs)
         # give time for REDIS to catch up and propagate self.stdout back to flow
         if save_stdout:
-            print(f"waiting work to flow message sleeping {self.wait_seconds_after_run}")
+            _logger.debug(f"waiting work to flow message sleeping {self.wait_seconds_after_run}")
             time.sleep(self.wait_seconds_after_run)
 
         # regular hook

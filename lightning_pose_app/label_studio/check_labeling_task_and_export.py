@@ -1,6 +1,7 @@
 """Check for new labels, export to lightning pose format, export database to FileSystem."""
 
 import argparse
+import logging
 import os
 import pickle
 import yaml
@@ -11,7 +12,10 @@ from lightning_pose_app.label_studio.utils import connect_to_label_studio
 from lightning_pose_app.label_studio.utils import get_project
 from lightning_pose_app.label_studio.utils import LabelStudioJSONProcessor
 
-print("Executing check_labeling_task_and_export.py")
+
+_logger = logging.getLogger('APP.LABELSTUDIO')
+
+_logger.info("Executing check_labeling_task_and_export.py")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--label_studio_url', type=str)
@@ -21,33 +25,33 @@ parser.add_argument('--keypoints_list', type=str)  # assume keypoint names separ
 args = parser.parse_args()
 
 # connect to label studio
-print("Connecting to LabelStudio at %s..." % args.label_studio_url)
+_logger.debug("Connecting to LabelStudio at %s..." % args.label_studio_url)
 label_studio_client = connect_to_label_studio(url=args.label_studio_url, api_key=args.api_key)
-print("Connected to LabelStudio at %s" % args.label_studio_url)
+_logger.debug("Connected to LabelStudio at %s" % args.label_studio_url)
 
 # get current project
 metadata_file = os.path.join(args.proj_dir, LABELSTUDIO_METADATA_FILENAME)
 try:
     metadata = yaml.safe_load(open(metadata_file, "r"))
 except FileNotFoundError:
-    print(f"Cannot find {metadata_file} in {args.proj_dir}")
+    _logger.warning(f"Cannot find {metadata_file} in {args.proj_dir}")
     exit()
 label_studio_project = get_project(label_studio_client=label_studio_client, id=metadata["id"])
 print("Fetched Project ID: %s, Project Title: %s" % (
     label_studio_project.id, label_studio_project.title))
 
 # export the labeled tasks
-print("Exporting labeled tasks...")
+_logger.debug("Exporting labeled tasks...")
 exported_tasks = label_studio_project.export_tasks()
-print("Exported %i tasks" % len(exported_tasks))
+_logger.debug("Exported %i tasks" % len(exported_tasks))
 
 # use our processor to convert into pandas dlc format
 if len(exported_tasks) > 0:
     # save to pickle for resuming projects
-    print("Saving tasks to pickle file")
+    _logger.debug("Saving tasks to pickle file")
     pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"))
     # save to csv for lightning pose models
-    print("Saving annotations to csv file")
+    _logger.debug("Saving annotations to csv file")
     processor = LabelStudioJSONProcessor(
         label_studio_json_export=exported_tasks,
         data_dir=args.proj_dir,

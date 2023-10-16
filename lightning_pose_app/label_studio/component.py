@@ -1,4 +1,5 @@
 from lightning import CloudCompute, LightningFlow
+import logging
 import os
 
 from lightning_pose_app import (
@@ -10,6 +11,10 @@ from lightning_pose_app import (
 )
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studio_venv
+
+
+_logger = logging.getLogger('APP.LABELSTUDIO')
+log_level = "ERROR"  # log level sent to label studio sdk
 
 
 class LitLabelStudio(LightningFlow):
@@ -75,7 +80,7 @@ class LitLabelStudio(LightningFlow):
             input_output_only=True,
             inputs=[self.database_dir],
             wait_for_exit=True,
-            env={"LOG_LEVEL": "DEBUG"},
+            env={"LOG_LEVEL": log_level},
         )
 
         self.counts["import_database"] += 1
@@ -96,7 +101,7 @@ class LitLabelStudio(LightningFlow):
             venv_name=label_studio_venv,
             wait_for_exit=False,
             env={
-                "LOG_LEVEL": "DEBUG",
+                "LOG_LEVEL": log_level,
                 "LABEL_STUDIO_USERNAME": self.username,
                 "LABEL_STUDIO_PASSWORD": self.password,
                 "LABEL_STUDIO_USER_TOKEN": self.user_token,
@@ -159,7 +164,7 @@ class LitLabelStudio(LightningFlow):
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
-            env={"LOG_LEVEL": "DEBUG"},
+            env={"LOG_LEVEL": log_level},
             inputs=[
                 self.filenames["label_studio_config"],
                 self.filenames["labeled_data_dir"],
@@ -185,7 +190,7 @@ class LitLabelStudio(LightningFlow):
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
-            env={"LOG_LEVEL": "DEBUG"},
+            env={"LOG_LEVEL": log_level},
             timer=videos,
             inputs=[
                 self.filenames["labeled_data_dir"],
@@ -216,7 +221,7 @@ class LitLabelStudio(LightningFlow):
                 run_command,
                 venv_name=label_studio_venv,
                 wait_for_exit=True,
-                env={"LOG_LEVEL": "DEBUG"},
+                env={"LOG_LEVEL": log_level},
                 timer=timer,
                 inputs=[
                     self.filenames["labeled_data_dir"],
@@ -253,7 +258,7 @@ class LitLabelStudio(LightningFlow):
         self.label_studio.run(
             build_command,
             wait_for_exit=True,
-            env={"LOG_LEVEL": "DEBUG"},
+            env={"LOG_LEVEL": log_level},
             timer=keypoints,
             inputs=[],
             outputs=[self.filenames["label_studio_config"]],
@@ -279,7 +284,7 @@ class LitLabelStudio(LightningFlow):
             build_command,
             venv_name=label_studio_venv,
             wait_for_exit=True,
-            env={"LOG_LEVEL": "DEBUG"},
+            env={"LOG_LEVEL": log_level},
             inputs=[
                 self.filenames["labeled_data_dir"],
                 self.filenames["label_studio_metadata"],
@@ -312,5 +317,5 @@ class LitLabelStudio(LightningFlow):
 
     def on_exit(self):
         # final save to drive
-        print("SAVING DATA ONE LAST TIME")
+        _logger.info("SAVING DATA ONE LAST TIME")
         self._check_labeling_task_and_export(timer=0.0)
