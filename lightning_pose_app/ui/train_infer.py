@@ -81,6 +81,7 @@ class LitPose(WorkWithFileSystem):
 
         self.pwd = os.getcwd()
         self.progress = 0.0
+        self.status_ = "initialized"
 
         self.work_is_done_training = False
         self.work_is_done_inference = False
@@ -224,6 +225,7 @@ class LitPose(WorkWithFileSystem):
         limit_train_batches = calculate_train_batches(cfg, dataset)
 
         # set up trainer
+        self.status_ = "training"
         trainer = pl.Trainer(
             accelerator="gpu",
             devices=1,
@@ -283,6 +285,11 @@ class LitPose(WorkWithFileSystem):
 
         # predict folder of videos
         if cfg.eval.predict_vids_after_training:
+
+            # make new trainer for inference so we can properly log inference progress
+            callbacks = TrainerProgress(self, update_inference=True)
+            trainer = pl.Trainer(accelerator="gpu", devices=1, callbacks=callbacks)
+
             pretty_print_str("Predicting videos...")
             if cfg.eval.test_videos_directory is None:
                 filenames = []
@@ -292,7 +299,8 @@ class LitPose(WorkWithFileSystem):
                     f"Found {len(filenames)} videos to predict on "
                     f"(in cfg.eval.test_videos_directory)"
                 )
-            for video_file in filenames:
+            
+            for v, video_file in enumerate(filenames):
                 assert os.path.isfile(video_file)
                 pretty_print_str(f"Predicting video: {video_file}...")
                 # get save name for prediction csv file
@@ -306,6 +314,8 @@ class LitPose(WorkWithFileSystem):
                 else:
                     labeled_mp4_file = None
                 # predict on video
+                self.progress = 0.0  # reset progress so it will be updated during inference
+                self.status_ = f"inference on video {v + 1} / {len(filenames)}"
                 export_predictions_and_labeled_video(
                     video_file=video_file,
                     cfg=cfg,
@@ -429,6 +439,7 @@ class LitPose(WorkWithFileSystem):
         trainer = pl.Trainer(accelerator="gpu", devices=1, callbacks=callbacks)
 
         # compute predictions
+        self.status_ = "video inference"
         predict_single_video(
             video_file=video_file_abs,
             ckpt_file=ckpt_file,
@@ -445,6 +456,8 @@ class LitPose(WorkWithFileSystem):
             _logger.error(f"Error predicting on {video_file}:\n{e}")
 
         # make short labeled snippet for manual inspection
+        self.progress = 0.0  # reset progress so it will again be updated during snippet inference
+        self.status_ = "creating labeled video"
         video_file_abs_short = self._make_video_snippet(
             video_file=video_file_abs, preds_file=preds_file)
         preds_file_short = preds_file.replace(".csv", ".short.csv")
@@ -467,7 +480,7 @@ class LitPose(WorkWithFileSystem):
         self.work_is_done_inference = True
 
     @staticmethod
-    def _make_video_snippet(video_file, preds_file, clip_length=60, likelihood_thresh=0.9):
+    def _make_video_snippet(video_file, preds_file, clip_length=30, likelihood_thresh=0.9):
 
         import cv2
 
@@ -876,15 +889,19 @@ def _render_streamlit_fn(state: AppState):
             for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
                 if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
                     status = state.st_train_status[m]
+                    status_ = None  # more detailed status info from work
                     if status == "initialized":
                         p = 0.0
                     elif status == "active":
                         p = state.work.progress
+                        status_ = state.work.status_
                     elif status == "complete":
                         p = 100.0
                     else:
                         st.text(status)
-                    st.progress(p / 100.0, f"{m} progress ({status}: {int(p)}\% complete)")
+                    st.progress(
+                        p / 100.0, f"{m} progress ({status_ or status}: {int(p)}\% complete)"
+                    )
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) \
@@ -982,6 +999,7 @@ def _render_streamlit_fn(state: AppState):
         if state.run_script_infer:
             keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
             for vid, status in state.st_infer_status.items():
+                status_ = None  # more detailed status provided by work
                 if status == "initialized":
                     p = 0.0
                 elif status == "active":
@@ -989,15 +1007,16 @@ def _render_streamlit_fn(state: AppState):
                     if vid_ in keys:
                         try:
                             p = state.works_dict[vid_].progress
+                            status_ = state.works_dict[vid_].status_
                         except:
                             p = 100.0  # if work is deleted while accessing
                     else:
-                        p = 100.0  # state.work.progress
+                        p = 100.0
                 elif status == "complete":
                     p = 100.0
                 else:
                     st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+                st.progress(p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
             st.warning("waiting for existing inference to finish")
 
         # Lightning way of returning the parameters

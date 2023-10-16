@@ -232,7 +232,7 @@ class LitBashWork(WorkWithFileSystem):
         **kwargs
     ):
 
-        _logger.info(args, kwargs)
+        _logger.debug(args, kwargs)
 
         # pre processing
         self.on_before_run()

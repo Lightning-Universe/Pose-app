@@ -35,7 +35,6 @@ _logger = logging.getLogger('APP')
 #   * should this be done with a Work, and a frame upload status bar?
 #   * automatically create context datasets
 # - `abort` button next to training/inference progress bars so user doesn't have to kill app
-# - prediction: make progress bar more informative
 # - active learning
 
 # TODO: LOW PRIORITY
