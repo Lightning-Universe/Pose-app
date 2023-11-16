@@ -25,6 +25,14 @@ install_requires = [
     "label-studio-sdk==0.0.32",
 ]
 
+# additional requirements
+extras_require = {
+    "dev": {
+        "flake8",
+        "isort",
+    },
+}
+
 setup(
     name="lightning-pose-app",
     version=VERSION,
