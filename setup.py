@@ -30,6 +30,11 @@ extras_require = {
     "dev": {
         "flake8",
         "isort",
+        "sphinx",
+        "sphinx_rtd_theme",
+        "sphinx-rtd-dark-mode",
+        "sphinx-automodapi",
+        "sphinx-copybutton",
     },
 }
 
