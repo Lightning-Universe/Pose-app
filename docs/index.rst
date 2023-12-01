@@ -3,11 +3,12 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. image:: https://github.com/danbider/lightning-pose/raw/main/docs/images/LightningPose_horizontal_light.png
+Lightning Pose App documentation
+================================
 
+The **Lightning Pose App** is a browser-based GUI that facilitates the deveopment of pose estimation projects.
 
-Welcome to the Lightning Pose App's documentation!
-==================================================
+The app runs in the cloud using `Lightning.ai <https://lightning.ai>`_.
 
 .. toctree::
    :maxdepth: 2

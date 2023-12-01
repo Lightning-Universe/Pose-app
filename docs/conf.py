@@ -39,3 +39,8 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_theme = 'sphinx_rtd_theme'
 html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 html_static_path = ['_static']
+html_logo = "https://github.com/danbider/lightning-pose/raw/main/docs/images/LightningPose_logo_light.png"
+html_favicon = "https://github.com/danbider/lightning-pose/raw/main/docs/images/favicon.ico"
+
+# user starts in dark mode
+default_dark_mode = True
