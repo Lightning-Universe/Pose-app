@@ -43,6 +43,9 @@ remember that ``demo_app.py`` and ``labeleing_app.py`` only utilize a subset of 
    :maxdepth: 1
    :caption: App tabs:
 
+   tabs/manage_project
+   tabs/extract_frames
+   tabs/label_frames
    tabs/train_infer
    tabs/train_status
    tabs/labeled_diagnostics
