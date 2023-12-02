@@ -4,6 +4,14 @@
 Accessing your data
 ###################
 
+First, make sure you return to the terminal/VS Code view of the Studio by clicking on
+the appropriate icon in the right-hand tool bar.
+
+.. image:: https://imgur.com/lINajyE.png
+    :width: 200
+
+You will see a file explorer on the left-hand side.
+
 Lightning Pose project structure
 ================================
 
@@ -11,7 +19,7 @@ Data for the project named ``<PROJ_NAME>`` will be stored in a directory with th
 
 .. code-block::
 
-    ~/Pose-app/.shared/data/<PROJ_NAME>
+    ~/Pose-app/data/<PROJ_NAME>
       ├── labeled-data/
       ├── models/
       ├── videos/
@@ -50,7 +58,7 @@ Each model and its associated outputs will be stored in a directory with the fol
 
 .. code-block::
 
-    ~/Pose-app/.shared/data/<PROJ_NAME>/models/YYYY-MM-DD/HH-MM-SS
+    ~/Pose-app/data/<PROJ_NAME>/models/YYYY-MM-DD/HH-MM-SS
       ├── tb_logs/
       ├── video_preds/
       ├── video_preds_infer/

@@ -23,7 +23,7 @@ You can also select the portion of the video to extract frames from.
 If the beginning and/or end of your videos do not contain the animals or contain extra objects
 (e.g. experimenter hands) we recommend excluding these portions.
 
-Click "Extract frames", and another progress bar will appear.
+Click "Extract frames" once the video upload is complete, and another progress bar will appear.
 
 .. image:: https://imgur.com/U258Vah.png
 

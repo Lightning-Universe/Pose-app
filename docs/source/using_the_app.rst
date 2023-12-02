@@ -1,3 +1,5 @@
+.. _using_the_app:
+
 #############
 Using the app
 #############
@@ -10,13 +12,24 @@ We provide three different apps:
 
 **Launch the app**
 
+Once you have opened the Lightning Pose App Studio, you will see the following:
+
+.. image:: https://imgur.com/N351izy.png
+    :width: 400
+
 First, open a terminal by using the drop-down menu at the top left and select
 ``Terminal > New Terminal``.
 
 .. image:: https://imgur.com/ZqhpAhE.png
     :width: 400
 
-To launch an app from the terminal, make sure you are in the ``Pose-app`` directory and run
+To launch an app from the terminal, move to the ``Pose-app`` directory:
+
+.. code-block:: console
+
+    cd Pose-app
+
+and run
 
 .. code-block:: console
 
@@ -35,6 +48,15 @@ Navigate to the app output by clicking on the "port" plugin on the right-hand to
 
 .. image:: https://imgur.com/0XxDcpZ.png
     :width: 400
+
+IMPORTANT! You will need to click on the "Share" button, which will open the app in a separate
+browser window.
+This is crucial to getting all of the components visualized properly.
+In the original browser page you can return to the terminal to see printouts by clicking on the
+VS Code icon in the right-hand tool bar.
+
+.. image:: https://imgur.com/lINajyE.png
+    :width: 200
 
 Click on the links below to find more information about specific tabs;
 remember that ``demo_app.py`` and ``labeleing_app.py`` only utilize a subset of the tabs.

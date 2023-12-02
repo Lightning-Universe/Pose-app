@@ -19,7 +19,7 @@ existing names are shown above the text field (in this example, "data-1" and "da
 .. image:: https://imgur.com/sYZ0UCb.png
     :width: 600
 
-Click the "Prepare Fiftyone dataset" button.
+Click the "Prepare Fiftyone dataset" button or hit "Enter".
 The green success message will indicate when it is time to proceed.
 
 .. image:: https://imgur.com/tFuAVt6.png

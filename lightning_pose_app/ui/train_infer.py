@@ -851,7 +851,7 @@ def _render_streamlit_fn(state: AppState):
             st_loss_pcamv = False
         pcasv = state.config_dict["data"].get("columns_for_singleview_pca", [])
         if len(pcasv) > 0:
-            st_loss_pcasv = expander.checkbox("PCA Singleview", value=True)
+            st_loss_pcasv = expander.checkbox("Pose PCA", value=True)
         else:
             st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)

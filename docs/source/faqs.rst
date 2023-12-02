@@ -54,5 +54,5 @@ You can find the relevant parameters to adjust
 
 The app uses generic login info:
 
-* username: user@localhost
+* email: user@localhost
 * password: pw

@@ -4,7 +4,7 @@ Getting started
 
 There are several options for getting started with the Lightning Pose app:
 
-* :ref:`Duplicate Lightning Studio <lightning_studio>` is a no-install option - simply clone a cloud-based environment that comes with the app already installed. Requires creating a Lightning.ai account.
+* :ref:`Duplicate Lightning Studio <lightning_studio>` is a no-install option - simply clone a cloud-based environment that comes with the app already installed. Requires creating a Lightning account.
 
 * :ref:`Install app from github <conda_from_source>` is for installation on a local machine or a fresh Lightning Studio. This option is mostly used for development purposes.
 
@@ -16,10 +16,15 @@ Duplicate Lightning Studio with pre-installed app
 Follow
 `this link <todo>`_
 to the Lightning Pose App Studio.
-When you click the **Use** button you will be taken to a Lightning Studio environment with access to a command line interface, VSCode IDE, Jupyter IDE, and more.
+When you click the **Use** button you will be taken to a Lightning Studio environment with access
+to a terminal, VSCode IDE, Jupyter IDE, and more.
 The app and all dependencies are already installed.
 
 You will be required to create a Lightning account if you have not already signed up.
+
+Once you have opened the Studio environment you can proceed to
+:ref:`Using the app <using_the_app>`
+to learn how to launch the app and navigate the various tabs.
 
 .. _conda_from_source:
 

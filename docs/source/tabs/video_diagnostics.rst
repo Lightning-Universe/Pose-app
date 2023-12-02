@@ -35,4 +35,4 @@ Select a subset of models and a keypoint.
 The trace plot shows various metrics up top (temporal norm, pca errors),
 followed by the (x, y) predictions and their confidences.
 
-.. image:: https://imgur.com/LGFnBVD.png
+.. image:: https://imgur.com/RBRsUg0.png

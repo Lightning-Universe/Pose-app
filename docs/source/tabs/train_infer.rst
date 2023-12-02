@@ -9,7 +9,7 @@ This tab is the interface for training models and running inference on new video
 .. image:: https://imgur.com/GXhvqXI.png
 
 The left side-bar displays your current labeling progress, and contains a drop-down menu showing
-all existing models.
+all previously trained models.
 The "Train Networks" and "Predict on New Videos" columns are for training and inference,
 and detailed below.
 
@@ -19,11 +19,16 @@ Train Networks
 Training options
 ----------------
 
-Optionally change the max training epochs and the types of unsupervised losses used for the
+From the drop-down "Change Defaults" menu,
+optionally change the max training epochs and the types of unsupervised losses used for the
 semi-supervised models.
 
-.. image:: https://imgur.com/LiylXxc.png
+.. .. image:: https://imgur.com/LiylXxc.png
     :width: 400
+
+The PCA Multiview option will only appear if your data have more than one view;
+the Pose PCA option will only appear if you selected keypoints for the Pose PCA loss during
+project creation.
 
 Video handling options
 ----------------------
@@ -31,11 +36,11 @@ Video handling options
 After each model has completed training, you can choose to automatically run inference on the set
 of videos uploaded for labeling:
 
-* Do not run inference: self-explanatory
-* Run inference on videos: runs on all videos previously uploaded in the "Extract Frames" tab
-* Run inference on videos and make labeled movie: runs inference and then creates a labeled video with model predictions overlaid on the frames.
+* **Do not run inference**: self-explanatory
+* **Run inference on videos**: runs on all videos previously uploaded in the "Extract Frames" tab
+* **Run inference on videos and make labeled movie**: runs inference and then creates a labeled video with model predictions overlaid on the frames.
 
-.. image:: https://imgur.com/8UBY5y9.png
+.. .. image:: https://imgur.com/8UBY5y9.png
     :width: 400
 
 .. warning::
@@ -48,17 +53,17 @@ Select models to train
 
 There are currently 4 options to choose from:
 
-* Supervised: fully supervised baseline
-* Semi-supervised: uses labeled frames plus unlabeled video data for training
-* Supervised context: supervised model with temporal context frames
-* Semi-supervised context: semi-supervised model plus temporal context frames
+* **Supervised**: fully supervised baseline
+* **Semi-supervised**: uses labeled frames plus unlabeled video data for training
+* **Supervised context**: supervised model with temporal context frames
+* **Semi-supervised context**: semi-supervised model plus temporal context frames
 
-.. image:: https://imgur.com/x1MdTSk.png
+.. .. image:: https://imgur.com/x1MdTSk.png
     :width: 400
 
 .. note::
 
-    If you uploaded a DLC project you will not see the context options.
+    If you uploaded a DLC project or are using ``demo_app.py`` you will not see the context options.
 
 Train models
 ------------
@@ -86,7 +91,8 @@ You will see an upload progress bar.
 .. image:: https://imgur.com/MXHq8hx.png
     :width: 400
 
-Click "Run inference", and another set of progress bars will appear.
+Click "Run inference" once the video uploads are complete,
+and another set of progress bars will appear.
 After inference is complete for each video a small snippet is extracted
 (during the period of highest motion energy)
 and a video of raw frames overlaid with model predictions is created for diagnostic purposes.

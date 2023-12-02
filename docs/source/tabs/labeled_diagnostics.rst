@@ -18,22 +18,22 @@ Models can be renamed using the text fields in the left panel.
 Select data to plot
 -------------------
 
-.. image:: https://imgur.com/8C7JShk.png
+.. .. image:: https://imgur.com/8C7JShk.png
 
 Filter results using various criteria:
 
-* keypoint: mean computes metric average across all keypoints on each frame
-* metric: choose from available metrics like pixel error and confidence
-* train/val/test: data split to plot
+* **Keypoint**: mean computes metric average across all keypoints on each frame
+* **Metric**: choose from available metrics like pixel error and confidence
+* **Train/Val/Test**: data split to plot
 
 Compare multiple models
 -----------------------
 
 Plot selected metric/keypoint across all models:
 
-* plot style: choose from box, violin, or strip
-* metric threshold: ignore any values below this threshold
-* y-axis scale: choose from log or linear
+* **Plot style**: choose from box, violin, or strip
+* **Metric threshold**: ignore any values below this threshold
+* **Y-axis scale**: choose from log or linear
 
 Compare two models
 ------------------
