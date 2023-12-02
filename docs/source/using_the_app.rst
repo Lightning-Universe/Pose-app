@@ -23,13 +23,7 @@ First, open a terminal by using the drop-down menu at the top left and select
 .. image:: https://imgur.com/ZqhpAhE.png
     :width: 400
 
-To launch an app from the terminal, move to the ``Pose-app`` directory:
-
-.. code-block:: console
-
-    cd Pose-app
-
-and run
+To launch an app from the terminal, make sure you are in the ``Pose-app`` directory and run:
 
 .. code-block:: console
 
