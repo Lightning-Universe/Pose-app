@@ -14,7 +14,7 @@ Duplicate Lightning Studio with pre-installed app
 -------------------------------------------------
 
 Follow
-`this link <todo>`_
+`this link <https://lightning.ai/themattinthehatt/ai-recipes/lightning-pose-app-v1-0-0~01hgghkdmdpz60ttys95n61852?section=all>`_
 to the Lightning Pose App Studio.
 When you click the **Use** button you will be taken to a Lightning Studio environment with access
 to a terminal, VSCode IDE, Jupyter IDE, and more.
