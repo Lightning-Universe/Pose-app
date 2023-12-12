@@ -6,6 +6,7 @@ FAQs
 * :ref:`How do I increase the file upload size limit? <faq_upload_limit>`
 * :ref:`What if I encounter a CUDA out of memory error? <faq_oom>`
 * :ref:`What LabelStudio username and password should I use? <faq_ls_login>`
+* :ref:`How can I switch the cloud machine type (CPU to/from GPU)? <faq_change_machine>`
 
 .. _faq_can_i_import:
 
@@ -56,3 +57,23 @@ The app uses generic login info:
 
 * email: user@localhost
 * password: pw
+
+.. _faq_change_machine:
+
+**Q: What LabelStudio username and password should I use?**
+
+The app uses generic login info:
+
+* email: user@localhost
+* password: pw
+
+**Q: How can I switch the cloud machine type (CPU to/from GPU)?**
+
+In the upper right corner of the Lightning Studio, click on the compute icon
+(which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
+connected to a CPU-only machine).
+Select the GPU or CPU box to see available options.
+We recommend a default CPU machine (not data prep) for labeling tasks.
+
+.. image:: https://imgur.com/HGtYm0g.png
+    :width: 400
