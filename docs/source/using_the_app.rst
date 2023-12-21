@@ -17,6 +17,8 @@ Once you have opened the Lightning Pose App Studio, you will see the following:
 .. image:: https://imgur.com/N351izy.png
     :width: 400
 
+Make sure you are :ref:`connected to a GPU machine <faq_change_machine>` for non-labeling tasks.
+
 First, open a terminal by using the drop-down menu at the top left and select
 ``Terminal > New Terminal``.
 
