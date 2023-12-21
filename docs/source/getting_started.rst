@@ -17,9 +17,9 @@ First, you will need to `create a Lightning account <https://lightning.ai/>`_
 if you have not already signed up.
 
 Once you have set up your Lightning account, follow
-`this link <https://lightning.ai/themattinthehatt/ai-recipes/lightning-pose-app-v1-0-0~01hgghkdmdpz60ttys95n61852?section=all>`_
+`this link <https://lightning.ai/themattinthehatt/studios/lightning-pose-app?section=all>`_
 to the Lightning Pose App Studio.
-When you click the **Use** button you will be taken to a Lightning Studio environment with access
+When you click the **Get** button you will be taken to a Lightning Studio environment with access
 to a terminal, VSCode IDE, Jupyter IDE, and more.
 The app and all dependencies are already installed.
 
