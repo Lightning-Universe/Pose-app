@@ -531,19 +531,24 @@ def _render_streamlit_fn(state: AppState):
     # ----------------------------------------------------
 
     st.markdown(""" ## Manage Lightning Pose project """)
-
+    #st.markdown("Select between the diffrent options")
     CREATE_STR = "Create new project"
     UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
     LOAD_STR = "Load existing project"
     DELETE_STR = "Delete existing project"
 
     st_mode = st.radio(
-        "",
+        #"",
+        label="HELP",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
+        help="Select if you want to create a new project from scratch, Use an existing DLC project as a foundation for your new project, continue work on an ongoing lightning pose project or remove a project from your user project reposetery"
     )
-
+    st.markdown(
+        "Need further help? Check the [documentation](https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
+        unsafe_allow_html=True
+    )
     st.text(f"Available projects: {state.initialized_projects}")
 
     st_project_name = st.text_input(
