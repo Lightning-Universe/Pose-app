@@ -556,7 +556,7 @@ def _render_streamlit_fn(state: AppState):
         value="" if (not state.st_project_loaded or state.st_reset_project_name)
         else state.st_project_name
     )
-
+    #
     # ----------------------------------------------------
     # determine project status - load existing, create new
     # ----------------------------------------------------
