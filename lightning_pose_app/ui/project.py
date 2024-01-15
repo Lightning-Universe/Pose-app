@@ -904,7 +904,6 @@ def _render_streamlit_fn(state: AppState):
                 <strong>username</strong>: user@localhost<br />
                 <strong>password</strong>: pw
             """
-
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
