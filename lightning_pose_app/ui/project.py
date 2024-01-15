@@ -556,7 +556,6 @@ def _render_streamlit_fn(state: AppState):
         value="" if (not state.st_project_loaded or state.st_reset_project_name)
         else state.st_project_name
     )
-    #
     # ----------------------------------------------------
     # determine project status - load existing, create new
     # ----------------------------------------------------
@@ -650,6 +649,7 @@ def _render_streamlit_fn(state: AppState):
         st_prev_format = st.radio(
             "Uploaded project format",
             options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
+            help="Select the file format that the project is stored at. If DLC selected make sure the zipped folder has meet all reqierments"
         )
         state.st_existing_project_format = st_prev_format
 
@@ -709,12 +709,19 @@ def _render_streamlit_fn(state: AppState):
         # camera views
         if enter_data:
             st.markdown("")
+            st.divider()
             st.markdown("")
-            st.markdown("##### Camera views")
+            st.markdown("##### Camera views",
+            help= "The support for multiple views is limited to either fusing the views into single frames or utilizing a mirror to generate multiple views from a single camera"
+            )
             n_views = st.text_input(
                 "Enter number of camera views:",
                 disabled=not enter_data,
                 value="" if not state.st_project_loaded else str(st_n_views),
+            )
+            st.caption(
+            "For a multiview option check the [documentation](https://lightning-pose.readthedocs.io/en/latest/source/user_guide_advanced/multiview_fused.html#)",
+            unsafe_allow_html=True
             )
             if n_views:
                 st_n_views = int(n_views)
@@ -724,7 +731,9 @@ def _render_streamlit_fn(state: AppState):
 
         # keypoints
         if st_n_views > 0:
+            st.divider()
             st.markdown("##### Define keypoints")
+            e1 = st.expander("Expend to see an exemple")
             keypoint_instructions = """
                 **Instructions**:
                 If your data has multiple views, make sure to create an entry for each bodypart
@@ -741,7 +750,7 @@ def _render_streamlit_fn(state: AppState):
                 It is also possible to track keypoints that are only present in a subset of the 
                 views, such as the keypoint `corner1_top` above.
             """
-            st.markdown(keypoint_instructions)
+            e1.markdown(keypoint_instructions)
             if state.st_upload_existing_project:
                 value = "\n".join(st_keypoints)
             elif not state.st_project_loaded:
@@ -762,13 +771,21 @@ def _render_streamlit_fn(state: AppState):
 
         # pca singleview
         if st_n_keypoints > 1:
+            st.divider()
             st.markdown("##### Select subset of keypoints for Pose PCA")
-            st.markdown("""
-                **Instructions**:
-                The selected subset will be used for a Pose PCA loss on unlabeled videos.
-                The subset should be keypoints that are not usually occluded (such as a tongue)
-                and are not static (such as the corner of a box).
+            # st.markdown("""
+            #     **Instructions**:
+            #     The selected subset will be used for a Pose PCA loss on unlabeled videos.
+            #     The subset should be keypoints that are not usually occluded (such as a tongue)
+            #     and are not static (such as the corner of a box).
+            # """)
+            e2 = st.expander("**Expend for further instractions**")
+            e2.markdown("""
+                **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
+                * **Slecting points with consistent visibility**, avoiding those prone to occlusion (e.g., tongue) during movement.
+                * **Selecting points that exhibit dynamic changes**, excluding static elements (e.g., corner of a box) offering minimal pose information.
             """)
+            e2.write("*The selected subset will be used for a Pose PCA loss on unlabeled videos")
             pcasv_selected = [False for _ in st_keypoints]
             for k, kp in enumerate(st_keypoints):
                 pcasv_selected[k] = st.checkbox(
@@ -784,8 +801,9 @@ def _render_streamlit_fn(state: AppState):
         if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
-            st.markdown("""
-                **Instructions**:
+            e3 = st.expander("**Expend for further instractions**")
+            e3.markdown("""
+                Select the same body part from diffrent POV's. 
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
                 The subset should be keypoints that are usually visible in all camera views.
             """)
@@ -882,7 +900,7 @@ def _render_streamlit_fn(state: AppState):
         if state.st_submits > 0:
             proceed_str = """
                 Proceed to the next tab to extract frames for labeling.<br /><br />
-                LabelStudio login information:<br />
+                Use this LabelStudio login information:<br />
                 <strong>username</strong>: user@localhost<br />
                 <strong>password</strong>: pw
             """
