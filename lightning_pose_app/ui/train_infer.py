@@ -836,11 +836,11 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-        expander = st.expander("Change Defaults")
-
+        #expander = st.expander("Change Defaults")
+        expander = st.expander("Expand to adjust the maximum training epochs and the types of unsupervised losses employed for the semi-supervised models")
         # max epochs
         st_max_epochs = expander.text_input(
-            "Max training epochs (all models)", value=state.max_epochs_default)
+            "Set the max training epochs (all models)", value=state.max_epochs_default)
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
@@ -858,8 +858,8 @@ def _render_streamlit_fn(state: AppState):
 
         st.markdown(
             """
-            #### Video handling options
-            """
+            #### Video handling options""", 
+            help="Choose if you want to automatically run inference on the videos uploaded for labeling. **Warning** : Video traces will not be available in the Video Diagnostics tab if you choose “Do not run inference”"
         )
         st_train_label_opt = st.radio(
             "",
@@ -966,7 +966,7 @@ def _render_streamlit_fn(state: AppState):
 
     with infer_tab:
 
-        st.header("Predict on New Videos")
+        st.header(body="Predict on New Videos", help="Select your preferred inference model, then drag and drop your video file(s). Monitor the upload progress bar and click **Run inference** once uploads are complete. After completion, a brief snippet is extracted for each video during the period of highest motion energy, and a diagnostic video with raw frames and model predictions is generated. Once inference concludes for all videos, the 'waiting for existing inference to finish' warning will disappear")
 
         model_dir = st.selectbox(
             "Choose model to run inference", sorted(state.trained_models, reverse=True))

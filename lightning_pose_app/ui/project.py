@@ -530,13 +530,20 @@ def _render_streamlit_fn(state: AppState):
     # landing
     # ----------------------------------------------------
     with st.sidebar:
-        st.title(""" Manage Lightning Pose project """)
+        st.title(""" Welcome to Lightning Pose App! """)
         st.write("The first tab of the app is the project manager. Here you will be able to create new projects and load or delete existing projects under your account.")
-        st.write("In order to move forward, you will need to complete all the steps in this tab.")
-        st.markdown("Need further help? Check the [documentation](https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
+        st.write("## *To move forward, you will need to complete all the steps in this tab.")
+        st.write("##")
+        st.markdown("**Need further help? Check the:**")
+        st.markdown("App [documentation](https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
         unsafe_allow_html=True)
-    st.markdown(""" ## Manage Lightning Pose project """)
-    #st.markdown("Select between the diffrent options")
+        st.markdown("Github [reposetry](https://github.com/Lightning-Universe/Pose-app.html#)",
+        unsafe_allow_html=True)
+        st.markdown("Lightning Pose [documentation](https://lightning-pose.readthedocs.io/en/latest/.html#)",
+        unsafe_allow_html=True)
+    #st.markdown(""" ## Manage Lightning Pose projects """)
+    st.header("Manage Lightning Pose projects")
+
     CREATE_STR = "Create new project"
     UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
     LOAD_STR = "Load existing project"
@@ -544,15 +551,11 @@ def _render_streamlit_fn(state: AppState):
 
     st_mode = st.radio(
         #"",
-        label="HELP",
+        label="Check the boxe that apply:",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
         help="Select if you want to create a new project from scratch, Use an existing DLC project as a foundation for your new project, continue work on an ongoing lightning pose project or remove a project from your user project reposetery"
-    )
-    st.markdown(
-        "Need further help? Check the [documentation](https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
-        unsafe_allow_html=True
     )
     st.text(f"Available projects: {state.initialized_projects}")
 
@@ -652,7 +655,7 @@ def _render_streamlit_fn(state: AppState):
     if st_project_name and st_mode == UPLOAD_STR:
 
         st_prev_format = st.radio(
-            "Uploaded project format",
+            "Select uploaded project format",
             options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
             help="Select the file format that the project is stored at. If DLC selected make sure the zipped folder has meet all reqierments"
         )
@@ -679,12 +682,12 @@ def _render_streamlit_fn(state: AppState):
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
-
+        st.caption("If your zip file is larger than the 200MB limit,see the [FAQ](https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)", unsafe_allow_html=True)
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
     
-    st.caption("If your zip file is larger than the 200MB limit,see the [FAQ](https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)", unsafe_allow_html=True)
+    
     # ----------------------------------------------------
     # user input for data config
     # ----------------------------------------------------
@@ -785,7 +788,7 @@ def _render_streamlit_fn(state: AppState):
             #     The subset should be keypoints that are not usually occluded (such as a tongue)
             #     and are not static (such as the corner of a box).
             # """)
-            e2 = st.expander("**Expend for further instractions**")
+            e2 = st.expander("Expend for further instractions")
             e2.markdown("""
                 **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
                 * **Slecting points with consistent visibility**, avoiding those prone to occlusion (e.g., tongue) during movement.
@@ -807,7 +810,7 @@ def _render_streamlit_fn(state: AppState):
         if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
-            e3 = st.expander("**Expend for further instractions**")
+            e3 = st.expander("Expend for further instractions")
             e3.markdown("""
                 Select the same body part from diffrent POV's. 
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
