@@ -7,10 +7,12 @@ from lightning.app.utilities.state import AppState
 import logging
 import numpy as np
 import os
+import shutil
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+import zipfile
 
 from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, ZIPPED_TMP_DIR
 from lightning_pose_app import SELECTED_FRAMES_FILENAME
@@ -291,20 +293,19 @@ class ExtractFramesWork(WorkWithFileSystem):
 
     def _unzip_frames(self, video_file, proj_dir):
         
-        _logger.info(f"============== extracting frames from {video_file} ================")
+        _logger.info(f"============== unzipping frames from {video_file} ================")
 
         # set flag for parent app
         self.work_is_done_extract_frames = False
 
         # pull video from FileSystem
-        # self.get_from_drive([video_file])
+        self.get_from_drive([video_file])
 
         data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
         data_dir = self.abspath(data_dir_rel)
         # TODO
         # n_digits = 8
         # extension = "png"
-        # context_frames = 2
 
         # check: does file exist?
         video_file_abs = self.abspath(video_file)
@@ -319,29 +320,30 @@ class ExtractFramesWork(WorkWithFileSystem):
         save_dir = os.path.join(data_dir, video_name)
         os.makedirs(save_dir, exist_ok=True)
 
+        # unzip file in tmp directory
+        with zipfile.ZipFile(video_file_abs) as z:
+            unzipped_dir = video_file_abs.replace(".zip", "")
+            z.extractall(path=os.path.dirname(video_file_abs))
+
+        # save all contents to data directory
+        shutil.copytree(unzipped_dir, save_dir)
+        
         # TODO:
-        # - unzip file
-        # - save all contents to output directory
         # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
         #   make this file
 
-        # save csv file inside same output directory
-        frames_to_label = np.array([
-            "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
-        np.savetxt(
-            os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
-            np.sort(frames_to_label),
-            delimiter=",",
-            fmt="%s"
-        )
+        # # save csv file inside same output directory
+        # frames_to_label = np.array([
+        #     "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
+        # np.savetxt(
+        #     os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
+        #     np.sort(frames_to_label),
+        #     delimiter=",",
+        #     fmt="%s"
+        # )
 
-        # save frames
-        self._export_frames(
-            video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected,
-            format=extension, n_digits=n_digits, context_frames=context_frames)
-
-        # # push extracted frames to drive
-        # self.put_to_drive([data_dir_rel])
+        # push extracted frames to drive
+        self.put_to_drive([data_dir_rel])
 
         # set flag for parent app
         self.work_is_done_extract_frames = True
@@ -457,11 +459,15 @@ class ExtractFramesUI(LightningFlow):
 
     def _unzip_frames(self, video_files=None):
         
+        print(f"=========== HERE 0 =============")
+
         self.work_is_done_extract_frames = False
 
         if not video_files:
             video_files = self.st_video_files
 
+        print(video_files)
+        
         # make single worker to unzip frames since this operation is fast
         worker = ExtractFramesWork(
             cloud_compute=CloudCompute("default"),
@@ -470,6 +476,7 @@ class ExtractFramesUI(LightningFlow):
 
         # loop over video files/zipped frame directories and unzip+save in labeled data folder
         for video_file in video_files:
+            print(f"=========== HERE 1 {video_file} =============")
             worker.run(
                 action="unzip_frames",
                 video_file="/" + video_file,
@@ -490,6 +497,7 @@ class ExtractFramesUI(LightningFlow):
         elif action == "extract_frames":
             self._extract_frames(**kwargs)
         elif action == "unzip_frames":
+            print("HERE")
             self._unzip_frames(**kwargs)
 
     def configure_layout(self):
@@ -513,7 +521,7 @@ def _render_streamlit_fn(state: AppState):
     VIDEO_MODEL_STR = "Upload videos and automatically extract frames using a given model"
 
     st_mode = st.radio(
-        "",
+        "Select data upload option",
         options=[VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR],
         # disabled=state.st_project_loaded,
         index=0,
