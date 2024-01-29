@@ -529,7 +529,12 @@ def _render_streamlit_fn(state: AppState):
     # ----------------------------------------------------
     # landing
     # ----------------------------------------------------
-
+    with st.sidebar:
+        st.title(""" Manage Lightning Pose project """)
+        st.write("The first tab of the app is the project manager. Here you will be able to create new projects and load or delete existing projects under your account.")
+        st.write("In order to move forward, you will need to complete all the steps in this tab.")
+        st.markdown("Need further help? Check the [documentation](https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
+        unsafe_allow_html=True)
     st.markdown(""" ## Manage Lightning Pose project """)
     #st.markdown("Select between the diffrent options")
     CREATE_STR = "Create new project"
@@ -678,7 +683,8 @@ def _render_streamlit_fn(state: AppState):
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
-
+    
+    st.caption("If your zip file is larger than the 200MB limit,see the [FAQ](https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)", unsafe_allow_html=True)
     # ----------------------------------------------------
     # user input for data config
     # ----------------------------------------------------
