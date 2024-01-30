@@ -949,13 +949,13 @@ def _render_streamlit_fn(state: AppState):
             # force different datetimes
             for i in range(4):
                 if i == 0:  # supervised model
-                    st_datetimes["super"] = dtime[:-2] + "00"
+                    st_datetimes["super"] = dtime[:-2] + "00_super"
                 if i == 1:  # semi-supervised model
-                    st_datetimes["semisuper"] = dtime[:-2] + "01"
+                    st_datetimes["semisuper"] = dtime[:-2] + "01_semisuper"
                 if i == 2:  # supervised context model
-                    st_datetimes["super ctx"] = dtime[:-2] + "02"
+                    st_datetimes["super ctx"] = dtime[:-2] + "02_super-ctx"
                 if i == 3:  # semi-supervised context model
-                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03"
+                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03_semisuper-ctx"
 
             # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
             state.st_datetimes = st_datetimes
