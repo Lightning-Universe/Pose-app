@@ -550,12 +550,13 @@ def _render_streamlit_fn(state: AppState):
     DELETE_STR = "Delete existing project"
 
     st_mode = st.radio(
-        #"",
         label="Check the boxe that apply:",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
-        help="Select if you want to create a new project from scratch, Use an existing DLC project as a foundation for your new project, continue work on an ongoing lightning pose project or remove a project from your user project reposetery"
+        help="Select if you want to create a new project from scratch, Use an existing DLC" 
+        "project as a foundation for your new project, continue work on an ongoing lightning pose"
+        "project or remove a project from your user project repositery"
     )
     st.text(f"Available projects: {state.initialized_projects}")
 
@@ -682,7 +683,9 @@ def _render_streamlit_fn(state: AppState):
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
-        st.caption("If your zip file is larger than the 200MB limit,see the [FAQ](https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)", unsafe_allow_html=True)
+        st.caption("If your zip file is larger than the 200MB limit, see the"
+        "[FAQ](https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
+         unsafe_allow_html=True)
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
@@ -721,7 +724,8 @@ def _render_streamlit_fn(state: AppState):
             st.divider()
             st.markdown("")
             st.markdown("##### Camera views",
-            help= "The support for multiple views is limited to either fusing the views into single frames or utilizing a mirror to generate multiple views from a single camera"
+            help= "Support for multiple views is currently limited to either fusing the views into"
+            "single frames or utilizing a mirror to generate multiple views from a single camera"
             )
             n_views = st.text_input(
                 "Enter number of camera views:",
@@ -729,7 +733,9 @@ def _render_streamlit_fn(state: AppState):
                 value="" if not state.st_project_loaded else str(st_n_views),
             )
             st.caption(
-            "For a multiview option check the [documentation](https://lightning-pose.readthedocs.io/en/latest/source/user_guide_advanced/multiview_fused.html#)",
+            "For a multiview option check the [documentation]"
+            "(https://lightning-pose.readthedocs.io/en/latest/source/"
+            "user_guide_advanced/multiview_fused.html#)",
             unsafe_allow_html=True
             )
             if n_views:
@@ -742,7 +748,7 @@ def _render_streamlit_fn(state: AppState):
         if st_n_views > 0:
             st.divider()
             st.markdown("##### Define keypoints")
-            e1 = st.expander("Expend to see an exemple")
+            e1 = st.expander("Expand to see an exemple")
             keypoint_instructions = """
                 **Instructions**:
                 If your data has multiple views, make sure to create an entry for each bodypart
@@ -791,8 +797,10 @@ def _render_streamlit_fn(state: AppState):
             e2 = st.expander("Expend for further instractions")
             e2.markdown("""
                 **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
-                * **Slecting points with consistent visibility**, avoiding those prone to occlusion (e.g., tongue) during movement.
-                * **Selecting points that exhibit dynamic changes**, excluding static elements (e.g., corner of a box) offering minimal pose information.
+                * **Selecting points with consistent visibility**, avoiding those prone to"
+                 occlusion (e.g., tongue) during movement.
+                * **Selecting points that exhibit dynamic changes**, 
+                excluding static elements (e.g., corner of a box) offering minimal pose information.
             """)
             e2.write("*The selected subset will be used for a Pose PCA loss on unlabeled videos")
             pcasv_selected = [False for _ in st_keypoints]
@@ -810,9 +818,9 @@ def _render_streamlit_fn(state: AppState):
         if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
-            e3 = st.expander("Expend for further instractions")
+            e3 = st.expander("Expand for further instractions")
             e3.markdown("""
-                Select the same body part from diffrent POV's. 
+                Select the same body part from different POV's. 
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
                 The subset should be keypoints that are usually visible in all camera views.
             """)

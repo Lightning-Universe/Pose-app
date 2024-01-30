@@ -17,11 +17,6 @@ from lightning_pose_app import SELECTED_FRAMES_FILENAME
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
 
-   
-# import zipfile
-# from io import BytesIO
-
-
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
 
@@ -424,7 +419,8 @@ def _render_streamlit_fn(state: AppState):
     # initialize the file uploader
     uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
 
-    st.caption("*For files exceeding 200MB, please utilize the Lightning Pose API for seamless upload")
+    # **Add the line below after adding a secion in the doc that expalin how to wirk with the API 
+    #st.caption("*For files exceeding 200MB, please utilize the Lightning Pose API for seamless upload")
     # create uploaded video info list
     #  
     col1, col2, col3 = st.columns(spec=3,gap="medium")
@@ -453,11 +449,7 @@ def _render_streamlit_fn(state: AppState):
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = float(frame_count) / float(fps)
 
-        # Create a formatted string with file size, duration, and frame count
-        #file_info = f"{uploaded_file.name} (Video duration: {duration:.2f} seconds, FPS: {fps},Number of frames: {frame_count} frames)"
-
-        # Display the formatted information
-        #st.write(file_info)
+        
 
         col1.write(uploaded_file.name)
         col2.write(f"{duration:.2f} seconds")
@@ -472,12 +464,23 @@ def _render_streamlit_fn(state: AppState):
     col0, col1 = st.columns(2, gap="large")
     with col0:
         # select number of frames to label per video
-        n_frames_per_video = st.text_input("Frames to label per video", 20,help="Specify the desired number of frames for labelling per video. Our system will then intelligently select these frames to maximize the diversity of animal poses captured within each video, optimizing the training process for your model")
+        n_frames_per_video = st.text_input(
+            "Frames to label per video", 20,
+            help="Specify the desired number of frames for labeling per video."     
+                    "Our system will then intelligently select these frames to maximize"   
+                    "the diversity of animal poses captured within each video," 
+                    "optimizing the training process for your model"
+            )
         st_n_frames_per_video = int(n_frames_per_video)
     with col1:
         # select range of video to pull frames from
         st_frame_range = st.slider(
-            "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),help="To train your model effectively, focus on selecting video sections where the animals are clearly visible and performing the desired behaviors. Skip any parts without the animals or with distracting elements like hands, as these can confuse your model")
+            "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
+            help="To train your model effectively, focus on selecting video sections where the"
+                 "animals are clearly visible and performing the desired behaviors."
+                 "Skip any parts without the animals or with distracting elements like hands,"
+                 "as these can confuse your model"
+                 )
 
     st_submit_button = st.button(
         "Extract frames",
@@ -528,5 +531,5 @@ def _render_streamlit_fn(state: AppState):
 
     st.divider()
 
-    st.header("Placeholder for frames upload element")
+    
     

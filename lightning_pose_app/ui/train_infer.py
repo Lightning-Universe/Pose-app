@@ -837,7 +837,8 @@ def _render_streamlit_fn(state: AppState):
             """
         )
         #expander = st.expander("Change Defaults")
-        expander = st.expander("Expand to adjust the maximum training epochs and the types of unsupervised losses employed for the semi-supervised models")
+        expander = st.expander("Expand to adjust maximum training epochs and" 
+        "select unsupervised losses")
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
@@ -966,7 +967,12 @@ def _render_streamlit_fn(state: AppState):
 
     with infer_tab:
 
-        st.header(body="Predict on New Videos", help="Select your preferred inference model, then drag and drop your video file(s). Monitor the upload progress bar and click **Run inference** once uploads are complete. After completion, a brief snippet is extracted for each video during the period of highest motion energy, and a diagnostic video with raw frames and model predictions is generated. Once inference concludes for all videos, the 'waiting for existing inference to finish' warning will disappear")
+        st.header(body="Predict on New Videos", help="Select your preferred inference model, then
+        "drag and drop your video file(s). Monitor the upload progress bar and click" 
+        "**Run inference** once uploads are complete. After completion, a brief snippet" 
+        "is extracted for each video during the period of highest motion energy, and a diagnostic" 
+        "video with raw frames and model predictions is generated. Once inference concludes for" 
+        "all videos, the 'waiting for existing inference to finish' warning will disappear")
 
         model_dir = st.selectbox(
             "Choose model to run inference", sorted(state.trained_models, reverse=True))
