@@ -323,10 +323,15 @@ class ExtractFramesWork(WorkWithFileSystem):
         # unzip file in tmp directory
         with zipfile.ZipFile(video_file_abs) as z:
             unzipped_dir = video_file_abs.replace(".zip", "")
-            z.extractall(path=os.path.dirname(video_file_abs))
+            z.extractall(path=unzipped_dir)
 
         # save all contents to data directory
-        shutil.copytree(unzipped_dir, save_dir)
+        # don't use copytree as the destination dir may already exist
+        files = os.listdir(unzipped_dir)
+        for file in files:
+            src = os.path.join(unzipped_dir, file)
+            dst = os.path.join(save_dir, file)
+            shutil.copyfile(src, dst)
         
         # TODO:
         # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
@@ -395,6 +400,10 @@ class ExtractFramesUI(LightningFlow):
     def st_video_files(self):
         return np.unique(self.st_video_files_).tolist()
 
+    @property
+    def st_frame_files(self):
+        return np.unique(self.st_frame_files_).tolist()
+
     def _push_video(self, video_file):
         if video_file[0] == "/":
             src = os.path.join(os.getcwd(), video_file[1:])
@@ -458,35 +467,38 @@ class ExtractFramesUI(LightningFlow):
         self.work_is_done_extract_frames = True
 
     def _unzip_frames(self, video_files=None):
-        
-        print(f"=========== HERE 0 =============")
 
         self.work_is_done_extract_frames = False
 
         if not video_files:
-            video_files = self.st_video_files
+            video_files = self.st_frame_files
 
-        print(video_files)
-        
-        # make single worker to unzip frames since this operation is fast
-        worker = ExtractFramesWork(
-            cloud_compute=CloudCompute("default"),
-            parallel=is_running_in_cloud(),
-        )
-
-        # loop over video files/zipped frame directories and unzip+save in labeled data folder
+        # launch works
         for video_file in video_files:
-            print(f"=========== HERE 1 {video_file} =============")
-            worker.run(
-                action="unzip_frames",
-                video_file="/" + video_file,
-                proj_dir=self.proj_dir,
-            )
+            video_key = video_file.replace(".", "_")  # keys cannot contain "."
+            if video_key not in self.works_dict.keys():
+                self.works_dict[video_key] = ExtractFramesWork(
+                    cloud_compute=CloudCompute("default"),
+                    parallel=is_running_in_cloud(),
+                )
+                # move file from ui machine to shared FileSystem
+                self._push_video(video_file=video_file)
+                # extract frames for labeling (automatically reformats video for DALI)
+                self.works_dict[video_key].run(
+                    action="unzip_frames",
+                    video_file="/" + video_file,
+                    proj_dir=self.proj_dir,
+                )
 
-        # kill work
-        if worker.work_is_done_extract_frames:    
-            _logger.info(f"killing work from unzipping frame directories")
-            worker.stop()
+        # clean up works
+        while len(self.works_dict) > 0:
+            for video_key in list(self.works_dict):
+                if (video_key in self.works_dict.keys()) \
+                        and self.works_dict[video_key].work_is_done_extract_frames:
+                    # kill work
+                    _logger.info(f"killing work from video {video_key}")
+                    self.works_dict[video_key].stop()
+                    del self.works_dict[video_key]
 
         # set flag for parent app
         self.work_is_done_extract_frames = True
@@ -497,7 +509,6 @@ class ExtractFramesUI(LightningFlow):
         elif action == "extract_frames":
             self._extract_frames(**kwargs)
         elif action == "unzip_frames":
-            print("HERE")
             self._unzip_frames(**kwargs)
 
     def configure_layout(self):
