@@ -967,7 +967,8 @@ def _render_streamlit_fn(state: AppState):
 
     with infer_tab:
 
-        st.header(body="Predict on New Videos", help="Select your preferred inference model, then
+        st.header(body="Predict on New Videos",
+        help="Select your preferred inference model, then"
         "drag and drop your video file(s). Monitor the upload progress bar and click" 
         "**Run inference** once uploads are complete. After completion, a brief snippet" 
         "is extracted for each video during the period of highest motion energy, and a diagnostic" 

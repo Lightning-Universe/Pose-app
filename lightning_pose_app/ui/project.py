@@ -550,7 +550,7 @@ def _render_streamlit_fn(state: AppState):
     DELETE_STR = "Delete existing project"
 
     st_mode = st.radio(
-        label="Check the boxe that apply:",
+        label="Check the box that applies:",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
