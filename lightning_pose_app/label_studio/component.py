@@ -23,7 +23,7 @@ from lightning_pose_app.utilities import WorkWithFileSystem
 
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
-log_level = "DEBUG"  # log level sent to label studio sdk
+log_level = "ERROR"  # log level sent to label studio sdk
 
 
 class LitLabelStudio(WorkWithFileSystem):
@@ -140,7 +140,7 @@ class LitLabelStudio(WorkWithFileSystem):
         if not self.filenames['label_studio_config']:
             # do not execute if filenames have not been updated
             return
-
+        print('herehereherehereherehereherehereherehere')
         if self.counts["create_new_project"] > 0:
             return
 

@@ -136,11 +136,27 @@ class LitPoseApp(LightningFlow):
             )
             # wait until frame extraction is complete, then update label studio tasks
             if self.extract_ui.work_is_done_extract_frames:
-                print(' ================= HERE 0 ==================')
                 self.project_ui.run(action="update_frame_shapes")
-                self.extract_ui.run_script = False  # hack, app won't advance past ls run
+                # hack, for some reason app won't advance past ls run
+                self.extract_ui.run_script_video_random = False
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
-                self.extract_ui.run_script = False
+                self.extract_ui.run_script_video_random = False
+
+        if self.extract_ui.proj_dir and self.extract_ui.run_script_zipped_frames:
+            print(' _______________ HERE 1 _______________')
+            self.extract_ui.run(
+                action="unzip_frames",
+                video_files=self.extract_ui.st_frame_files,  # add arg for run caching purposes
+            )
+            print(' _______________ HERE 2 _______________')
+            # wait until frame extraction is complete, then update label studio tasks
+            if self.extract_ui.work_is_done_extract_frames:
+                self.project_ui.run(action="update_frame_shapes")
+                # hack; for some reason the app won't advance past the ls run
+                self.extract_ui.run_script_zipped_frames = False
+                print(' _______________ HERE 3 _______________')
+                self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_frame_files)
+                self.extract_ui.run_script_zipped_frames = False
 
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels
