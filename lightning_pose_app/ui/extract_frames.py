@@ -298,6 +298,7 @@ class ExtractFramesWork(WorkWithFileSystem):
         else:
             pass
 
+
 class ExtractFramesUI(LightningFlow):
     """UI to manage projects - create, load, modify."""
 
@@ -419,15 +420,16 @@ def _render_streamlit_fn(state: AppState):
     # initialize the file uploader
     uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
 
-    # **Add the line below after adding a secion in the doc that expalin how to wirk with the API 
-    #st.caption("*For files exceeding 200MB, please utilize the Lightning Pose API for seamless upload")
+    # **Add the line below after adding a secion in the doc that expalin how to wirk with the API
+    # st.caption("*For files exceeding 200MB,"
+    # " please utilize the Lightning Pose API for seamless upload")
     # create uploaded video info list
-    #  
-    col1, col2, col3 = st.columns(spec=3,gap="medium")
+    #
+    col1, col2, col3 = st.columns(spec=3, gap="medium")
     col1.markdown("**Video Name**")
-    col2.markdown("**Video Duration**")    
-    col3.markdown("**Number of Frames**") 
-   
+    col2.markdown("**Video Duration**")
+    col3.markdown("**Number of Frames**")
+
     # for each of the uploaded files
     st_videos = []
     for uploaded_file in uploaded_files:
@@ -442,22 +444,20 @@ def _render_streamlit_fn(state: AppState):
             # write the content of the file to the path, but not while processing
             with open(filepath, "wb") as f:
                 f.write(bytes_data)
-        
+
         # Calculate video duration and frame count
         cap = cv2.VideoCapture(filepath)
         fps = cap.get(cv2.CAP_PROP_FPS)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = float(frame_count) / float(fps)
 
-        
-
         col1.write(uploaded_file.name)
         col2.write(f"{duration:.2f} seconds")
         col3.write(str(frame_count))
 
-        # relese video 
+        # relese video
         cap.release()
-    
+
     # inseret an empty element to create empty space
     st.markdown("###")
 
@@ -466,11 +466,11 @@ def _render_streamlit_fn(state: AppState):
         # select number of frames to label per video
         n_frames_per_video = st.text_input(
             "Frames to label per video", 20,
-            help="Specify the desired number of frames for labeling per video."     
-                    "Our system will then intelligently select these frames to maximize"   
-                    "the diversity of animal poses captured within each video," 
-                    "optimizing the training process for your model"
-            )
+            help="Specify the desired number of frames for labeling per video."
+                 "Our system will then intelligently select these frames to maximize"
+                 "the diversity of animal poses captured within each video,"
+                 "optimizing the training process for your model"
+        )
         st_n_frames_per_video = int(n_frames_per_video)
     with col1:
         # select range of video to pull frames from
@@ -480,13 +480,12 @@ def _render_streamlit_fn(state: AppState):
                  "animals are clearly visible and performing the desired behaviors."
                  "Skip any parts without the animals or with distracting elements like hands,"
                  "as these can confuse your model"
-                 )
+        )
 
     st_submit_button = st.button(
         "Extract frames",
         disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script
     )
-
 
     if state.run_script:
         keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
@@ -506,7 +505,7 @@ def _render_streamlit_fn(state: AppState):
                 p = 100.0
             else:
                 st.text(status)
-            st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+            st.progress(p / 100.0, r"{vid} progress ({status}: {int(p)}\% complete)")
         st.warning(f"waiting for existing extraction to finish")
 
     if state.st_submits > 0 and not st_submit_button and not state.run_script:
@@ -530,6 +529,3 @@ def _render_streamlit_fn(state: AppState):
         st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
     st.divider()
-
-    
-    

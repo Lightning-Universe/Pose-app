@@ -17,8 +17,6 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import shutil
 import subprocess
-import sys
-import time
 import yaml
 
 from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
@@ -299,7 +297,7 @@ class LitPose(WorkWithFileSystem):
                     f"Found {len(filenames)} videos to predict on "
                     f"(in cfg.eval.test_videos_directory)"
                 )
-            
+
             for v, video_file in enumerate(filenames):
                 assert os.path.isfile(video_file)
                 pretty_print_str(f"Predicting video: {video_file}...")
@@ -310,7 +308,8 @@ class LitPose(WorkWithFileSystem):
                 # get save name labeled video csv
                 if cfg.eval.save_vids_after_training:
                     labeled_vid_dir = os.path.join(video_pred_dir, "labeled_videos")
-                    labeled_mp4_file = os.path.join(labeled_vid_dir, video_pred_name + "_labeled.mp4")
+                    labeled_mp4_file = os.path.join(labeled_vid_dir,
+                                                    video_pred_name + "_labeled.mp4")
                 else:
                     labeled_mp4_file = None
                 # predict on video
@@ -836,9 +835,9 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-        #expander = st.expander("Change Defaults")
-        expander = st.expander("Expand to adjust maximum training epochs and" 
-        "select unsupervised losses")
+        # expander = st.expander("Change Defaults")
+        expander = st.expander(
+            "Expand to adjust maximum training epochs and select unsupervised losses")
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
@@ -859,8 +858,10 @@ def _render_streamlit_fn(state: AppState):
 
         st.markdown(
             """
-            #### Video handling options""", 
-            help="Choose if you want to automatically run inference on the videos uploaded for labeling. **Warning** : Video traces will not be available in the Video Diagnostics tab if you choose “Do not run inference”"
+            #### Video handling options""",
+            help="Choose if you want to automatically run inference on the videos uploaded for"
+                 "labeling. **Warning** : Video traces will not be available in the"
+                 " Video Diagnostics tab if you choose “Do not run inference”"
         )
         st_train_label_opt = st.radio(
             "",
@@ -901,7 +902,7 @@ def _render_streamlit_fn(state: AppState):
                     else:
                         st.text(status)
                     st.progress(
-                        p / 100.0, f"{m} progress ({status_ or status}: {int(p)}\% complete)"
+                        p / 100.0, r"{m} progress ({status_ or status}: {int(p)}\% complete)"
                     )
 
         if st_submit_button_train:
@@ -923,7 +924,7 @@ def _render_streamlit_fn(state: AppState):
             state.st_max_epochs = int(st_max_epochs)
             state.st_train_label_opt = st_train_label_opt
             state.st_train_status = {
-                "super": "initialized" if st_train_super else "none", 
+                "super": "initialized" if st_train_super else "none",
                 "semisuper": "initialized" if st_train_semisuper else "none",
                 "super ctx": "initialized" if st_train_super_ctx else "none",
                 "semisuper ctx": "initialized" if st_train_semisuper_ctx else "none",
@@ -968,12 +969,13 @@ def _render_streamlit_fn(state: AppState):
     with infer_tab:
 
         st.header(body="Predict on New Videos",
-        help="Select your preferred inference model, then"
-        "drag and drop your video file(s). Monitor the upload progress bar and click" 
-        "**Run inference** once uploads are complete. After completion, a brief snippet" 
-        "is extracted for each video during the period of highest motion energy, and a diagnostic" 
-        "video with raw frames and model predictions is generated. Once inference concludes for" 
-        "all videos, the 'waiting for existing inference to finish' warning will disappear")
+                  help="Select your preferred inference model, then"
+                       " drag and drop your video file(s). Monitor the upload progress bar"
+                       " and click **Run inference** once uploads are complete. After completion,"
+                       " a brief snippet is extracted for each video during the period of highest"
+                       " motion energy, and a diagnostic video with raw frames and model"
+                       " predictions is generated. Once inference concludes for all videos, the"
+                       " 'waiting for existing inference to finish' warning will disappear")
 
         model_dir = st.selectbox(
             "Choose model to run inference", sorted(state.trained_models, reverse=True))
@@ -1023,7 +1025,8 @@ def _render_streamlit_fn(state: AppState):
                     p = 100.0
                 else:
                     st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
+                st.progress(p / 100.0,
+                            r"{vid} progress ({status_ or status}: {int(p)}\% complete)")
             st.warning("waiting for existing inference to finish")
 
         # Lightning way of returning the parameters

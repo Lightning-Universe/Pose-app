@@ -25,7 +25,7 @@ def add_to_system_env(env_key='env', **kwargs) -> dict:
         env = kwargs[env_key]
         if isinstance(env, str):
             env = args_to_dict(env)
-        if not(env is None) and not(env == {}):
+        if not (env is None) and not (env == {}):
             new_env = os.environ.copy()
             new_env.update(env)
     return new_env
@@ -58,9 +58,9 @@ def work_is_free(lwork: LightningWork):
     """work is free to accept new calls.
     this is expensive when a lot of calls accumulate over time
     work is when there is there is no pending and running calls at the moment
-    pending status is verified by examining each call history looking for anything call that is pending history
-    status.stage is not reliable indicator as there is delay registering new calls
-    status.stage shows SUCCEEDED even after 3 more calls are accepted in parallel mode
+    pending status is verified by examining each call history looking for anything call that
+    is pending history status.stage is not reliable indicator as there is delay registering
+    new calls status.stage shows SUCCEEDED even after 3 more calls are accepted in parallel mode
     """
     status = lwork.status
     state = lwork.state
@@ -69,9 +69,9 @@ def work_is_free(lwork: LightningWork):
     # multiple works are queued but
     # count run that are in pending state
     if (
-            status.stage == "not_started" or
-            status.stage == "succeeded" or
-            status.stage == "failed"
+        status.stage == "not_started" or
+        status.stage == "succeeded" or
+        status.stage == "failed"
     ):
         # do not run if jobs are in pending state
         # not counting to reduce CPU load as looping thru all of the calls can get expensive

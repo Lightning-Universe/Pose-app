@@ -1,6 +1,6 @@
 import copy
 import glob
-from lightning.app import LightningFlow, LightningWork
+from lightning.app import LightningFlow
 from lightning.app.storage import FileSystem
 from lightning.app.utilities.state import AppState
 import logging
@@ -249,8 +249,8 @@ class ProjectUI(LightningFlow):
 
         # load single frame from labeled data
         imgs = glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.png")) \
-                   + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpg")) \
-                   + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg"))
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpg")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
@@ -531,17 +531,26 @@ def _render_streamlit_fn(state: AppState):
     # ----------------------------------------------------
     with st.sidebar:
         st.title(""" Welcome to Lightning Pose App! """)
-        st.write("The first tab of the app is the project manager. Here you will be able to create new projects and load or delete existing projects under your account.")
+        st.write(
+            "The first tab of the app is the project manager. Here you will be able to"
+            " create new projects and load or delete existing projects under your account."
+        )
         st.write("## *To move forward, you will need to complete all the steps in this tab.")
         st.write("##")
         st.markdown("**Need further help? Check the:**")
-        st.markdown("App [documentation](https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
-        unsafe_allow_html=True)
-        st.markdown("Github [reposetry](https://github.com/Lightning-Universe/Pose-app.html#)",
-        unsafe_allow_html=True)
-        st.markdown("Lightning Pose [documentation](https://lightning-pose.readthedocs.io/en/latest/.html#)",
-        unsafe_allow_html=True)
-    #st.markdown(""" ## Manage Lightning Pose projects """)
+        st.markdown(
+            "App [documentation]"
+            "(https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
+            unsafe_allow_html=True,
+        )
+        st.markdown("Github [repository](https://github.com/Lightning-Universe/Pose-app.html#)",
+                    unsafe_allow_html=True)
+        st.markdown("Lightning Pose [documentation]"
+                    "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
+                    unsafe_allow_html=True)
+
+    # st.markdown(""" ## Manage Lightning Pose projects """)
+
     st.header("Manage Lightning Pose projects")
 
     CREATE_STR = "Create new project"
@@ -554,9 +563,9 @@ def _render_streamlit_fn(state: AppState):
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
-        help="Select if you want to create a new project from scratch, Use an existing DLC" 
+        help="Select if you want to create a new project from scratch, Use an existing DLC"
         "project as a foundation for your new project, continue work on an ongoing lightning pose"
-        "project or remove a project from your user project repositery"
+        "project or remove a project from your user project repository"
     )
     st.text(f"Available projects: {state.initialized_projects}")
 
@@ -658,7 +667,8 @@ def _render_streamlit_fn(state: AppState):
         st_prev_format = st.radio(
             "Select uploaded project format",
             options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
-            help="Select the file format that the project is stored at. If DLC selected make sure the zipped folder has meet all reqierments"
+            help="Select the file format that the project is stored at."
+            " If DLC selected make sure the zipped folder has meet all reqierments"
         )
         state.st_existing_project_format = st_prev_format
 
@@ -683,14 +693,13 @@ def _render_streamlit_fn(state: AppState):
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
-        st.caption("If your zip file is larger than the 200MB limit, see the"
-        "[FAQ](https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
-         unsafe_allow_html=True)
+        st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
+                   "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
+                   unsafe_allow_html=True)
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
-    
-    
+
     # ----------------------------------------------------
     # user input for data config
     # ----------------------------------------------------
@@ -723,20 +732,20 @@ def _render_streamlit_fn(state: AppState):
             st.markdown("")
             st.divider()
             st.markdown("")
-            st.markdown("##### Camera views",
-            help= "Support for multiple views is currently limited to either fusing the views into"
-            "single frames or utilizing a mirror to generate multiple views from a single camera"
+            st.markdown(
+                "##### Camera views",
+                help="Support for multiple views is currently limited to either fusing the views "
+                "into single frames or utilizing a mirror to generate multiple views from a "
+                "single camera",
             )
-            n_views = st.text_input(
-                "Enter number of camera views:",
-                disabled=not enter_data,
-                value="" if not state.st_project_loaded else str(st_n_views),
+            n_views = st.text_input("Enter number of camera views:",disabled=not enter_data,
+                    value="" if not state.st_project_loaded else str(st_n_views),
             )
             st.caption(
-            "For a multiview option check the [documentation]"
-            "(https://lightning-pose.readthedocs.io/en/latest/source/"
-            "user_guide_advanced/multiview_fused.html#)",
-            unsafe_allow_html=True
+                "For a multiview option check the [documentation]"
+                "(https://lightning-pose.readthedocs.io/en/latest/source/"
+                "user_guide_advanced/multiview_fused.html#)",
+                unsafe_allow_html=True
             )
             if n_views:
                 st_n_views = int(n_views)
@@ -762,7 +771,7 @@ def _render_streamlit_fn(state: AppState):
                 r_ear_bottom
                 corner1_top
                 ```
-                It is also possible to track keypoints that are only present in a subset of the 
+                It is also possible to track keypoints that are only present in a subset of the
                 views, such as the keypoint `corner1_top` above.
             """
             e1.markdown(keypoint_instructions)
@@ -799,8 +808,9 @@ def _render_streamlit_fn(state: AppState):
                 **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
                 * **Selecting points with consistent visibility**, avoiding those prone to"
                  occlusion (e.g., tongue) during movement.
-                * **Selecting points that exhibit dynamic changes**, 
-                excluding static elements (e.g., corner of a box) offering minimal pose information.
+                * **Selecting points that exhibit dynamic changes**,
+                excluding static elements (e.g., corner of a box)"
+                " offering minimal pose information.
             """)
             e2.write("*The selected subset will be used for a Pose PCA loss on unlabeled videos")
             pcasv_selected = [False for _ in st_keypoints]
@@ -820,7 +830,7 @@ def _render_streamlit_fn(state: AppState):
             st.markdown("##### Select subset of body parts for Multiview PCA")
             e3 = st.expander("Expand for further instractions")
             e3.markdown("""
-                Select the same body part from different POV's. 
+                Select the same body part from different POV's.
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
                 The subset should be keypoints that are usually visible in all camera views.
             """)
@@ -851,7 +861,8 @@ def _render_streamlit_fn(state: AppState):
                     # set bodypart dropdowns
                     for c, col in enumerate(cols[1:]):
                         kp = col.selectbox(
-                            f"", st_keypoints, key=f"Bodypart {r} view {c}",
+                            "", st_keypoints,
+                            key=f"Bodypart {r} view {c}",
                             index=c * st_n_bodyparts + r
                         )
                         st_pcamv_columns[c, r] = np.where(np.array(st_keypoints) == kp)[0]
