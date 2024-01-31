@@ -26,11 +26,12 @@ _logger = logging.getLogger('APP.LABELSTUDIO')
 log_level = "ERROR"  # log level sent to label studio sdk
 
 
-class LitLabelStudio(WorkWithFileSystem):
+class LabelStudioWork(WorkWithFileSystem):
 
-    def __init__(self, *args, database_dir="/data", proj_dir=None, **kwargs) -> None:
+    def __init__(self, *args, **kwargs):
 
         super().__init__(*args, name="labelstudio", **kwargs)
+
         self.pid = None
 
         self.counts = {
@@ -43,7 +44,139 @@ class LitLabelStudio(WorkWithFileSystem):
         self.username = "user@localhost"
         self.password = "pw"
         self.user_token = "whitenoise"
-        self.check_labels = False
+
+    def _start_label_studio(self, database_dir):
+
+        if self.counts["start_label_studio"] > 0:
+            return
+
+        # assign label studio url here; note that, in a lightning studio, if you "share" the port
+        # display it will increment the port info. therefore, you must start label studio in the
+        # same window that you will be using it in
+        self.label_studio_url = f"http://localhost:{self.port}"
+
+        cmd = f"label-studio start --no-browser --internal-host {self.host} --port {self.port}"
+        env = {
+            "LOG_LEVEL": log_level,
+            "LABEL_STUDIO_USERNAME": self.username,
+            "LABEL_STUDIO_PASSWORD": self.password,
+            "LABEL_STUDIO_USER_TOKEN": self.user_token,
+            "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
+            "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
+            "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
+            "LABEL_STUDIO_BASE_DATA_DIR": self.abspath(database_dir),
+            "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
+            "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
+            "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
+            "LABEL_STUDIO_USE_ENFORCE_CSRF_CHECKS": "0",
+        }
+
+        kwargs = {'env': add_to_system_env(env=env)}
+        _logger.info(cmd, kwargs)
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            executable='/bin/bash',
+            close_fds=True,
+            **kwargs
+        )
+        self.pid = proc.pid
+
+        self.counts["start_label_studio"] += 1
+
+    def _create_labeling_config_xml(self, proj_dir, keypoints, label_studio_config):
+        """Create a label studio configuration xml file."""
+
+        _logger.info("Executing create_labeling_config")
+
+        xml_str = build_xml(keypoints)
+
+        proj_dir = self.abspath(proj_dir)
+        config_file = os.path.join(proj_dir, os.path.basename(label_studio_config))
+        os.makedirs(proj_dir, exist_ok=True)
+        with open(config_file, "wt") as outfile:
+            outfile.write(xml_str)
+
+    def _create_new_project(self, proj_dir, proj_name, label_studio_config):
+        """Create a label studio project."""
+
+        if self.counts["create_new_project"] > 0:
+            return
+
+        # put this here to make sure `self.label_studio.run()` is only called once
+        self.counts["create_new_project"] += 1
+
+        # create new project
+        create_new_project(
+            label_studio_url=self.label_studio_url,
+            proj_dir=self.abspath(proj_dir),
+            api_key=self.user_token,
+            project_name=proj_name,
+            label_config_file=self.abspath(label_studio_config),
+        )
+
+    def _update_tasks(self, proj_dir, videos=[]):
+        """Update tasks after new video frames have been extracted."""
+        print(' ------------- HERE 0 ------------------')
+        update_tasks(
+            label_studio_url=self.label_studio_url, 
+            proj_dir=self.abspath(proj_dir), 
+            api_key=self.user_token, 
+        )
+        print(' ------------- HERE 2 ------------------')
+
+    def _check_labeling_task_and_export(self, proj_dir, keypoints, timer):
+        """Check for new labels, export to lightning pose format, export database to FileSystem."""
+        check_labeling_task_and_export(
+            label_studio_url=self.label_studio_url,
+            proj_dir=self.abspath(proj_dir),
+            api_key=self.user_token,
+            keypoints=keypoints,
+        )
+
+    def _import_existing_annotations(self, proj_dir, config_file, **kwargs):
+        """Import annotations into an existing, empty label studio project."""
+
+        if self.counts["import_existing_annotations"] > 0:
+            return
+
+        update_tasks(
+            label_studio_url=self.label_studio_url, 
+            proj_dir=self.abspath(proj_dir), 
+            api_key=self.user_token,
+            config_file=self.abspath(config_file),
+            update_from_csv=True,
+        )
+
+        self.counts["import_existing_annotations"] += 1
+
+    def run(self, action, **kwargs):
+        print('^^^^^^^^^^^ HERE 0 ^^^^^^^^^^^')
+        if action == "start_label_studio":
+            self._start_label_studio(**kwargs)
+        elif action == "create_labeling_config_xml":
+            self._create_labeling_config_xml(**kwargs)
+        elif action == "create_new_project":
+            self._create_new_project(**kwargs)
+        elif action == "update_tasks":
+            print('^^^^^^^^^^^ HERE 1 ^^^^^^^^^^^')
+            self._update_tasks(**kwargs)
+        elif action == "check_labeling_task_and_export":
+            self._check_labeling_task_and_export(**kwargs)
+        elif action == "import_existing_annotations":
+            self._import_existing_annotations(**kwargs)
+        else:
+            pass
+
+
+class LitLabelStudio(LightningFlow):
+
+    def __init__(self, *args, database_dir="/data", proj_dir=None, **kwargs) -> None:
+
+        super().__init__(*args, **kwargs)
+
+        self.work = LabelStudioWork(cloud_compute=CloudCompute("default"))
+
         self.time = 0.0
 
         # location of label studio sqlite database relative to current working directory
@@ -64,52 +197,7 @@ class LitLabelStudio(WorkWithFileSystem):
         self.proj_name = None
         self.keypoints = None
 
-    def _import_database(self):
-        # pull database from FileSystem if it exists
-        # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
-        if self.counts["import_database"] > 0:
-            return
-        self.get_from_drive([self.database_dir])
-        self.counts["import_database"] += 1
-
-    def _start_label_studio(self):
-
-        if self.counts["start_label_studio"] > 0:
-            return
-
-        # assign label studio url here; note that, in a lightning studio, if you "share" the port
-        # display it will increment the port info. therefore, you must start label studio in the
-        # same window that you will be using it in
-        self.label_studio_url = f"http://localhost:{self.port}"
-
-        cmd = f"label-studio start --no-browser --internal-host {self.host} --port {self.port}"
-        env = {
-            "LOG_LEVEL": log_level,
-            "LABEL_STUDIO_USERNAME": self.username,
-            "LABEL_STUDIO_PASSWORD": self.password,
-            "LABEL_STUDIO_USER_TOKEN": self.user_token,
-            "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
-            "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
-            "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
-            "LABEL_STUDIO_BASE_DATA_DIR": self.abspath(self.database_dir),
-            "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
-            "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
-            "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
-            "LABEL_STUDIO_USE_ENFORCE_CSRF_CHECKS": "0",
-        }
-
-        kwargs = {'env': add_to_system_env(env=env)}
-        _logger.info(cmd, kwargs)
-        proc = subprocess.Popen(
-            cmd,
-            shell=True,
-            executable='/bin/bash',
-            close_fds=True,
-            **kwargs
-        )
-        self.pid = proc.pid
-
-        self.counts["start_label_studio"] += 1
+        self.check_labels = False
 
     def _update_paths(self, proj_dir, proj_name):
 
@@ -134,163 +222,57 @@ class LitLabelStudio(WorkWithFileSystem):
         self.filenames["config_file"] = os.path.join(
             self.proj_dir, f"model_config_{self.proj_name}.yaml")
 
-    def _create_new_project(self):
-        """Create a label studio project."""
-
-        if not self.filenames['label_studio_config']:
-            # do not execute if filenames have not been updated
-            return
-        print('herehereherehereherehereherehereherehere')
-        if self.counts["create_new_project"] > 0:
-            return
-
-        # put this here to make sure `self.label_studio.run()` is only called once
-        self.counts["create_new_project"] += 1
-
-        # pull data from FileSystem
-        inputs = [
-            self.filenames["label_studio_config"],
-            self.filenames["labeled_data_dir"],
-        ]
-        self.get_from_drive(inputs)
-
-        # create new project
-        create_new_project(
-            label_studio_url=self.label_studio_url,
-            proj_dir=self.abspath(self.proj_dir),
-            api_key=self.user_token,
-            project_name=self.proj_name,
-            label_config_file=self.abspath(self.filenames["label_studio_config"]),
-        )
-
-        # put data to FileSystem
-        self.put_to_drive([self.filenames["label_studio_metadata"]])
-
-    def _update_tasks(self, videos=[]):
-        """Update tasks after new video frames have been extracted."""
-        print(' ------------- HERE 0 ------------------')
-        # pull data from FileSystem
-        inputs = [
-            self.filenames["labeled_data_dir"],
-            self.filenames["label_studio_metadata"],
-        ]
-        self.get_from_drive(inputs)
-        print(' ------------- HERE 1 ------------------')
-        # update tasks
-        update_tasks(
-            label_studio_url=self.label_studio_url, 
-            proj_dir=self.abspath(self.proj_dir), 
-            api_key=self.user_token, 
-        )
-        print(' ------------- HERE 2 ------------------')
-
-    def _check_labeling_task_and_export(self, timer):
-        """Check for new labels, export to lightning pose format, export database to FileSystem."""
-
-        if self.keypoints is not None:
-            # only check task if keypoints attribute has been populated
-
-            # pull data from FileSystem
-            inputs=[
-                self.filenames["labeled_data_dir"],
-                self.filenames["label_studio_metadata"],
-            ]
-
-            # check task
-            check_labeling_task_and_export(
-                label_studio_url=self.label_studio_url,
-                proj_dir=self.abspath(self.proj_dir),
-                api_key=self.user_token,
-                keypoints=self.keypoints,
-            )
-
-            # put data to FileSystem
-            outputs=[
-                self.filenames["collected_data"],
-                self.filenames["label_studio_tasks"],
-                self.filenames["label_studio_metadata"],
-                self.database_dir,  # sqlite database
-            ]
-
-        self.check_labels = True
-
-    def _create_labeling_config_xml(self, keypoints):
-        """Create a label studio configuration xml file."""
-
-        self.keypoints = keypoints
-
-        if not self.filenames['label_studio_config']:
-            # do not execute if filenames have not been updated
-            return
-
-        # ---------------------------
-        # create new project
-        # ---------------------------
-        _logger.info("Executing create_labeling_config")
-
-        xml_str = build_xml(self.keypoints)
-
-        proj_dir = self.abspath(self.proj_dir)
-        config_file = os.path.join(proj_dir, os.path.basename(self.filenames["label_studio_config"]))
-        os.makedirs(proj_dir, exist_ok=True)
-        with open(config_file, "wt") as outfile:
-            outfile.write(xml_str)
-
-        # ---------------------------
-        # put data to FileSystem
-        # ---------------------------
-        self.put_to_drive([self.filenames["label_studio_config"]])
-
-    def _import_existing_annotations(self, **kwargs):
-        """Import annotations into an existing, empty label studio project."""
-
-        if self.counts["import_existing_annotations"] > 0:
-            return
-
-        # pull data from FileSystem
-        inputs=[
-            self.filenames["labeled_data_dir"],
-            self.filenames["label_studio_metadata"],
-            self.filenames["collected_data"],
-            self.filenames["config_file"],
-        ]
-        self.get_from_drive(inputs)
-
-        # update tasks
-        update_tasks(
-            label_studio_url=self.label_studio_url, 
-            proj_dir=self.abspath(self.proj_dir), 
-            api_key=self.user_token,
-            config_file=self.abspath(self.filenames['config_file']),
-            update_from_csv=True,
-        )
-
-        self.counts["import_existing_annotations"] += 1
-
     def run(self, action=None, **kwargs):
 
-        if action == "import_database":
-            self._import_database()
-        elif action == "start_label_studio":
-            self._start_label_studio()
+        if action == "start_label_studio":
+            self.work.run(
+                action=action,
+                database_dir=self.database_dir,
+            )
         elif action == "create_labeling_config_xml":
-            self._create_labeling_config_xml(**kwargs)
+            self.keypoints = kwargs["keypoints"]
+            self.work.run(
+                action=action, 
+                proj_dir=self.proj_dir,
+                label_studio_config=self.filenames["label_studio_config"],
+                **kwargs
+            )
         elif action == "create_new_project":
-            self._create_new_project()
+            self.work.run(
+                action=action,
+                proj_dir=self.proj_dir, 
+                proj_name=self.proj_name, 
+                label_studio_config=self.filenames['label_studio_config'],
+            )
         elif action == "update_tasks":
-            print(' $$$$$$$$$$$$$$$$$ HERE 0 $$$$$$$$$$$$$$$$$$$$$')
-            self._update_tasks(**kwargs)
+            self.work.run(
+                action=action,
+                proj_dir=self.proj_dir,
+                **kwargs
+            )
         elif action == "check_labeling_task_and_export":
-            self._check_labeling_task_and_export(timer=kwargs["timer"])
+            if self.keypoints is not None:
+                self.work.run(
+                    action=action,
+                    proj_dir=self.proj_dir,
+                    keypoints=self.keypoints,
+                    timer=kwargs["timer"],
+                )
+            self.check_labels = True
+        elif action == "import_existing_annotations":
+            self.work.run(
+                action=action,
+                proj_dir=self.proj_dir,
+                config_file=self.filenames["config_file"],
+                **kwargs
+            )
         elif action == "update_paths":
             self._update_paths(**kwargs)
-        elif action == "import_existing_annotations":
-            self._import_existing_annotations(**kwargs)
 
     def on_exit(self):
         # final save to drive
         _logger.info("SAVING DATA ONE LAST TIME")
-        self._check_labeling_task_and_export(timer=-1.0)
+        self.work.check_labeling_task_and_export(timer=-1.0)
 
 
 def create_new_project(
@@ -359,7 +341,7 @@ def update_tasks(
     from lightning_pose_app.label_studio.utils import get_project
     from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
     print(' ******************* HERE 1 *********************')
-    _logger.info("Executing update_tasks.py")
+    _logger.info("Executing update_tasks")
 
     _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)
     label_studio_client = connect_to_label_studio(url=label_studio_url, api_key=api_key)
@@ -442,7 +424,7 @@ def check_labeling_task_and_export(
     from lightning_pose_app.label_studio.utils import get_project
     from lightning_pose_app.label_studio.utils import LabelStudioJSONProcessor
 
-    _logger.info("Executing check_labeling_task_and_export.py")
+    _logger.info("Executing check_labeling_task_and_export")
 
     # connect to label studio
     _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)

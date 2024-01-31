@@ -179,7 +179,7 @@ class LitPoseApp(LightningFlow):
 
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        annotate_tab = {"name": "Label Frames", "content": self.label_studio}
+        annotate_tab = {"name": "Label Frames", "content": self.label_studio.work}
 
         if self.extract_ui.proj_dir:
             return [
