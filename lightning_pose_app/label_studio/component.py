@@ -23,7 +23,7 @@ from lightning_pose_app.utilities import WorkWithFileSystem
 
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
-log_level = "ERROR"  # log level sent to label studio sdk
+log_level = "DEBUG"  # log level sent to label studio sdk
 
 
 class LitLabelStudio(WorkWithFileSystem):
@@ -115,7 +115,7 @@ class LitLabelStudio(WorkWithFileSystem):
 
         self.proj_dir = proj_dir
         self.proj_name = proj_name
-        print(" ----------------- HERE 1 -------------------")
+
         self.filenames["label_studio_config"] = os.path.join(
             self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
 
@@ -133,9 +133,6 @@ class LitLabelStudio(WorkWithFileSystem):
 
         self.filenames["config_file"] = os.path.join(
             self.proj_dir, f"model_config_{self.proj_name}.yaml")
-        print(" ----------------- HERE 2 -------------------")
-        print(self.proj_dir)
-        print(self.filenames)
 
     def _create_new_project(self):
         """Create a label studio project."""
@@ -171,20 +168,21 @@ class LitLabelStudio(WorkWithFileSystem):
 
     def _update_tasks(self, videos=[]):
         """Update tasks after new video frames have been extracted."""
-
+        print(' ------------- HERE 0 ------------------')
         # pull data from FileSystem
         inputs = [
             self.filenames["labeled_data_dir"],
             self.filenames["label_studio_metadata"],
         ]
         self.get_from_drive(inputs)
-
+        print(' ------------- HERE 1 ------------------')
         # update tasks
         update_tasks(
             label_studio_url=self.label_studio_url, 
             proj_dir=self.abspath(self.proj_dir), 
             api_key=self.user_token, 
         )
+        print(' ------------- HERE 2 ------------------')
 
     def _check_labeling_task_and_export(self, timer):
         """Check for new labels, export to lightning pose format, export database to FileSystem."""
@@ -280,6 +278,7 @@ class LitLabelStudio(WorkWithFileSystem):
         elif action == "create_new_project":
             self._create_new_project()
         elif action == "update_tasks":
+            print(' $$$$$$$$$$$$$$$$$ HERE 0 $$$$$$$$$$$$$$$$$$$$$')
             self._update_tasks(**kwargs)
         elif action == "check_labeling_task_and_export":
             self._check_labeling_task_and_export(timer=kwargs["timer"])
@@ -291,7 +290,7 @@ class LitLabelStudio(WorkWithFileSystem):
     def on_exit(self):
         # final save to drive
         _logger.info("SAVING DATA ONE LAST TIME")
-        self._check_labeling_task_and_export(timer=0.0)
+        self._check_labeling_task_and_export(timer=-1.0)
 
 
 def create_new_project(
@@ -359,7 +358,7 @@ def update_tasks(
 
     from lightning_pose_app.label_studio.utils import get_project
     from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
-
+    print(' ******************* HERE 1 *********************')
     _logger.info("Executing update_tasks.py")
 
     _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)
@@ -368,6 +367,7 @@ def update_tasks(
 
     # get current project
     metadata_file = os.path.join(proj_dir, LABELSTUDIO_METADATA_FILENAME)
+    print(' ******************* HERE 2 *********************')
     try:
         metadata = yaml.safe_load(open(metadata_file, "r"))
     except FileNotFoundError:
@@ -376,7 +376,7 @@ def update_tasks(
     label_studio_project = get_project(label_studio_client=label_studio_client, id=metadata["id"])
     _logger.debug("Fetched Project ID: %s, Project Title: %s" % (
         label_studio_project.id, label_studio_project.title))
-
+    print(' ******************* HERE 3 *********************')
     # get tasks that already exist
     existing_tasks = label_studio_project.get_tasks()
     if len(existing_tasks) > 0:
