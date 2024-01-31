@@ -466,9 +466,9 @@ def _render_streamlit_fn(state: AppState):
         # select number of frames to label per video
         n_frames_per_video = st.text_input(
             "Frames to label per video", 20,
-            help="Specify the desired number of frames for labeling per video."
-                 "Our system will then intelligently select these frames to maximize"
-                 "the diversity of animal poses captured within each video,"
+            help="Specify the desired number of frames for labeling per video. "
+                 "Our system will then intelligently select these frames to maximize "
+                 "the diversity of animal poses captured within each video, "
                  "optimizing the training process for your model"
         )
         st_n_frames_per_video = int(n_frames_per_video)
@@ -476,9 +476,9 @@ def _render_streamlit_fn(state: AppState):
         # select range of video to pull frames from
         st_frame_range = st.slider(
             "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
-            help="To train your model effectively, focus on selecting video sections where the"
-                 "animals are clearly visible and performing the desired behaviors."
-                 "Skip any parts without the animals or with distracting elements like hands,"
+            help="To train your model effectively, focus on selecting video sections where the "
+                 "animals are clearly visible and performing the desired behaviors. "
+                 "Skip any parts without the animals or with distracting elements like hands, "
                  "as these can confuse your model"
         )
 

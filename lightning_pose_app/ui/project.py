@@ -563,8 +563,8 @@ def _render_streamlit_fn(state: AppState):
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
-        help="Select if you want to create a new project from scratch, Use an existing DLC"
-        "project as a foundation for your new project, continue work on an ongoing lightning pose"
+        help="Select if you want to create a new project from scratch, Use an existing DLC "
+        "project as a foundation for your new project, continue work on an ongoing lightning pose "
         "project or remove a project from your user project repository"
     )
     st.text(f"Available projects: {state.initialized_projects}")
@@ -738,8 +738,10 @@ def _render_streamlit_fn(state: AppState):
                 "into single frames or utilizing a mirror to generate multiple views from a "
                 "single camera",
             )
-            n_views = st.text_input("Enter number of camera views:",disabled=not enter_data,
-                    value="" if not state.st_project_loaded else str(st_n_views),
+            n_views = st.text_input(
+                "Enter number of camera views:",
+                disabled=not enter_data,
+                value="" if not state.st_project_loaded else str(st_n_views),
             )
             st.caption(
                 "For a multiview option check the [documentation]"
@@ -806,11 +808,11 @@ def _render_streamlit_fn(state: AppState):
             e2 = st.expander("Expend for further instractions")
             e2.markdown("""
                 **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
-                * **Selecting points with consistent visibility**, avoiding those prone to"
+                * **Selecting points with consistent visibility**, avoiding those prone to
                  occlusion (e.g., tongue) during movement.
                 * **Selecting points that exhibit dynamic changes**,
-                excluding static elements (e.g., corner of a box)"
-                " offering minimal pose information.
+                excluding static elements (e.g., corner of a box)
+                offering minimal pose information.
             """)
             e2.write("*The selected subset will be used for a Pose PCA loss on unlabeled videos")
             pcasv_selected = [False for _ in st_keypoints]
