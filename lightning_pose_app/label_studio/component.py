@@ -111,7 +111,7 @@ class LitLabelStudio(WorkWithFileSystem):
 
         self.proj_dir = proj_dir
         self.proj_name = proj_name
-
+        print(" ----------------- HERE 1 -------------------")
         self.filenames["label_studio_config"] = os.path.join(
             self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
 
@@ -129,6 +129,9 @@ class LitLabelStudio(WorkWithFileSystem):
 
         self.filenames["config_file"] = os.path.join(
             self.proj_dir, f"model_config_{self.proj_name}.yaml")
+        print(" ----------------- HERE 2 -------------------")
+        print(self.proj_dir)
+        print(self.filenames)
 
     def _create_new_project(self):
         """Create a label studio project."""
