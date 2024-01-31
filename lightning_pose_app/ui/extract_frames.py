@@ -481,14 +481,18 @@ class ExtractFramesUI(LightningFlow):
                     cloud_compute=CloudCompute("default"),
                     parallel=is_running_in_cloud(),
                 )
-                # move file from ui machine to shared FileSystem
-                self._push_video(video_file=video_file)
-                # extract frames for labeling (automatically reformats video for DALI)
-                self.works_dict[video_key].run(
-                    action="unzip_frames",
-                    video_file="/" + video_file,
-                    proj_dir=self.proj_dir,
-                )
+                status = self.st_extract_status[video_file]
+                if status == "initialized" or status == "active":
+                    self.st_extract_status[video_file] = "active"
+                    # move file from ui machine to shared FileSystem
+                    self._push_video(video_file=video_file)
+                    # extract frames for labeling (automatically reformats video for DALI)
+                    self.works_dict[video_key].run(
+                        action="unzip_frames",
+                        video_file="/" + video_file,
+                        proj_dir=self.proj_dir,
+                    )
+                    self.st_extract_status[video_file] = "complete"
 
         # clean up works
         while len(self.works_dict) > 0:
@@ -658,6 +662,7 @@ def _render_streamlit_fn(state: AppState):
             state.st_submits += 1
 
             state.st_frame_files_ = st_videos
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
             st.text("Request submitted!")
             state.run_script_zipped_frames = True  # must the last to prevent race condition
 
