@@ -210,11 +210,11 @@ class LitBashWork(WorkWithFileSystem):
             # should either wait, process is already done, or kill
             thread.join()
             # _logger.debug(self._wait_proc.returncode)
-            _logger.debug("wait completed", cmd)
+            _logger.debug(f"wait completed {cmd}")
         else:
             _logger.debug("no wait popen")
             self.popen_nowait(cmd, **kwargs)
-            _logger.debug("no wait completed", cmd)
+            _logger.debug(f"no wait completed {cmd}")
 
     def run(
         self,

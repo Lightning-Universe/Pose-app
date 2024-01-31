@@ -7,12 +7,14 @@ from lightning.app.utilities.state import AppState
 import logging
 import numpy as np
 import os
+import shutil
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+import zipfile
 
-from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR
+from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, ZIPPED_TMP_DIR
 from lightning_pose_app import SELECTED_FRAMES_FILENAME
 from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
@@ -288,6 +290,68 @@ class ExtractFramesWork(WorkWithFileSystem):
 
         return video_file_new
 
+    def _unzip_frames(self, video_file, proj_dir):
+        
+        _logger.info(f"============== unzipping frames from {video_file} ================")
+
+        # set flag for parent app
+        self.work_is_done_extract_frames = False
+
+        # pull video from FileSystem
+        self.get_from_drive([video_file])
+
+        data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
+        data_dir = self.abspath(data_dir_rel)
+        # TODO
+        # n_digits = 8
+        # extension = "png"
+
+        # check: does file exist?
+        video_file_abs = self.abspath(video_file)
+        video_file_exists = os.path.exists(video_file_abs)
+        _logger.info(f"zipped file exists? {video_file_exists}")
+        if not video_file_exists:
+            _logger.info("skipping frame extraction")
+            return
+
+        # create folder to save images
+        video_name = os.path.splitext(os.path.basename(video_file))[0]
+        save_dir = os.path.join(data_dir, video_name)
+        os.makedirs(save_dir, exist_ok=True)
+
+        # unzip file in tmp directory
+        with zipfile.ZipFile(video_file_abs) as z:
+            unzipped_dir = video_file_abs.replace(".zip", "")
+            z.extractall(path=unzipped_dir)
+
+        # save all contents to data directory
+        # don't use copytree as the destination dir may already exist
+        files = os.listdir(unzipped_dir)
+        for file in files:
+            src = os.path.join(unzipped_dir, file)
+            dst = os.path.join(save_dir, file)
+            shutil.copyfile(src, dst)
+        
+        # TODO:
+        # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
+        #   make this file
+
+        # # save csv file inside same output directory
+        # frames_to_label = np.array([
+        #     "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
+        # np.savetxt(
+        #     os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
+        #     np.sort(frames_to_label),
+        #     delimiter=",",
+        #     fmt="%s"
+        # )
+
+        # push extracted frames to drive
+        self.put_to_drive([data_dir_rel])
+
+        # set flag for parent app
+        self.work_is_done_extract_frames = True
+
     def run(self, action, **kwargs):
         if action == "reformat_video":
             self._reformat_video(**kwargs)
@@ -295,6 +359,9 @@ class ExtractFramesWork(WorkWithFileSystem):
             new_vid_file = self._reformat_video(**kwargs)
             kwargs["video_file"] = new_vid_file
             self._extract_frames(**kwargs)
+        elif action == "unzip_frames":
+            # TODO: maybe we need to reformat the file names?
+            self._unzip_frames(**kwargs)
         else:
             pass
 
@@ -317,11 +384,13 @@ class ExtractFramesUI(LightningFlow):
         self.work_is_done_extract_frames = False
 
         # flag; used internally and externally
-        self.run_script = False
+        self.run_script_video_random = False
+        self.run_script_zipped_frames = False
 
         # output from the UI
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
-        self.st_video_files_ = []
+        self.st_video_files_ = []  # list of uploaded video files
+        self.st_frame_files_ = []  # list of uploaded zipped frame files
         self.st_submits = 0
         self.st_frame_range = [0, 1]  # limits for frame selection
         self.st_n_frames_per_video = None
@@ -329,6 +398,10 @@ class ExtractFramesUI(LightningFlow):
     @property
     def st_video_files(self):
         return np.unique(self.st_video_files_).tolist()
+
+    @property
+    def st_frame_files(self):
+        return np.unique(self.st_frame_files_).tolist()
 
     def _push_video(self, video_file):
         if video_file[0] == "/":
@@ -392,11 +465,54 @@ class ExtractFramesUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
+    def _unzip_frames(self, video_files=None):
+
+        self.work_is_done_extract_frames = False
+
+        if not video_files:
+            video_files = self.st_frame_files
+
+        # launch works
+        for video_file in video_files:
+            video_key = video_file.replace(".", "_")  # keys cannot contain "."
+            if video_key not in self.works_dict.keys():
+                self.works_dict[video_key] = ExtractFramesWork(
+                    cloud_compute=CloudCompute("default"),
+                    parallel=is_running_in_cloud(),
+                )
+                status = self.st_extract_status[video_file]
+                if status == "initialized" or status == "active":
+                    self.st_extract_status[video_file] = "active"
+                    # move file from ui machine to shared FileSystem
+                    self._push_video(video_file=video_file)
+                    # extract frames for labeling (automatically reformats video for DALI)
+                    self.works_dict[video_key].run(
+                        action="unzip_frames",
+                        video_file="/" + video_file,
+                        proj_dir=self.proj_dir,
+                    )
+                    self.st_extract_status[video_file] = "complete"
+
+        # clean up works
+        while len(self.works_dict) > 0:
+            for video_key in list(self.works_dict):
+                if (video_key in self.works_dict.keys()) \
+                        and self.works_dict[video_key].work_is_done_extract_frames:
+                    # kill work
+                    _logger.info(f"killing work from video {video_key}")
+                    self.works_dict[video_key].stop()
+                    del self.works_dict[video_key]
+
+        # set flag for parent app
+        self.work_is_done_extract_frames = True
+
     def run(self, action, **kwargs):
         if action == "push_video":
             self._push_video(**kwargs)
         elif action == "extract_frames":
             self._extract_frames(**kwargs)
+        elif action == "unzip_frames":
+            self._unzip_frames(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -409,123 +525,144 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    if state.run_script:
+    if state.run_script_video_random or state.run_script_zipped_frames:
         # don't autorefresh during large file uploads, only during processing
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
-    # upload video files to temporary directory
-    video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
-    os.makedirs(video_dir, exist_ok=True)
+    VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
+    ZIPPED_FRAMES_STR = "Upload zipped files of frames"
+    VIDEO_MODEL_STR = "Upload videos and automatically extract frames using a given model"
 
-    # initialize the file uploader
-    uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
-
-    # **Add the line below after adding a secion in the doc that expalin how to wirk with the API
-    # st.caption("*For files exceeding 200MB,"
-    # " please utilize the Lightning Pose API for seamless upload")
-    # create uploaded video info list
-    #
-    col1, col2, col3 = st.columns(spec=3, gap="medium")
-    col1.markdown("**Video Name**")
-    col2.markdown("**Video Duration**")
-    col3.markdown("**Number of Frames**")
-
-    # for each of the uploaded files
-    st_videos = []
-    for uploaded_file in uploaded_files:
-        # read it
-        bytes_data = uploaded_file.read()
-        # name it
-        filename = uploaded_file.name.replace(" ", "_")
-        filepath = os.path.join(video_dir, filename)
-        st_videos.append(filepath)
-
-        if not state.run_script:
-            # write the content of the file to the path, but not while processing
-            with open(filepath, "wb") as f:
-                f.write(bytes_data)
-
-        # Calculate video duration and frame count
-        cap = cv2.VideoCapture(filepath)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = float(frame_count) / float(fps)
-
-        col1.write(uploaded_file.name)
-        col2.write(f"{duration:.2f} seconds")
-        col3.write(str(frame_count))
-
-        # relese video
-        cap.release()
-
-    # inseret an empty element to create empty space
-    st.markdown("###")
-
-    col0, col1 = st.columns(2, gap="large")
-    with col0:
-        # select number of frames to label per video
-        n_frames_per_video = st.text_input(
-            "Frames to label per video", 20,
-            help="Specify the desired number of frames for labeling per video. "
-                 "Our system will then intelligently select these frames to maximize "
-                 "the diversity of animal poses captured within each video, "
-                 "optimizing the training process for your model"
-        )
-        st_n_frames_per_video = int(n_frames_per_video)
-    with col1:
-        # select range of video to pull frames from
-        st_frame_range = st.slider(
-            "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
-            help="To train your model effectively, focus on selecting video sections where the "
-                 "animals are clearly visible and performing the desired behaviors. "
-                 "Skip any parts without the animals or with distracting elements like hands, "
-                 "as these can confuse your model"
-        )
-
-    st_submit_button = st.button(
-        "Extract frames",
-        disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script
+    st_mode = st.radio(
+        "Select data upload option",
+        options=[VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR],
+        # disabled=state.st_project_loaded,
+        index=0,
     )
 
-    if state.run_script:
-        keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
-        for vid, status in state.st_extract_status.items():
-            if status == "initialized":
-                p = 0.0
-            elif status == "active":
-                vid_ = vid.replace(".", "_")
-                if vid_ in keys:
-                    try:
-                        p = state.works_dict[vid_].progress
-                    except:
-                        p = 100.0  # if work is deleted while accessing
+    if st_mode == VIDEO_RANDOM_STR:
+
+        # upload video files to temporary directory
+        video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
+        os.makedirs(video_dir, exist_ok=True)
+
+        # initialize the file uploader
+        uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+
+        # for each of the uploaded files
+        st_videos = []
+        for uploaded_file in uploaded_files:
+            # read it
+            bytes_data = uploaded_file.read()
+            # name it
+            filename = uploaded_file.name.replace(" ", "_")
+            filepath = os.path.join(video_dir, filename)
+            st_videos.append(filepath)
+            if not state.run_script_video_random:
+                # write the content of the file to the path, but not while processing
+                with open(filepath, "wb") as f:
+                    f.write(bytes_data)
+
+        col0, col1 = st.columns(2, gap="large")
+        with col0:
+            # select number of frames to label per video
+            n_frames_per_video = st.text_input("Frames to label per video", 20)
+            st_n_frames_per_video = int(n_frames_per_video)
+        with col1:
+            # select range of video to pull frames from
+            st_frame_range = st.slider(
+                "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0))
+
+        st_submit_button = st.button(
+            "Extract frames",
+            disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script_video_random
+        )
+        if state.run_script_video_random:
+            keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
+            for vid, status in state.st_extract_status.items():
+                if status == "initialized":
+                    p = 0.0
+                elif status == "active":
+                    vid_ = vid.replace(".", "_")
+                    if vid_ in keys:
+                        try:
+                            p = state.works_dict[vid_].progress
+                        except:
+                            p = 100.0  # if work is deleted while accessing
+                    else:
+                        p = 100.0  # state.work.progress
+                elif status == "complete":
+                    p = 100.0
                 else:
-                    p = 100.0  # state.work.progress
-            elif status == "complete":
-                p = 100.0
-            else:
-                st.text(status)
-            st.progress(p / 100.0, r"{vid} progress ({status}: {int(p)}\% complete)")
-        st.warning(f"waiting for existing extraction to finish")
+                    st.text(status)
+                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+            st.warning(f"waiting for existing extraction to finish")
 
-    if state.st_submits > 0 and not st_submit_button and not state.run_script:
-        proceed_str = "Please proceed to the next tab to label frames."
-        proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-        st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+        if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
+            proceed_str = "Please proceed to the next tab to label frames."
+            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
-    # Lightning way of returning the parameters
-    if st_submit_button:
+        # Lightning way of returning the parameters
+        if st_submit_button:
 
-        state.st_submits += 1
+            state.st_submits += 1
 
-        state.st_video_files_ = st_videos
-        state.st_extract_status = {s: 'initialized' for s in st_videos}
-        state.st_n_frames_per_video = st_n_frames_per_video
-        state.st_frame_range = st_frame_range
-        st.text("Request submitted!")
-        state.run_script = True  # must the last to prevent race condition
+            state.st_video_files_ = st_videos
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
+            state.st_n_frames_per_video = st_n_frames_per_video
+            state.st_frame_range = st_frame_range
+            st.text("Request submitted!")
+            state.run_script_video_random = True  # must the last to prevent race condition
 
-        # force rerun to show "waiting for existing..." message
-        st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+            # force rerun to show "waiting for existing..." message
+            st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-    st.divider()
+    elif st_mode == ZIPPED_FRAMES_STR:
+        
+        # upload zipped files to temporary directory
+        frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
+        os.makedirs(frames_dir, exist_ok=True)
+
+        # initialize the file uploader
+        uploaded_files = st.file_uploader("Select zipped folders", accept_multiple_files=True)
+
+        # for each of the uploaded files
+        st_videos = []
+        for uploaded_file in uploaded_files:
+            # read it
+            bytes_data = uploaded_file.read()
+            # name it
+            filename = uploaded_file.name.replace(" ", "_")
+            filepath = os.path.join(frames_dir, filename)
+            st_videos.append(filepath)
+            if not state.run_script_zipped_frames:
+                # write the content of the file to the path, but not while processing
+                with open(filepath, "wb") as f:
+                    f.write(bytes_data)
+            # check files: TODO
+            # state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
+            #     filepath, project_type=st_prev_format)
+
+        st_submit_button_frames = st.button(
+            "Extract frames",
+            disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
+        )
+        
+        if state.st_submits > 0 and not st_submit_button_frames and not state.run_script_zipped_frames:
+            proceed_str = "Please proceed to the next tab to label frames."
+            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+
+        # Lightning way of returning the parameters
+        if st_submit_button_frames:
+
+            state.st_submits += 1
+
+            state.st_frame_files_ = st_videos
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
+            st.text("Request submitted!")
+            state.run_script_zipped_frames = True  # must the last to prevent race condition
+
+            # force rerun to show "waiting for existing..." message
+            st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")

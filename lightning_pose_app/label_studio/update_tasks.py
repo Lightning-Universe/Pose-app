@@ -103,6 +103,8 @@ for r, rel_img in enumerate(rel_images):
     ls_img_path = os.path.join(label_studio_prefix, rel_img)
     if ls_img_path not in existing_imgs:
         image_list.append({"img": ls_img_path})
+        # update existing tasks
+        existing_tasks.append(ls_img_path)
 
 label_studio_project.import_tasks(image_list)
 _logger.debug("%i Tasks imported." % len(image_list))

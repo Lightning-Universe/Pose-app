@@ -25,7 +25,7 @@ def retry(func):
             try:
                 return func(*args, **kwargs)
             except:
-                _logging.debug("Could not execute {}, retrying in one second...".format(func.__name__))
+                _logger.debug(f"Could not execute {func.__name__}, retrying in one second...")
                 attempts += 1
                 time.sleep(1)
                 if attempts > MAX_CONNECT_ATTEMPTS:
@@ -156,6 +156,10 @@ class LabelStudioJSONProcessor:
 def get_rel_image_paths_from_idx_files(basedir: str) -> List[str]:
     img_list = []
     for root, dirs, files in os.walk(basedir):
+        if LABELED_DATA_DIR not in root:
+            # make sure we only look in the labeled data directory
+            # if we do not do this we risk uploading info from temp dirs too
+            continue
         for file in files:
             if file == SELECTED_FRAMES_FILENAME:
                 abspath = os.path.join(root, file)
