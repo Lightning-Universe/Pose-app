@@ -563,9 +563,9 @@ def _render_streamlit_fn(state: AppState):
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
-        help="Select if you want to create a new project from scratch, Use an existing DLC "
-        "project as a foundation for your new project, continue work on an ongoing lightning pose "
-        "project or remove a project from your user project repository"
+        help="Create a new project from scratch, upload an existing DLC project as a foundation "
+             "for your new project, continue work on an ongoing lightning pose project, or remove "
+             "a project from your projects."
     )
     st.text(f"Available projects: {state.initialized_projects}")
 

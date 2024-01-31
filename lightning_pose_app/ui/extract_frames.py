@@ -547,7 +547,16 @@ def _render_streamlit_fn(state: AppState):
         os.makedirs(video_dir, exist_ok=True)
 
         # initialize the file uploader
-        uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Select video files",
+            type=["mp4", "avi"],
+            accept_multiple_files=True,
+        )
+
+        col1, col2, col3 = st.columns(spec=3, gap="medium")
+        col1.markdown("**Video Name**")
+        col2.markdown("**Video Duration**")
+        col3.markdown("**Number of Frames**")
 
         # for each of the uploaded files
         st_videos = []
@@ -563,19 +572,49 @@ def _render_streamlit_fn(state: AppState):
                 with open(filepath, "wb") as f:
                     f.write(bytes_data)
 
+                # calculate video duration and frame count
+                cap = cv2.VideoCapture(filepath)
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                duration = float(frame_count) / float(fps)
+
+                col1.write(uploaded_file.name)
+                col2.write(f"{duration:.2f} seconds")
+                col3.write(str(frame_count))
+
+                # relese video
+                cap.release()
+
+        # insert an empty element to create empty space
+        st.markdown("###")
+
         col0, col1 = st.columns(2, gap="large")
         with col0:
             # select number of frames to label per video
-            n_frames_per_video = st.text_input("Frames to label per video", 20)
+            n_frames_per_video = st.text_input(
+                "Frames to label per video", 20,
+                help="Specify the desired number of frames for labeling per video. "
+                     "The app will select frames to maximize the diversity of animal poses "
+                     "captured within each video."
+            )
             st_n_frames_per_video = int(n_frames_per_video)
         with col1:
             # select range of video to pull frames from
             st_frame_range = st.slider(
-                "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0))
+                "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
+                help="Focus on selecting video sections where the animals are clearly visible and "
+                     "performing the desired behaviors. "
+                     "Skip any parts without the animals or with distracting elements like hands, "
+                     "as these can confuse the model."
+            )
 
         st_submit_button = st.button(
             "Extract frames",
-            disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script_video_random
+            disabled=(
+                (st_n_frames_per_video == 0)
+                or len(st_videos) == 0
+                or state.run_script_video_random
+            )
         )
         if state.run_script_video_random:
             keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
@@ -625,7 +664,15 @@ def _render_streamlit_fn(state: AppState):
         os.makedirs(frames_dir, exist_ok=True)
 
         # initialize the file uploader
-        uploaded_files = st.file_uploader("Select zipped folders", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Select zipped folders",
+            type="zip",
+            accept_multiple_files=True,
+            help="Upload one zip file per video. The file name should be the name of the video. "
+                 "The frames should be in the format 'img%08i.png', i.e. a png file with a name "
+                 "that starts with 'img' and contains the frame number with leading zeros such "
+                 "that there are 8 total digits (e.g. 'img00003453.png')."
+        )
 
         # for each of the uploaded files
         st_videos = []
@@ -649,7 +696,11 @@ def _render_streamlit_fn(state: AppState):
             disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
         )
         
-        if state.st_submits > 0 and not st_submit_button_frames and not state.run_script_zipped_frames:
+        if (
+            state.st_submits > 0
+            and not st_submit_button_frames
+            and not state.run_script_zipped_frames
+        ):
             proceed_str = "Please proceed to the next tab to label frames."
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
