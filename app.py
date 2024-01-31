@@ -104,7 +104,7 @@ class LitPoseApp(LightningFlow):
     #         self.streamlit_frame.work.url != "",
     #         self.streamlit_video.work.url != "",
     #         self.train_ui.work.url != "",
-    #         self.label_studio.label_studio.url != ""
+    #         self.label_studio.url != ""
     #     ])
 
     def start_tensorboard(self, logdir):
@@ -317,7 +317,7 @@ class LitPoseApp(LightningFlow):
         # init tabs
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        annotate_tab = {"name": "Label Frames", "content": self.label_studio.label_studio}
+        annotate_tab = {"name": "Label Frames", "content": self.label_studio}
 
         # training tabs
         train_tab = {"name": "Train/Infer", "content": self.train_ui}

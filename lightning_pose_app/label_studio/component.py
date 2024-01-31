@@ -14,7 +14,11 @@ from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
 )
 from lightning_pose_app.bashwork import add_to_system_env
-from lightning_pose_app.label_studio.utils import connect_to_label_studio
+from lightning_pose_app.label_studio.utils import (
+    build_xml,
+    connect_to_label_studio,
+    get_annotation,
+)
 from lightning_pose_app.utilities import WorkWithFileSystem
 
 
@@ -136,6 +140,10 @@ class LitLabelStudio(WorkWithFileSystem):
     def _create_new_project(self):
         """Create a label studio project."""
 
+        if not self.filenames['label_studio_config']:
+            # do not execute if filenames have not been updated
+            return
+
         if self.counts["create_new_project"] > 0:
             return
 
@@ -212,6 +220,10 @@ class LitLabelStudio(WorkWithFileSystem):
         """Create a label studio configuration xml file."""
 
         self.keypoints = keypoints
+
+        if not self.filenames['label_studio_config']:
+            # do not execute if filenames have not been updated
+            return
 
         # ---------------------------
         # create new project
@@ -475,77 +487,3 @@ def check_labeling_task_and_export(
     proj_details["n_labeled_tasks"] = len(exported_tasks)
     proj_details["n_total_tasks"] = len(label_studio_project.get_tasks())
     yaml.safe_dump(proj_details, open(metadata_file, "w"))
-
-
-# -------------------------
-# helpers
-# -------------------------
-
-def build_xml(bodypart_names: list) -> str:
-    """Builds the XML file for Label Studio"""
-    # 25 colors
-    colors = ["red", "blue", "green", "yellow", "orange", "purple", "brown", "pink", "gray",
-            "black", "white", "cyan", "magenta", "lime", "maroon", "olive", "navy", "teal",
-            "aqua", "fuchsia", "silver", "gold", "indigo", "violet", "coral"]
-    # replicate just to be safe
-    colors = colors + colors + colors + colors
-    colors_to_use = colors[:len(bodypart_names)]  # practically ignoring colors
-    view_str = "<!--Basic keypoint image labeling configuration for multiple regions-->"
-    view_str += "\n<View>"
-    view_str += "\n<Header value=\"Select keypoint name with the cursor/number button, " \
-                "then click on the image.\"/>"
-    view_str += "\n<Text name=\"text1\" value=\"Important: Click Submit after you have labeled " \
-                "all visible keypoints in this image.\"/>"
-    view_str += "\n<Text name=\"text2\" value=\"Also useful: Press H for hand tool, " \
-                "CTRL+ to zoom in and CTRL- to zoom out\"/>"
-    view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\" strokeWidth=\"3\">"  # indent 2
-    for keypoint, color in zip(bodypart_names, colors_to_use):
-        view_str += f"\n    <Label value=\"{keypoint}\" />"  # indent 4
-    view_str += "\n  </KeyPointLabels>"  # indent 2
-    view_str += "\n  <Image name=\"img-1\" value=\"$img\" />"  # indent 2
-    view_str += "\n</View>"  # indent 0
-    return view_str
-
-
-def get_annotation(
-    rel_path: str, labels: pd.DataFrame, dims: dict, task_id: int, project_id: int,
-) -> dict:
-    task_dict = {
-        "completed_by": 1,
-        "result": [],
-        "was_cancelled": False,  # user skipped the task
-        "ground_truth": False,
-        "lead_time": 1,  # how much time it took to annotate task
-        "last_action": "imported",
-        "task": task_id,
-        "project": project_id,
-        "updated_by": 1,  # last user who updated this annotation
-        "parent_prediction": None,
-        "parent_annotation": None,
-        "last_created_by": None,
-    }
-    scorer = labels.scorer[0]
-    keypoints = labels.bodyparts.unique()
-    for keypoint in keypoints:
-        idx_x = (labels.scorer == scorer) & (labels.bodyparts == keypoint) & (labels.coords == "x")
-        idx_y = (labels.scorer == scorer) & (labels.bodyparts == keypoint) & (labels.coords == "y")
-        x_val = labels[idx_x][rel_path].iloc[0]
-        y_val = labels[idx_y][rel_path].iloc[0]
-        isnan = labels[idx_x][rel_path].isna().iloc[0]
-        if not isnan:
-            kp_dict = {
-                "value": {
-                    "x": x_val / dims["width"] * 100.0,  # percentage of image width
-                    "y": y_val / dims["height"] * 100.0,  # percentage of image height
-                    "width": 0.5,  # point size by percentage of image size
-                    "keypointlabels": [keypoint],
-                },
-                "original_width": dims["width"],
-                "original_height": dims["height"],
-                "image_rotation": 0,
-                "from_name": "kp-1",
-                "to_name": "img-1",
-                "type": "keypointlabels",
-            }
-            task_dict["result"].append(kp_dict)
-    return task_dict
