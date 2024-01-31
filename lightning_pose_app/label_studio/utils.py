@@ -36,7 +36,7 @@ def retry(func):
 
 # -------------------------
 # LabelStudio API wrappers
-#--------------------------
+# -------------------------
 
 @retry
 def connect_to_label_studio(url, api_key):
@@ -65,7 +65,7 @@ def create_data_source(label_studio_project, json):
 
 # -------------------------
 # data handling utils
-#--------------------------
+# -------------------------
 
 class LabelStudioJSONProcessor:
     """ methods to process the .json output from labelstudio """

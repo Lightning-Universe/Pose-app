@@ -24,7 +24,6 @@ class LitLabelStudio(LightningWork):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
         self.proj_dir = None
-        self.test_str = 'this is a test string'
         self.filenames = {"label_studio_config": ""}
 
     def _update_paths(self, proj_dir):
@@ -36,7 +35,6 @@ class LitLabelStudio(LightningWork):
         """Create a label studio configuration xml file."""
         proj_dir = os.path.abspath(self.proj_dir)
         print(self.filenames)
-        print(self.test_str)
         config_file = os.path.join(proj_dir, os.path.basename(self.filenames['label_studio_config']))
         os.makedirs(proj_dir, exist_ok=True)
         with open(config_file, 'wt') as outfile:
@@ -47,5 +45,6 @@ class LitLabelStudio(LightningWork):
             self._create_labeling_config_xml(**kwargs)
         elif action == "update_paths":
             self._update_paths(**kwargs)
+
 
 app = LightningApp(LitPoseApp())

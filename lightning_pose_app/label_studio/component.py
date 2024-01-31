@@ -307,7 +307,7 @@ def create_new_project(
     _logger.info("Executing create_new_project.py")
 
     _logger.debug("Connecting to LabelStudio at %s..." % label_studio_url)
-    label_studio_client = connect_to_label_studio(url=label_studio_url, api_key=user_token)
+    label_studio_client = connect_to_label_studio(url=label_studio_url, api_key=api_key)
     _logger.debug("Connected to LabelStudio at %s" % label_studio_url)
 
     _logger.info("Creating LabelStudio project...")
