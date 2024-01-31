@@ -111,7 +111,7 @@ class LitLabelStudio(WorkWithFileSystem):
 
         self.proj_dir = proj_dir
         self.proj_name = proj_name
-        print(" ----------------- HERE 1 -------------------")
+
         self.filenames["label_studio_config"] = os.path.join(
             self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
 
@@ -129,9 +129,6 @@ class LitLabelStudio(WorkWithFileSystem):
 
         self.filenames["config_file"] = os.path.join(
             self.proj_dir, f"model_config_{self.proj_name}.yaml")
-        print(" ----------------- HERE 2 -------------------")
-        print(self.proj_dir)
-        print(self.filenames)
 
     def _create_new_project(self):
         """Create a label studio project."""
@@ -143,7 +140,7 @@ class LitLabelStudio(WorkWithFileSystem):
         self.counts["create_new_project"] += 1
 
         # pull data from FileSystem
-        inputs=[
+        inputs = [
             self.filenames["label_studio_config"],
             self.filenames["labeled_data_dir"],
         ]
@@ -216,15 +213,14 @@ class LitLabelStudio(WorkWithFileSystem):
         # ---------------------------
         # create new project
         # ---------------------------
-        _logger.info("Executing create_labeling_config.py")
+        _logger.info("Executing create_labeling_config")
 
         xml_str = build_xml(self.keypoints)
 
         proj_dir = self.abspath(self.proj_dir)
-        config_file = os.path.join(proj_dir, os.path.basename(self.filenames['label_studio_config']))
-        if not os.path.exists(proj_dir):
-            os.makedirs(proj_dir)
-        with open(config_file, 'wt') as outfile:
+        config_file = os.path.join(proj_dir, os.path.basename(self.filenames["label_studio_config"]))
+        os.makedirs(proj_dir, exist_ok=True)
+        with open(config_file, "wt") as outfile:
             outfile.write(xml_str)
 
         # ---------------------------
