@@ -12,9 +12,9 @@ from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
 
 
 class FiftyoneWork(WorkWithFileSystem):
-    
+
     def __init__(self, *args, **kwargs):
-        
+
         super().__init__(*args, name="fiftyone", **kwargs)
 
         self.fiftyone_launched = False
@@ -61,7 +61,7 @@ class FiftyoneWork(WorkWithFileSystem):
 
         from lightning_pose.utils.fiftyone import FiftyOneFactory, check_dataset
         from omegaconf import DictConfig
-        
+
         # pull models (relative path)
         self.get_from_drive(model_dirs)
 
@@ -95,7 +95,7 @@ class FiftyoneWork(WorkWithFileSystem):
 
         # these functions require fiftyone and/or lighting-pose to be installed
         # each function imports the necessary functions directly
-        # if imports are at the top of this module errors will arise in the orchestrator when 
+        # if imports are at the top of this module errors will arise in the orchestrator when
         # importing from this module since the proper packages are not yet installed (cloud only)
 
         if action == "start_fiftyone":
@@ -144,7 +144,7 @@ class FiftyoneConfigUI(LightningFlow):
 
         if action == "start_fiftyone":
             self.work.run(action=action, **kwargs)
-            
+
         elif action == "find_fiftyone_datasets":
             self.work.run(action=action, **kwargs)
             self.fiftyone_datasets = self.work.fiftyone_datasets
@@ -234,7 +234,8 @@ def _render_streamlit_fn(state: AppState):
         st.markdown("""
             Diagnostics will be displayed in the following 'Fiftyone' tab.
             """)
-        st_submit_button = st.form_submit_button("Prepare Fiftyone dataset", disabled=state.run_script)
+        st_submit_button = st.form_submit_button(
+            "Prepare Fiftyone dataset", disabled=state.run_script)
 
     # ---------------------------------------------------------
     # check user input
@@ -274,7 +275,7 @@ def _render_streamlit_fn(state: AppState):
     # ---------------------------------------------------------
     # build fiftyone dataset
     # ---------------------------------------------------------
-    # this will only be run once when the user clicks the button; 
+    # this will only be run once when the user clicks the button;
     # on the following pass the button click will be set to False again
     if st_submit_button:
 

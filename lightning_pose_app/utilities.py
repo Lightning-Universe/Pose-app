@@ -31,7 +31,7 @@ def args_to_dict(script_args: str) -> dict:
 def dict_to_args(script_args_dict: dict) -> str:
     """convert dict {'A':1, 'B':2} to str A=1 B=2 to """
     script_args_array = []
-    for k,v in script_args_dict.items():
+    for k, v in script_args_dict.items():
         script_args_array.append(f"{k}={v}")
     # return as a text
     return " \n".join(script_args_array)
