@@ -317,7 +317,7 @@ class LitPoseApp(LightningFlow):
         # init tabs
         project_tab = {"name": "Manage Project", "content": self.project_ui}
         extract_tab = {"name": "Extract Frames", "content": self.extract_ui}
-        annotate_tab = {"name": "Label Frames", "content": self.label_studio}
+        annotate_tab = {"name": "Label Frames", "content": self.label_studio.work}
 
         # training tabs
         train_tab = {"name": "Train/Infer", "content": self.train_ui}

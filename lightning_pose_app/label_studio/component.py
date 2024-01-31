@@ -4,6 +4,7 @@ import logging
 import os
 import pandas as pd
 import subprocess
+import time
 import yaml
 
 from lightning_pose_app import (
@@ -115,7 +116,7 @@ class LabelStudioWork(WorkWithFileSystem):
             label_config_file=self.abspath(label_studio_config),
         )
 
-    def _update_tasks(self, proj_dir, videos=[]):
+    def _update_tasks(self, proj_dir, videos=[], **kwargs):
         """Update tasks after new video frames have been extracted."""
         print(' ------------- HERE 0 ------------------')
         update_tasks(
@@ -123,7 +124,7 @@ class LabelStudioWork(WorkWithFileSystem):
             proj_dir=self.abspath(proj_dir), 
             api_key=self.user_token, 
         )
-        print(' ------------- HERE 2 ------------------')
+        print(' ------------- HERE 1 ------------------')
 
     def _check_labeling_task_and_export(self, proj_dir, keypoints, timer):
         """Check for new labels, export to lightning pose format, export database to FileSystem."""
@@ -159,7 +160,6 @@ class LabelStudioWork(WorkWithFileSystem):
         elif action == "create_new_project":
             self._create_new_project(**kwargs)
         elif action == "update_tasks":
-            print('^^^^^^^^^^^ HERE 1 ^^^^^^^^^^^')
             self._update_tasks(**kwargs)
         elif action == "check_labeling_task_and_export":
             self._check_labeling_task_and_export(**kwargs)
@@ -245,11 +245,14 @@ class LitLabelStudio(LightningFlow):
                 label_studio_config=self.filenames['label_studio_config'],
             )
         elif action == "update_tasks":
+            print(' ~~~~~~ HERE 0 ~~~~~~')
             self.work.run(
                 action=action,
                 proj_dir=self.proj_dir,
+                timer=time.time(),
                 **kwargs
             )
+            print(' ~~~~~~ HERE 1 ~~~~~~')
         elif action == "check_labeling_task_and_export":
             if self.keypoints is not None:
                 self.work.run(

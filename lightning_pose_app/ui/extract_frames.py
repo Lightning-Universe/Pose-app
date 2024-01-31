@@ -549,7 +549,11 @@ def _render_streamlit_fn(state: AppState):
         os.makedirs(video_dir, exist_ok=True)
 
         # initialize the file uploader
-        uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Select video files",
+            type=['mp4', 'avi'],
+            accept_multiple_files=True,
+        )
 
         # for each of the uploaded files
         st_videos = []
@@ -577,7 +581,11 @@ def _render_streamlit_fn(state: AppState):
 
         st_submit_button = st.button(
             "Extract frames",
-            disabled=(st_n_frames_per_video == 0) or len(st_videos) == 0 or state.run_script_video_random
+            disabled=(
+                (st_n_frames_per_video == 0)
+                or len(st_videos) == 0
+                or state.run_script_video_random
+            ),
         )
         if state.run_script_video_random:
             keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
@@ -627,7 +635,11 @@ def _render_streamlit_fn(state: AppState):
         os.makedirs(frames_dir, exist_ok=True)
 
         # initialize the file uploader
-        uploaded_files = st.file_uploader("Select zipped folders", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Select zipped folders",
+            type='zip',
+            accept_multiple_files=True,
+        )
 
         # for each of the uploaded files
         st_videos = []
