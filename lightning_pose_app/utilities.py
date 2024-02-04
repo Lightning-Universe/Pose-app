@@ -26,15 +26,6 @@ def args_to_dict(script_args: str) -> dict:
     return script_args_dict
 
 
-def dict_to_args(script_args_dict: dict) -> str:
-    """convert dict {'A':1, 'B':2} to str A=1 B=2 to """
-    script_args_array = []
-    for k, v in script_args_dict.items():
-        script_args_array.append(f"{k}={v}")
-    # return as a text
-    return " \n".join(script_args_array)
-
-
 class StreamlitFrontend(LitStreamlitFrontend):
     """Provide helpful print statements for where streamlit tabs are forwarded."""
 
@@ -84,7 +75,7 @@ def check_codec_format(input_file: str) -> bool:
     return is_codec
 
 
-def copy_and_reformat_video(video_file: str, dst_dir: str) -> str:
+def copy_and_reformat_video(video_file: str, dst_dir: str, remove_old=True) -> str:
     """Copy a single video, reformatting if necessary, and delete the original."""
 
     src = video_file
@@ -109,14 +100,18 @@ def copy_and_reformat_video(video_file: str, dst_dir: str) -> str:
         _logger.info(f"re-encoding {src} to be compatable with Lightning Pose video reader")
         reencode_video(src, dst)
         # remove old video
-        os.remove(src)
+        if remove_old:
+            os.remove(src)
     else:
         # make dir to write into
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         # rename
-        os.rename(src, dst)
+        if remove_old:
+            os.rename(src, dst)
+        else:
+            shutil.copyfile(src, dst)
 
-    return video_file_new
+    return dst
 
 
 def copy_and_reformat_video_directory(src_dir: str, dst_dir: str) -> None:
