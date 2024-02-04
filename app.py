@@ -7,38 +7,30 @@ To run from the command line (inside the conda environment named "lai" here):
 
 from lightning.app import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
-from lightning.app.utilities.cloud import is_running_in_cloud
 import logging
 import os
 import sys
 import time
 import yaml
 
-from lightning_pose_app import LABELSTUDIO_DB_DIR
+from lightning_pose_app import LABELSTUDIO_DB_DIR, LIGHTNING_POSE_DIR
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
-from lightning_pose_app.ui.train_infer import TrainUI, LitPose
-from lightning_pose_app.build_configs import TensorboardBuildConfig, LitPoseBuildConfig
-from lightning_pose_app.build_configs import lightning_pose_dir
-
+from lightning_pose_app.ui.train_infer import TrainUI
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger('APP')
 
 
 # TODO: HIGH PRIORITY
-# - import previous projects
-#   * should this be done with a Work, and a frame upload status bar?
-#   * automatically create context datasets
 # - `abort` button next to training/inference progress bars so user doesn't have to kill app
 # - active learning
 
 # TODO: LOW PRIORITY
-# - ProjectUI._put_to_drive_remove_local does NOT overwrite dirs already on FileSystem - ok?
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 # - update label studio xml and CollectedData.csv when user inputs new keypoint in project ui
 
@@ -52,10 +44,10 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # paths
         # -----------------------------
-        self.data_dir = "/data"  # relative to FileSystem root
+        self.data_dir = "/data"  # # relative to Pose-app root
 
         # load default config and pass to project manager
-        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
+        config_dir = os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs")
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
@@ -83,9 +75,7 @@ class LitPoseApp(LightningFlow):
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
-            name="tensorboard",
             cloud_compute=CloudCompute("default"),
-            cloud_build_config=TensorboardBuildConfig(),
         )
 
         # label studio (flow + work)
@@ -127,12 +117,12 @@ class LitPoseApp(LightningFlow):
         # don't interfere /w train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
-        if not is_running_in_cloud() and self.train_ui.run_script_train:
+        if self.train_ui.run_script_train:
             run_while_training = False
 
         # don't interfere w/ inference
         run_while_inferring = True
-        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+        if self.train_ui.run_script_infer:
             run_while_inferring = False
 
         # -------------------------------------------------------------
@@ -147,7 +137,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # start background services (run only once)
         # -------------------------------------------------------------
-        self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
         self.fiftyone_ui.run(action="start_fiftyone")
         if self.project_ui.model_dir is not None:
@@ -276,17 +265,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.train_ui.run_script_train and run_while_inferring:
             self.train_ui.run(action="train", config_filename=self.project_ui.config_name)
-            inputs = [self.project_ui.model_dir]
-            # have tensorboard pull the new data
-            self.tensorboard.run(
-                "null command",
-                cwd=os.getcwd(),
-                input_output_only=True,  # pull inputs from Drive, but do not run commands
-                inputs=inputs,
-            )
-            # have streamlit pull the new data
-            self.streamlit_frame.run(action="pull_models", inputs=inputs)
-            self.streamlit_video.run(action="pull_models", inputs=inputs)
             self.project_ui.update_models = True
             self.train_ui.run_script_train = False
 

@@ -1,5 +1,4 @@
-from lightning.app import CloudCompute, LightningFlow
-from lightning.app.storage import FileSystem
+from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.utilities.state import AppState
 import os
 import streamlit as st
@@ -7,15 +6,15 @@ from streamlit_autorefresh import st_autorefresh
 import yaml
 
 from lightning_pose_app import MODELS_DIR
-from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_dir
-from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
+from lightning_pose_app.build_configs import LitPoseBuildConfig
+from lightning_pose_app.utilities import StreamlitFrontend, abspath
 
 
-class FiftyoneWork(WorkWithFileSystem):
+class FiftyoneWork(LightningWork):
 
     def __init__(self, *args, **kwargs):
 
-        super().__init__(*args, name="fiftyone", **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.fiftyone_launched = False
         self.fiftyone_datasets = []
@@ -54,7 +53,7 @@ class FiftyoneWork(WorkWithFileSystem):
 
     def build_fiftyone_dataset(
             self, config_file: str, dataset_name: str, model_dirs: list, model_names: list,
-        ):
+    ):
 
         if dataset_name in self.fiftyone_datasets:
             return
@@ -62,14 +61,8 @@ class FiftyoneWork(WorkWithFileSystem):
         from lightning_pose.utils.fiftyone import FiftyOneFactory, check_dataset
         from omegaconf import DictConfig
 
-        # pull models (relative path)
-        self.get_from_drive(model_dirs)
-
-        # pull config (relative path)
-        self.get_from_drive([config_file])
-
         # load config (absolute path)
-        cfg = DictConfig(yaml.safe_load(open(self.abspath(config_file), "r")))
+        cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
 
         # edit config (add fiftyone key before making DictConfig, otherwise error)
         model_dirs_abs = [os.path.join(os.getcwd(), x[1:]) for x in model_dirs]
@@ -245,25 +238,25 @@ def _render_streamlit_fn(state: AppState):
             or st_model_display_names[0] == st_model_display_names[1]:
         st_submit_button = False
         state.submit_success = False
-        st.warning(f"Must choose two unique model display names")
+        st.warning("Must choose two unique model display names")
     if st_model_dirs[0] is None or st_model_dirs[1] is None:
         st_submit_button = False
         state.submit_success = False
-        st.warning(f"Must choose two models to continue")
+        st.warning("Must choose two models to continue")
     if st_model_dirs[0] == st_model_dirs[1]:
         st_submit_button = False
         state.submit_success = False
-        st.warning(f"Must choose two unique models to continue")
+        st.warning("Must choose two unique models to continue")
     if st_submit_button and \
             (st_dataset_name in existing_datasets
              or st_dataset_name is None
              or st_dataset_name == ""):
         st_submit_button = False
         state.submit_success = False
-        st.warning(f"Enter a unique dataset name to continue")
+        st.warning("Enter a unique dataset name to continue")
     if state.run_script:
-        st.warning(f"Waiting for existing dataset creation to finish "
-                   f"(may take 30 seconds to update)")
+        st.warning("Waiting for existing dataset creation to finish "
+                   "(may take 30 seconds to update)")
     if state.submit_count > 0 \
             and not state.run_script \
             and not st_submit_button \

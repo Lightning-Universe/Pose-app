@@ -6,13 +6,10 @@ To run from the command line (inside the conda environment named "lai" here):
 """
 
 from lightning.app import CloudCompute, LightningApp, LightningFlow
-from lightning.app.structures import Dict
-from lightning.app.utilities.cloud import is_running_in_cloud
 import logging
 import os
 import shutil
 import sys
-import time
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
@@ -20,8 +17,7 @@ from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.train_infer import TrainUI
-from lightning_pose_app.build_configs import TensorboardBuildConfig, lightning_pose_dir
-
+from lightning_pose_app import LIGHTNING_POSE_DIR
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger('APP')
@@ -36,11 +32,11 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # paths
         # -----------------------------
-        self.data_dir = "/data"  # relative to FileSystem root
+        self.data_dir = "/data"  # relative to Pose-app root
         self.proj_name = "demo"
 
         # load default config and pass to project manager
-        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
+        config_dir = os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs")
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
@@ -66,28 +62,26 @@ class LitPoseApp(LightningFlow):
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
-            name="tensorboard",
             cloud_compute=CloudCompute("default"),
-            cloud_build_config=TensorboardBuildConfig(),
         )
 
         # -----------------------------
         # copy toy data to project
         # -----------------------------
-        # here we copy the toy dataset config file, frames, and labels that come packaged with the 
-        # lightning-pose repo and move it to a new directory that is consistent with the project 
+        # here we copy the toy dataset config file, frames, and labels that come packaged with the
+        # lightning-pose repo and move it to a new directory that is consistent with the project
         # structure the app expects
         # later we will write that newly copied data to the FileSystem so other Works have access
 
         # copy config file
         toy_config_file_src = os.path.join(
-            lightning_pose_dir, "scripts/configs/config_mirror-mouse-example.yaml")
+            LIGHTNING_POSE_DIR, "scripts/configs/config_mirror-mouse-example.yaml")
         toy_config_file_dst = os.path.join(
             os.getcwd(), self.data_dir[1:], self.proj_name, "model_config_demo.yaml")
         self._copy_file(toy_config_file_src, toy_config_file_dst)
 
         # frames, videos, and labels
-        toy_data_src = os.path.join(lightning_pose_dir, "data/mirror-mouse-example")
+        toy_data_src = os.path.join(LIGHTNING_POSE_DIR, "data/mirror-mouse-example")
         toy_data_dst = os.path.join(os.getcwd(), self.data_dir[1:], self.proj_name)
         self._copy_dir(toy_data_src, toy_data_dst)
 
@@ -160,12 +154,12 @@ class LitPoseApp(LightningFlow):
         # don't interfere w/ train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
-        if not is_running_in_cloud() and self.train_ui.run_script_train:
+        if self.train_ui.run_script_train:
             run_while_training = False
 
         # don't interfere w/ inference
         run_while_inferring = True
-        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+        if self.train_ui.run_script_infer:
             run_while_inferring = False
 
         # -------------------------------------------------------------
@@ -193,13 +187,6 @@ class LitPoseApp(LightningFlow):
             )
             # send params to train ui
             self.train_ui.config_dict = self.project_ui.config_dict
-            # put demo data onto FileSystem
-            self.project_ui.run(
-                action="put_file_to_drive", 
-                file_or_dir=self.project_ui.proj_dir,
-                remove_local=False,
-            )
-            _logger.info("Demo data transferred to FileSystem")
             self.demo_data_transferred = True
 
         # find previously trained models for project, expose to training and diagnostics UIs
@@ -220,17 +207,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.train_ui.run_script_train and run_while_inferring:
             self.train_ui.run(action="train", config_filename=self.project_ui.config_name)
-            inputs = [self.project_ui.model_dir]
-            # have tensorboard pull the new data
-            self.tensorboard.run(
-                "null command",
-                cwd=os.getcwd(),
-                input_output_only=True,  # pull inputs from FileSystem, but do not run commands
-                inputs=inputs,
-            )
-            # have streamlit pull the new data
-            self.streamlit_frame.run(action="pull_models", inputs=inputs)
-            self.streamlit_video.run(action="pull_models", inputs=inputs)
             self.project_ui.update_models = True
             self.train_ui.run_script_train = False
 

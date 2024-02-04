@@ -12,7 +12,7 @@ import subprocess
 import threading
 import time
 
-from lightning_pose_app.utilities import args_to_dict, WorkWithFileSystem
+from lightning_pose_app.utilities import args_to_dict
 
 
 _logger = logging.getLogger('APP.BASHWORK')
@@ -69,9 +69,7 @@ def work_is_free(lwork: LightningWork):
     # multiple works are queued but
     # count run that are in pending state
     if (
-        status.stage == "not_started" or
-        status.stage == "succeeded" or
-        status.stage == "failed"
+        status.stage == "not_started" or status.stage == "succeeded" or status.stage == "failed"
     ):
         # do not run if jobs are in pending state
         # not counting to reduce CPU load as looping thru all of the calls can get expensive
@@ -86,12 +84,11 @@ def work_is_free(lwork: LightningWork):
         return False
 
 
-class LitBashWork(WorkWithFileSystem):
+class LitBashWork(LightningWork):
 
     def __init__(
         self,
         *args,
-        name="bashwork",
         wait_seconds_after_run=10,
         wait_seconds_after_kill=10,
         **kwargs
@@ -100,15 +97,13 @@ class LitBashWork(WorkWithFileSystem):
         # required to to grab self.host and self.port in the cloud.
         # otherwise, the values flips from 127.0.0.1 to 0.0.0.0 causing two runs
         # host='0.0.0.0',
-        super().__init__(*args, name=name, **kwargs)
+        super().__init__(*args, **kwargs)
         self.wait_seconds_after_run = wait_seconds_after_run
         self.wait_seconds_after_kill = wait_seconds_after_kill
 
         self.pid = None
         self.exit_code = None
         self.stdout = None
-        self.inputs = None
-        self.outputs = None
         self.args = ""
 
         self._wait_proc = None
@@ -224,8 +219,6 @@ class LitBashWork(WorkWithFileSystem):
         wait_for_exit=True,
         input_output_only=False,
         kill_pid=False,
-        inputs=[],
-        outputs=[],
         run_after_run=[],
         timeout=0,
         timer=0,  # added for uniqueness and caching
@@ -236,7 +229,6 @@ class LitBashWork(WorkWithFileSystem):
 
         # pre processing
         self.on_before_run()
-        self.get_from_drive(inputs)
         self.args = args
         self.stdout = None
 
@@ -247,7 +239,7 @@ class LitBashWork(WorkWithFileSystem):
             if self.pid and kill_pid:
                 _logger.debug(f"***killing {self.pid}")
                 os.kill(self.pid, signal.SIGTERM)
-                info = os.waitpid(self.pid, 0)
+                # info = os.waitpid(self.pid, 0)
                 while is_port_in_use(self.host, self.port):
                     _logger.debug(f"***killed. pid {self.pid} waiting to free port")
                     time.sleep(self.wait_seconds_after_kill)
@@ -261,8 +253,6 @@ class LitBashWork(WorkWithFileSystem):
         for cmd in run_after_run:
             self.popen_wait(cmd, save_stdout=True, exception_on_error=False, **kwargs)
 
-        # post processing
-        self.put_to_drive(outputs)
         # give time for REDIS to catch up and propagate self.stdout back to flow
         if save_stdout:
             _logger.debug(f"waiting work to flow message sleeping {self.wait_seconds_after_run}")

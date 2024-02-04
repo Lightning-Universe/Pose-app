@@ -5,20 +5,17 @@ To run from the command line (inside the conda environment named "lai" here):
 
 """
 
-from lightning.app import CloudCompute, LightningApp, LightningFlow
-from lightning.app.structures import Dict
+from lightning.app import LightningApp, LightningFlow
 import logging
 import os
 import sys
 import time
 import yaml
 
-from lightning_pose_app import LABELSTUDIO_DB_DIR
+from lightning_pose_app import LABELSTUDIO_DB_DIR, LIGHTNING_POSE_DIR
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
-from lightning_pose_app.build_configs import lightning_pose_dir
-
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger('APP')
@@ -33,10 +30,10 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # paths
         # -----------------------------
-        self.data_dir = "/data"  # relative to FileSystem root
+        self.data_dir = "/data"  # relative to Pose-app root
 
         # load default config and pass to project manager
-        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
+        config_dir = os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs")
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
@@ -72,7 +69,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # init label studio; this will only happen once
         # -------------------------------------------------------------
-        self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
 
         # -------------------------------------------------------------
