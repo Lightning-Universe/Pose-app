@@ -11,12 +11,13 @@ import lightning.pytorch as pl
 import logging
 import numpy as np
 import os
+import shutil
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import yaml
 
 from lightning_pose_app import VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
-from lightning_pose_app import MODELS_DIR, SELECTED_FRAMES_FILENAME
+from lightning_pose_app import LABELED_DATA_DIR, MODELS_DIR, SELECTED_FRAMES_FILENAME
 from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import StreamlitFrontend
@@ -285,6 +286,9 @@ class LitPose(LightningWork):
         with open(cfg_file_local, "w") as fp:
             OmegaConf.save(config=cfg, f=fp.name)
 
+        # remove lightning logs
+        shutil.rmtree(os.path.join(results_dir, "lightning_logs"))
+
         os.chdir(self.pwd)
 
         # clean up memory
@@ -411,12 +415,13 @@ class LitPose(LightningWork):
         if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
+            proj_dir = '/'.join(kwargs["model_dir"].split('/')[:3])
             new_vid_file = copy_and_reformat_video(
                 video_file=abspath(kwargs["video_file"]),
-                dst_dir=abspath(VIDEOS_INFER_DIR),
+                dst_dir=abspath(os.path.join(proj_dir, VIDEOS_INFER_DIR)),
             )
             # save relative rather than absolute path
-            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-2:])
+            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._run_inference(**kwargs)
 
 
@@ -594,6 +599,7 @@ class TrainUI(LightningFlow):
             return int(idx), prefix, ext
 
         # loop over all labeled frames, break as soon as single frame fails
+        dst = os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR)
         for d in os.listdir(dst):
             frames_in_dir_file = os.path.join(dst, d, SELECTED_FRAMES_FILENAME)
             if not os.path.exists(frames_in_dir_file):

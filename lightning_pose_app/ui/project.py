@@ -120,7 +120,7 @@ class ProjectUI(LightningFlow):
     def _update_paths(self, project_name=None, **kwargs):
         if not project_name:
             project_name = self.st_project_name
-        # these will all be paths RELATIVE to the FileSystem root
+        # these will all be paths RELATIVE to the Pose-app directory
         if project_name:
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
@@ -234,6 +234,8 @@ class ProjectUI(LightningFlow):
             self.st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
             self.st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
             self.st_n_views = 1 if len(self.st_pcamv_columns) == 0 else len(self.st_pcamv_columns)
+            # save current params
+            self.config_dict = config_dict
 
     def _update_trained_models_list(self, **kwargs):
 
@@ -448,7 +450,7 @@ def _render_streamlit_fn(state: AppState):
             "The first tab of the app is the project manager. Here you will be able to"
             " create new projects and load or delete existing projects under your account."
         )
-        st.write("## *To move forward, you will need to complete all the steps in this tab.")
+        st.write("## To move forward, you will need to complete all the steps in this tab.")
         st.write("##")
         st.markdown("**Need further help? Check the:**")
         st.markdown(
@@ -456,13 +458,15 @@ def _render_streamlit_fn(state: AppState):
             "(https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
             unsafe_allow_html=True,
         )
-        st.markdown("Github [repository](https://github.com/Lightning-Universe/Pose-app.html#)",
-                    unsafe_allow_html=True)
-        st.markdown("Lightning Pose [documentation]"
-                    "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
-                    unsafe_allow_html=True)
-
-    # st.markdown(""" ## Manage Lightning Pose projects """)
+        st.markdown(
+            "Github [repository](https://github.com/Lightning-Universe/Pose-app.html#)",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "Lightning Pose [documentation]"
+            "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
+            unsafe_allow_html=True,
+        )
 
     st.header("Manage Lightning Pose projects")
 

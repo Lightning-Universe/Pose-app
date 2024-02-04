@@ -291,18 +291,13 @@ class ExtractFramesWork(LightningWork):
         self.work_is_done_extract_frames = True
 
     def run(self, action, **kwargs):
-        if action == "reformat_video":
-            copy_and_reformat_video(
-                video_file=abspath(kwargs["video_file"]),
-                dst_dir=abspath(VIDEOS_DIR),
-            )
-        elif action == "extract_frames":
+        if action == "extract_frames":
             new_vid_file = copy_and_reformat_video(
                 video_file=abspath(kwargs["video_file"]),
-                dst_dir=abspath(VIDEOS_DIR),
+                dst_dir=abspath(os.path.join(kwargs["proj_dir"], VIDEOS_DIR)),
             )
             # save relative rather than absolute path
-            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-2:])
+            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._extract_frames(**kwargs)
         elif action == "unzip_frames":
             # TODO: maybe we need to reformat the file names?
@@ -470,10 +465,11 @@ def _render_streamlit_fn(state: AppState):
             accept_multiple_files=True,
         )
 
-        col1, col2, col3 = st.columns(spec=3, gap="medium")
-        col1.markdown("**Video Name**")
-        col2.markdown("**Video Duration**")
-        col3.markdown("**Number of Frames**")
+        if len(uploaded_files) > 0:
+            col1, col2, col3 = st.columns(spec=3, gap="medium")
+            col1.markdown("**Video Name**")
+            col2.markdown("**Video Duration**")
+            col3.markdown("**Number of Frames**")
 
         # for each of the uploaded files
         st_videos = []

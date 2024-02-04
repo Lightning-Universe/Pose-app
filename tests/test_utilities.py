@@ -29,10 +29,19 @@ def test_check_codec_format(video_file):
 
 
 def test_copy_and_reformat_video(video_file, tmpdir):
+
     from lightning_pose_app.utilities import copy_and_reformat_video
-    video_file_new = copy_and_reformat_video(video_file, str(tmpdir), remove_old=False)
+
+    # check when dst_dir exists
+    video_file_new_1 = copy_and_reformat_video(video_file, str(tmpdir), remove_old=False)
     assert os.path.exists(video_file)
-    assert check_codec_format(video_file_new)
+    assert check_codec_format(video_file_new_1)
+
+    # check when dst_dir does not exist
+    dst_dir = str(os.path.join(tmpdir, 'subdir'))
+    video_file_new_2 = copy_and_reformat_video(video_file, dst_dir, remove_old=False)
+    assert os.path.exists(video_file)
+    assert check_codec_format(video_file_new_2)
 
 
 def test_copy_and_reformat_video_directory(video_file, tmpdir):
