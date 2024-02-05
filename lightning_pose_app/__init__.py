@@ -1,4 +1,7 @@
-# directory name constants; relative to FileSystem root
+# dir where lightning pose package lives, relative to Pose-app root
+LIGHTNING_POSE_DIR = "lightning-pose"
+
+# directory name constants; relative to Pose-app/data
 LABELSTUDIO_DB_DIR = "labelstudio_db"
 
 # directory name constants; relative to project_dir

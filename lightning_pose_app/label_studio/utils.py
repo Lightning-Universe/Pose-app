@@ -128,8 +128,7 @@ class LabelStudioJSONProcessor:
         width, height = result['original_width'], result['original_height']
 
         if all([key in value for key in ['x', 'y']]):  # if both x and y are in the dict
-            return width * value['x'] / 100.0, \
-                   height * value['y'] / 100.0
+            return width * value['x'] / 100.0, height * value['y'] / 100.0
 
     def __call__(self) -> pd.DataFrame:
         """Build a dataframe with the keypoint names as columns and the image paths as the index"""

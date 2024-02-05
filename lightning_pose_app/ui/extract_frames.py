@@ -1,8 +1,6 @@
 import cv2
-from lightning.app import CloudCompute, LightningFlow
-from lightning.app.storage import FileSystem
+from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
-from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
 import logging
 import numpy as np
@@ -16,17 +14,17 @@ import zipfile
 
 from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, ZIPPED_TMP_DIR
 from lightning_pose_app import SELECTED_FRAMES_FILENAME
-from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
-from lightning_pose_app.utilities import reencode_video, check_codec_format, get_frames_from_idxs
+from lightning_pose_app.utilities import StreamlitFrontend, abspath
+from lightning_pose_app.utilities import copy_and_reformat_video, get_frames_from_idxs
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
 
-class ExtractFramesWork(WorkWithFileSystem):
+class ExtractFramesWork(LightningWork):
 
     def __init__(self, *args, **kwargs):
 
-        super().__init__(*args, name="extract", **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.progress = 0.0
         self.progress_delta = 0.5
@@ -183,17 +181,20 @@ class ExtractFramesWork(WorkWithFileSystem):
         # set flag for parent app
         self.work_is_done_extract_frames = False
 
-        # pull video from FileSystem
-        self.get_from_drive([video_file])
-
         data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
-        data_dir = self.abspath(data_dir_rel)
+        if not os.path.exists(data_dir_rel):
+            data_dir = abspath(data_dir_rel)
+        else:
+            data_dir = data_dir_rel
         n_digits = 8
         extension = "png"
         context_frames = 2
 
         # check: does file exist?
-        video_file_abs = self.abspath(video_file)
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"video file exists? {video_file_exists}")
         if not video_file_exists:
@@ -236,78 +237,24 @@ class ExtractFramesWork(WorkWithFileSystem):
             video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected,
             format=extension, n_digits=n_digits, context_frames=context_frames)
 
-        # push extracted frames to drive
-        self.put_to_drive([data_dir_rel])
-
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def _reformat_video(self, video_file, **kwargs):
-
-        # get new names (ensure mp4 file extension, no tmp directory)
-        ext = os.path.splitext(os.path.basename(video_file))[1]
-        video_file_mp4_ext = video_file.replace(f"{ext}", ".mp4")
-        video_file_new = video_file_mp4_ext.replace(VIDEOS_TMP_DIR, VIDEOS_DIR)
-        video_file_abs_new = self.abspath(video_file_new)
-
-        # check 0: do we even need to reformat?
-        if self._drive.isfile(video_file_new):
-            return video_file_new
-
-        # pull videos from FileSystem
-        self.get_from_drive([video_file])
-        video_file_abs = self.abspath(video_file)
-
-        # check 1: does file exist?
-        video_file_exists = os.path.exists(video_file_abs)
-        if not video_file_exists:
-            _logger.info(f"{video_file_abs} does not exist! skipping")
-            return None
-
-        # check 2: is file in the correct format for DALI?
-        video_file_correct_codec = check_codec_format(video_file_abs)
-
-        # reencode/rename
-        if not video_file_correct_codec:
-            _logger.info("re-encoding video to be compatable with Lightning Pose video reader")
-            reencode_video(video_file_abs, video_file_abs_new)
-            # remove old video from local files
-            os.remove(video_file_abs)
-        else:
-            # make dir to write into
-            os.makedirs(os.path.dirname(video_file_abs_new), exist_ok=True)
-            # rename
-            os.rename(video_file_abs, video_file_abs_new)
-
-        # remove old video(s) from FileSystem
-        if self._drive.isfile(video_file):
-            self._drive.rm(video_file)
-        if self._drive.isfile(video_file_mp4_ext):
-            self._drive.rm(video_file_mp4_ext)
-
-        # push possibly reformated, renamed videos to FileSystem
-        self.put_to_drive([video_file_new])
-
-        return video_file_new
-
     def _unzip_frames(self, video_file, proj_dir):
-        
+
         _logger.info(f"============== unzipping frames from {video_file} ================")
 
         # set flag for parent app
         self.work_is_done_extract_frames = False
 
-        # pull video from FileSystem
-        self.get_from_drive([video_file])
-
         data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
-        data_dir = self.abspath(data_dir_rel)
+        data_dir = abspath(data_dir_rel)
         # TODO
         # n_digits = 8
         # extension = "png"
 
         # check: does file exist?
-        video_file_abs = self.abspath(video_file)
+        video_file_abs = abspath(video_file)
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"zipped file exists? {video_file_exists}")
         if not video_file_exists:
@@ -331,7 +278,7 @@ class ExtractFramesWork(WorkWithFileSystem):
             src = os.path.join(unzipped_dir, file)
             dst = os.path.join(save_dir, file)
             shutil.copyfile(src, dst)
-        
+
         # TODO:
         # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
         #   make this file
@@ -346,18 +293,17 @@ class ExtractFramesWork(WorkWithFileSystem):
         #     fmt="%s"
         # )
 
-        # push extracted frames to drive
-        self.put_to_drive([data_dir_rel])
-
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
     def run(self, action, **kwargs):
-        if action == "reformat_video":
-            self._reformat_video(**kwargs)
-        elif action == "extract_frames":
-            new_vid_file = self._reformat_video(**kwargs)
-            kwargs["video_file"] = new_vid_file
+        if action == "extract_frames":
+            new_vid_file = copy_and_reformat_video(
+                video_file=abspath(kwargs["video_file"]),
+                dst_dir=abspath(os.path.join(kwargs["proj_dir"], VIDEOS_DIR)),
+            )
+            # save relative rather than absolute path
+            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._extract_frames(**kwargs)
         elif action == "unzip_frames":
             # TODO: maybe we need to reformat the file names?
@@ -372,9 +318,6 @@ class ExtractFramesUI(LightningFlow):
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
-
-        # shared storage system
-        self._drive = FileSystem()
 
         # updated externally by parent app
         self.proj_dir = None
@@ -403,22 +346,7 @@ class ExtractFramesUI(LightningFlow):
     def st_frame_files(self):
         return np.unique(self.st_frame_files_).tolist()
 
-    def _push_video(self, video_file):
-        if video_file[0] == "/":
-            src = os.path.join(os.getcwd(), video_file[1:])
-            dst = video_file
-        else:
-            src = os.path.join(os.getcwd(), video_file)
-            dst = "/" + video_file
-        if not self._drive.isfile(dst) and os.path.exists(src):
-            # only put to FileSystem under two conditions:
-            # 1. file exists locally; if it doesn't, maybe it has already been deleted for a reason
-            # 2. file does not already exist on FileSystem; avoids excessive file transfers
-            _logger.debug(f"UI try put {dst}")
-            self._drive.put(src, dst)
-            _logger.debug(f"UI success put {dst}")
-
-    def _extract_frames(self, video_files=None, n_frames_per_video=None):
+    def _extract_frames(self, video_files=None, n_frames_per_video=None, testing=False):
 
         self.work_is_done_extract_frames = False
 
@@ -427,21 +355,16 @@ class ExtractFramesUI(LightningFlow):
         if not n_frames_per_video:
             n_frames_per_video = self.st_n_frames_per_video
 
-        # launch works:
-        # - sequential if local
-        # - parallel if on cloud
+        # launch works (sequentially for now)
         for video_file in video_files:
             video_key = video_file.replace(".", "_")  # keys cannot contain "."
             if video_key not in self.works_dict.keys():
                 self.works_dict[video_key] = ExtractFramesWork(
                     cloud_compute=CloudCompute("default"),
-                    parallel=is_running_in_cloud(),
                 )
             status = self.st_extract_status[video_file]
             if status == "initialized" or status == "active":
                 self.st_extract_status[video_file] = "active"
-                # move video from ui machine to shared FileSystem
-                self._push_video(video_file=video_file)
                 # extract frames for labeling (automatically reformats video for DALI)
                 self.works_dict[video_key].run(
                     action="extract_frames",
@@ -459,7 +382,8 @@ class ExtractFramesUI(LightningFlow):
                         and self.works_dict[video_key].work_is_done_extract_frames:
                     # kill work
                     _logger.info(f"killing work from video {video_key}")
-                    self.works_dict[video_key].stop()
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
         # set flag for parent app
@@ -478,13 +402,10 @@ class ExtractFramesUI(LightningFlow):
             if video_key not in self.works_dict.keys():
                 self.works_dict[video_key] = ExtractFramesWork(
                     cloud_compute=CloudCompute("default"),
-                    parallel=is_running_in_cloud(),
                 )
                 status = self.st_extract_status[video_file]
                 if status == "initialized" or status == "active":
                     self.st_extract_status[video_file] = "active"
-                    # move file from ui machine to shared FileSystem
-                    self._push_video(video_file=video_file)
                     # extract frames for labeling (automatically reformats video for DALI)
                     self.works_dict[video_key].run(
                         action="unzip_frames",
@@ -507,9 +428,7 @@ class ExtractFramesUI(LightningFlow):
         self.work_is_done_extract_frames = True
 
     def run(self, action, **kwargs):
-        if action == "push_video":
-            self._push_video(**kwargs)
-        elif action == "extract_frames":
+        if action == "extract_frames":
             self._extract_frames(**kwargs)
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
@@ -553,10 +472,11 @@ def _render_streamlit_fn(state: AppState):
             accept_multiple_files=True,
         )
 
-        col1, col2, col3 = st.columns(spec=3, gap="medium")
-        col1.markdown("**Video Name**")
-        col2.markdown("**Video Duration**")
-        col3.markdown("**Number of Frames**")
+        if len(uploaded_files) > 0:
+            col1, col2, col3 = st.columns(spec=3, gap="medium")
+            col1.markdown("**Video Name**")
+            col2.markdown("**Video Duration**")
+            col3.markdown("**Number of Frames**")
 
         # for each of the uploaded files
         st_videos = []
@@ -635,7 +555,7 @@ def _render_streamlit_fn(state: AppState):
                 else:
                     st.text(status)
                 st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
-            st.warning(f"waiting for existing extraction to finish")
+            st.warning("waiting for existing extraction to finish")
 
         if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
             proceed_str = "Please proceed to the next tab to label frames."
@@ -658,7 +578,7 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
     elif st_mode == ZIPPED_FRAMES_STR:
-        
+
         # upload zipped files to temporary directory
         frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
         os.makedirs(frames_dir, exist_ok=True)
@@ -695,7 +615,7 @@ def _render_streamlit_fn(state: AppState):
             "Extract frames",
             disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
         )
-        
+
         if (
             state.st_submits > 0
             and not st_submit_button_frames

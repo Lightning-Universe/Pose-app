@@ -49,7 +49,10 @@ _logger.debug("Exported %i tasks" % len(exported_tasks))
 if len(exported_tasks) > 0:
     # save to pickle for resuming projects
     _logger.debug("Saving tasks to pickle file")
-    pickle.dump(exported_tasks, open(os.path.join(args.proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"))
+    pickle.dump(
+        exported_tasks,
+        open(os.path.join(args.proj_dir, LABELSTUDIO_TASKS_FILENAME), "wb"),
+    )
     # save to csv for lightning pose models
     _logger.debug("Saving annotations to csv file")
     processor = LabelStudioJSONProcessor(

@@ -20,7 +20,7 @@ install_requires = [
     "tables",
     "tqdm",
     "watchdog",
-    "google-auth-oauthlib==0.7.1",  # freeze this for compatibility between tensorboard and label-studio
+    "google-auth-oauthlib==0.7.1",  # freeze for compatibility between tensorboard and label-studio
     "label-studio==1.9.1",
     "label-studio-sdk==0.0.32",
 ]
