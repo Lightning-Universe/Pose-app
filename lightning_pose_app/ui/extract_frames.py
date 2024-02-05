@@ -346,7 +346,7 @@ class ExtractFramesUI(LightningFlow):
     def st_frame_files(self):
         return np.unique(self.st_frame_files_).tolist()
 
-    def _extract_frames(self, video_files=None, n_frames_per_video=None):
+    def _extract_frames(self, video_files=None, n_frames_per_video=None, testing=False):
 
         self.work_is_done_extract_frames = False
 
@@ -382,7 +382,8 @@ class ExtractFramesUI(LightningFlow):
                         and self.works_dict[video_key].work_is_done_extract_frames:
                     # kill work
                     _logger.info(f"killing work from video {video_key}")
-                    self.works_dict[video_key].stop()
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
         # set flag for parent app
