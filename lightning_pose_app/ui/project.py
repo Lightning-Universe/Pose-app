@@ -183,7 +183,10 @@ class ProjectUI(LightningFlow):
         # load single frame from labeled data
         imgs = glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.png")) \
             + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpg")) \
-            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg"))
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*.png")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*.jpg")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*.jpeg"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
@@ -300,7 +303,11 @@ class ProjectUI(LightningFlow):
                     else:
                         shutil.copyfile(src, dst)
 
-        elif self.st_existing_project_format == "DLC":
+        # -------------------
+    # test find models
+    # -------------------# -------------------
+    # test find models
+    # ------------------- == "DLC":
 
             # copy files
             files_and_dirs = os.listdir(unzipped_dir)
