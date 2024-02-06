@@ -18,19 +18,25 @@ def test_extract_frames_work(video_file, tmpdir):
         cloud_compute=CloudCompute("default"),
     )
 
+    # -----------------
     # read frame function
+    # -----------------
     resize_dims = 8
     frames = work._read_nth_frames(video_file, n=10, resize_dims=resize_dims)
     assert frames.shape == (100, resize_dims, resize_dims)
 
+    # -----------------
     # select indices
+    # -----------------
     n_clusters = 5
     idxs = work._select_frame_idxs(
         video_file, resize_dims=resize_dims, n_clusters=n_clusters, frame_skip=1,
     )
     assert len(idxs) == n_clusters
 
+    # -----------------
     # export frames
+    # -----------------
     save_dir_0 = os.path.join(str(tmpdir), 'labeled-frames-0')
     work._export_frames(
         video_file=video_file,
@@ -50,11 +56,13 @@ def test_extract_frames_work(video_file, tmpdir):
     )
     assert len(os.listdir(save_dir_1)) == 5 * len(idxs)
 
+    # -----------------
     # extract frames
+    # -----------------
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')
     video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, video_name)
-    os.makedirs(video_dir, exist_ok=True)  # need to create this here for path purposes
+    os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
     n_frames_per_video = 10
     work._extract_frames(
         video_file=video_file,
@@ -66,8 +74,50 @@ def test_extract_frames_work(video_file, tmpdir):
     assert len(os.listdir(video_dir)) > n_frames_per_video
     assert os.path.exists(os.path.join(video_dir, SELECTED_FRAMES_FILENAME))
     assert work.work_is_done_extract_frames
-
-    # TODO: test work._unzip_frames
+    
+    # -----------------
+    # unzip frames
+    # -----------------
+    # zip up a subset of the frames extracted from the previous test
+    n_frames_to_zip = 5
+    frame_files = os.listdir(save_dir_1)
+    new_vid_name = "TEST_VID_ZIPPED_FRAMES"
+    dst = os.path.join(tmpdir, new_vid_name)
+    os.makedirs(dst, exist_ok=True)
+    files = []
+    for f in range(n_frames_to_zip):
+        src = os.path.join(save_dir_1, frame_files[f])
+        shutil.copyfile(src, os.path.join(dst, frame_files[f]))
+        files.append(frame_files[f])
+    # make a csv file to accompany frames
+    np.savetxt(
+        os.path.join(dst, SELECTED_FRAMES_FILENAME),
+        np.sort(files),
+        delimiter=",",
+        fmt="%s",
+    )
+    # zip it all up
+    new_video_name = new_vid_name + "_NEW"
+    new_video_path = os.path.join(tmpdir, new_video_name)
+    zipped_file = new_video_path + ".zip"
+    shutil.make_archive(new_video_path, "zip", dst)
+    
+    # test unzip frames
+    proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
+    video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, new_video_name)
+    os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
+    work.work_is_done_extract_frames = False
+    work._unzip_frames(
+        video_file=zipped_file,
+        proj_dir=proj_dir,
+    )
+    assert os.path.exists(video_dir)
+    assert len(os.listdir(video_dir)) == (n_frames_to_zip + 1)
+    idx_file_abs = os.path.join(video_dir, SELECTED_FRAMES_FILENAME)
+    assert os.path.exists(idx_file_abs)
+    df = pd.read_csv(idx_file_abs, header=None)
+    assert df.shape[0] == n_frames_to_zip
+    assert work.work_is_done_extract_frames
 
 
 def test_extract_frames_ui(root_dir, tmp_proj_dir):
@@ -85,7 +135,7 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     flow.st_extract_status[video_file] = "initialized"
 
     # -------------------
-    # test extract frames
+    # extract frames
     # -------------------
     n_frames_per_video = 10
     flow.run(
@@ -111,4 +161,7 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_per_video
 
-    # TODO: test unzip frames
+    # -------------------
+    # unzip frames
+    # -------------------
+    # TODO

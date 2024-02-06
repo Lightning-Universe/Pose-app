@@ -248,13 +248,19 @@ class ExtractFramesWork(LightningWork):
         self.work_is_done_extract_frames = False
 
         data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
-        data_dir = abspath(data_dir_rel)
+        if not os.path.exists(data_dir_rel):
+            data_dir = abspath(data_dir_rel)
+        else:
+            data_dir = data_dir_rel
         # TODO
         # n_digits = 8
         # extension = "png"
 
         # check: does file exist?
-        video_file_abs = abspath(video_file)
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"zipped file exists? {video_file_exists}")
         if not video_file_exists:
