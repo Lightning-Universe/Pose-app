@@ -287,7 +287,7 @@ class LitPose(LightningWork):
             OmegaConf.save(config=cfg, f=fp.name)
 
         # remove lightning logs
-        shutil.rmtree(os.path.join(results_dir, "lightning_logs"))
+        shutil.rmtree(os.path.join(results_dir, "lightning_logs"), ignore_errors=True)
 
         os.chdir(self.pwd)
 
@@ -510,7 +510,6 @@ class TrainUI(LightningFlow):
             },
             "model": {  # update these below if necessary
                 "model_type": "heatmap",
-                "do_context": False,
             },
             "training": {
                 "imgaug": "dlc",

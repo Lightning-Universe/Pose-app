@@ -119,6 +119,11 @@ def test_extract_frames_work(video_file, tmpdir):
     assert df.shape[0] == n_frames_to_zip
     assert work.work_is_done_extract_frames
 
+    # -----------------
+    # cleanup
+    # -----------------
+    del work
+
 
 def test_extract_frames_ui(root_dir, tmp_proj_dir):
 
@@ -165,3 +170,8 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     # unzip frames
     # -------------------
     # TODO
+
+    # -----------------
+    # cleanup
+    # -----------------
+    del flow

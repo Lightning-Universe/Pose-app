@@ -46,9 +46,6 @@ def is_port_in_use(host: str, port: int) -> bool:
 
     s.close()
     return in_use
-
-
-def work_calls_len(lwork: LightningWork):
     """get the number of call in state dict. state dict has current and past calls to work."""
     # reduce by 1 to remove latest_call_hash entry
     return len(lwork.state["calls"]) - 1
@@ -131,9 +128,6 @@ class LitBashWork(LightningWork):
     # statistics on this work
     def work_is_free(self) -> bool:
         return work_is_free(self)
-
-    def work_calls_len(self) -> int:
-        return work_calls_len(self)
 
     def popen_wait(self, cmd, save_stdout, exception_on_error, **kwargs):
         with subprocess.Popen(
