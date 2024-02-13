@@ -327,7 +327,11 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
 
         # check: does file exist?
-        video_file_abs = abspath(video_file)
+        # check: does file exist?
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"video file exists? {video_file_exists}")
         if not video_file_exists:

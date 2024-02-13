@@ -7,7 +7,9 @@ import yaml
 
 from lightning_pose_app import (
     LIGHTNING_POSE_DIR,
-    MODELS_DIR, 
+    MODELS_DIR,
+    MODEL_VIDEO_PREDS_INFER_DIR,
+    MODEL_VIDEO_PREDS_TRAIN_DIR,
     VIDEOS_DIR,
 )
 from lightning_pose_app.ui.train_infer import (
@@ -60,29 +62,64 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         },
         "training": {
             "imgaug": "dlc",
-            "max_epochs": 5,
+            "max_epochs": 2,
+            "check_val_every_n_epoch": 2,
         },
     }
-    results_dir = os.path.join(base_dir, MODELS_DIR, "date0/time0")
+    model_name_0 = "date0/time0"
+    results_dir_0 = os.path.join(base_dir, MODELS_DIR, model_name_0)
     work._train(
         config_file=os.path.join(tmp_proj_dir, flow.config_name),
         config_overrides=config_overrides,
-        results_dir=results_dir,
+        results_dir=results_dir_0,
     )
-    results_artifacts = os.listdir(results_dir)
+    results_artifacts_0 = os.listdir(results_dir_0)
     assert work.work_is_done_training
-    assert os.path.exists(results_dir)
-    assert "predictions.csv" in results_artifacts
-    assert "lightning_logs" not in results_artifacts
-    assert "video_preds" not in results_artifacts
+    assert os.path.exists(results_dir_0)
+    assert "predictions.csv" in results_artifacts_0
+    assert "lightning_logs" not in results_artifacts_0
+    assert "video_preds" not in results_artifacts_0
 
+    # ----------------
     # output videos
-    # config_overrides[]
+    # ----------------
+    config_overrides["eval"]["predict_vids_after_training"] = True
+    config_overrides["eval"]["save_vids_after_training"] = True
+    model_name_1 = "date1/time1"
+    results_dir_1 = os.path.join(base_dir, MODELS_DIR, model_name_1)
+    work._train(
+        config_file=os.path.join(tmp_proj_dir, flow.config_name),
+        config_overrides=config_overrides,
+        results_dir=results_dir_1,
+    )
+    results_artifacts_1 = os.listdir(results_dir_1)
+    assert work.work_is_done_training
+    assert os.path.exists(results_dir_1)
+    assert "predictions.csv" in results_artifacts_1
+    assert "lightning_logs" not in results_artifacts_1
+    assert MODEL_VIDEO_PREDS_TRAIN_DIR in results_artifacts_1
+    labeled_vid_dir = os.path.join(results_dir_1, MODEL_VIDEO_PREDS_TRAIN_DIR, "labeled_videos")
+    assert os.path.exists(labeled_vid_dir)
+    assert len(os.listdir(labeled_vid_dir)) > 0
     
     # ----------------
     # infer
     # ----------------
-    # TODO
+    work._run_inference(
+        model_dir=os.path.join(tmp_proj_dir, MODELS_DIR, model_name_0),
+        video_file=video_file,
+    )
+    results_dir_2 = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_2 = os.listdir(results_dir_2)
+    assert work.work_is_done_inference
+    preds = os.path.basename(video_file).replace(".mp4", ".csv")
+    assert preds in results_artifacts_2
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_2
+    # assert preds.replace(".csv", "_pca_singleview_error.csv") in results_artifacts_2
+    # assert preds.replace(".csv", "_pca_multiview_error.csv") in results_artifacts_2
+    assert preds.replace(".csv", ".short.mp4") in results_artifacts_2
+    assert preds.replace(".csv", ".short.csv") in results_artifacts_2
+    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_2
 
     # ----------------
     # clean up
