@@ -2,7 +2,6 @@ from lightning.app import CloudCompute, LightningFlow
 from lightning.app.utilities.state import AppState
 import os
 import streamlit as st
-import pandas as pd
 
 from lightning_pose_app import MODELS_DIR
 from lightning_pose_app.utilities import StreamlitFrontend, abspath
@@ -23,7 +22,6 @@ class StreamlitVideoViewer(LightningFlow):
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
 
 
 ## Add to all functions
@@ -48,7 +46,7 @@ def list_labeled_mp4_files(model_dir, selected_model):
     model_path = os.path.join(model_dir, selected_model)
     for root, dirs, files in os.walk(model_path):
         for file in files:
-            if file.endswith("_labeled.mp4"):
+            if file.endswith(".short.labeled.mp4"):
                 labeled_mp4_files.append(os.path.join(root, file))
     return labeled_mp4_files
 
@@ -91,27 +89,26 @@ def _render_streamlit_fn(state: AppState):
     #/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-05/15-45-00
 
     # Streamlit UI 
-    st.header("Labeled Video")
+    st.header("Explore Predictive Analytics on Videos")
 
     with st.sidebar:
         st.title("Visulise Model Predictions")
 
         st.write("Select the model and then the associated video you wish to inspect")
 
-        st.markdown("### Existing Models")
         trained_models = get_models(model_dir) # create a list of all models 
-        selected_model = st.selectbox("Browse", trained_models)
+        selected_model = st.selectbox("Step 1: Choose a Model", trained_models)
         
         st.divider()
         
         # Labeled videos  
-        st.markdown("### Existing Videos")
         mp4_files = list_labeled_mp4_files(model_dir, selected_model)
-        selected_video = st.selectbox("Select a video", mp4_files,format_func=extract_video_name)
+        selected_video = st.selectbox("Step 2: Select a Video to Analyze", mp4_files,format_func=extract_video_name)
 
     if selected_video:
         # read and show the predictions labeled video
         video_file = open(selected_video, 'rb')
         video_bytes = video_file.read()
         st.video(video_bytes)
-    
+    else:
+        st.write("No video to preview")

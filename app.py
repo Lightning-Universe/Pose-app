@@ -148,7 +148,7 @@ class LitPoseApp(LightningFlow):
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
             self.streamlit_frame.run(action="initialize")
-            self.streamlit_video.run(action="initialize")
+            self.streamlit_video.run(action="initialize") 
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
