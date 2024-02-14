@@ -126,3 +126,66 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     # ----------------
     del flow
     del work
+
+
+def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
+    """Test private methods here; test run method externally from the UI object."""
+
+    from lightning_pose_app.ui.project import ProjectUI
+    from lightning_pose_app.ui.train_infer import TrainUI, VIDEO_LABEL_NONE
+
+    base_dir = os.path.join(root_dir, tmp_proj_dir)
+
+    flow = TrainUI()
+
+    # set attributes
+    flow.proj_dir = tmp_proj_dir
+    flow.st_train_status = {
+        "super": "initialized",
+        "semisuper": None, 
+        "super ctx": None, 
+        "semisuper ctx": None,
+    }
+    flow.st_losses = {"super": []}
+    flow.st_train_label_opt = VIDEO_LABEL_NONE  # don't run inference on vids
+    flow.st_max_epochs = 5
+
+    # ----------------
+    # helper flow
+    # ----------------
+    # load default config and pass to project manager
+    config_dir = os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs")
+    default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
+    flowp = ProjectUI(
+        data_dir="/data",
+        default_config_dict=default_config_dict,
+    )
+    proj_name = os.path.split(tmp_proj_dir)[-1]
+    flowp.run(action="update_paths", project_name=proj_name)
+    flowp.run(action="update_frame_shapes")
+
+    # ----------------
+    # train
+    # ----------------
+    model_name_0 = "date_flow/time_flow"
+    flow.st_datetimes = {"super": model_name_0}
+    flow.run(action="train", config_filename=f"model_config_{proj_name}.yaml")
+    # TODO: assert os.path.isdir(video_dir) or os.path.isfile(video_dir) ERROR
+    
+    # check flow state
+    assert flow.st_train_status["super"] == "complete"
+    assert flow.work.progress == 0.0
+    assert flow.work.work_is_done_training
+
+    # check output files
+    results_dir_0 = os.path.join(base_dir, MODELS_DIR, model_name_0)
+    results_artifacts_0 = os.listdir(results_dir_0)
+    assert os.path.exists(results_dir_0)
+    assert "predictions.csv" in results_artifacts_0
+    assert "lightning_logs" not in results_artifacts_0
+    assert "video_preds" not in results_artifacts_0
+
+    # ----------------
+    # clean up
+    # ----------------
+    del flow
