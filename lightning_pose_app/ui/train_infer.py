@@ -419,9 +419,42 @@ class LitPose(LightningWork):
         # set flag for parent app
         self.work_is_done_inference = True
 
+    @staticmethod
+    def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
+
+        from lightning_pose.utils.fiftyone import FiftyOneFactory, check_dataset
+        from omegaconf import DictConfig
+
+        # load config (absolute path)
+        cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
+
+        # update config with user-provided overrides (this is mostly for unit testing)
+        for key1, val1 in config_overrides.items():
+            for key2, val2 in val1.items():
+                cfg[key1][key2] = val2
+
+        # edit config
+        cfg.data.data_dir = os.path.join(os.getcwd(), cfg.data.data_dir)
+        model_dir = "/".join(results_dir.split("/")[-2:])
+        # get project name from config file, assuming first part is model_config_
+        proj_name = os.path.basename(config_file).split(".")[0][13:]
+        cfg.eval.fiftyone.dataset_name = f"{proj_name}_{model_dir}"
+        cfg.eval.fiftyone.model_display_names = [model_dir.split("_")[-1]]
+        cfg.eval.hydra_paths = [results_dir]
+
+        # build dataset
+        FiftyOneClass = FiftyOneFactory(dataset_to_create="images")()
+        fo_plotting_instance = FiftyOneClass(cfg=cfg)
+        dataset = fo_plotting_instance.create_dataset()
+        # create metadata and print if there are problems
+        check_dataset(dataset)
+        # print the name of the dataset
+        fo_plotting_instance.dataset_info_print()
+
     def run(self, action=None, **kwargs):
         if action == "train":
             self._train(**kwargs)
+            self._make_fiftyone_dataset(**kwargs)
         elif action == "run_inference":
             proj_dir = '/'.join(kwargs["model_dir"].split('/')[:3])
             new_vid_file = copy_and_reformat_video(
