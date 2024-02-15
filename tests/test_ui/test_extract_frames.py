@@ -74,7 +74,7 @@ def test_extract_frames_work(video_file, tmpdir):
     assert len(os.listdir(video_dir)) > n_frames_per_video
     assert os.path.exists(os.path.join(video_dir, SELECTED_FRAMES_FILENAME))
     assert work.work_is_done_extract_frames
-    
+
     # -----------------
     # unzip frames
     # -----------------
@@ -101,7 +101,7 @@ def test_extract_frames_work(video_file, tmpdir):
     new_video_path = os.path.join(tmpdir, new_video_name)
     zipped_file = new_video_path + ".zip"
     shutil.make_archive(new_video_path, "zip", dst)
-    
+
     # test unzip frames
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, new_video_name)

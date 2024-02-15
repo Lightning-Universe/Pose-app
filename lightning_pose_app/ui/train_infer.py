@@ -9,7 +9,6 @@ from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
 import logging
-import numpy as np
 import os
 import shutil
 import streamlit as st

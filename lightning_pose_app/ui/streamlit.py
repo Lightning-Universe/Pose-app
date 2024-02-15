@@ -3,7 +3,6 @@ import os
 
 from lightning_pose_app import MODELS_DIR, LIGHTNING_POSE_DIR
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.build_configs import LitPoseBuildConfig
 
 
 class StreamlitAppLightningPose(LightningFlow):

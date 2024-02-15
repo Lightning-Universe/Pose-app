@@ -1,8 +1,4 @@
-from lightning.app import CloudCompute
-import numpy as np
 import os
-import pandas as pd
-import shutil
 import yaml
 
 from lightning_pose_app import (
@@ -12,11 +8,6 @@ from lightning_pose_app import (
     MODEL_VIDEO_PREDS_TRAIN_DIR,
     VIDEOS_DIR,
 )
-from lightning_pose_app.ui.train_infer import (
-    VIDEO_LABEL_NONE, 
-    VIDEO_LABEL_INFER, 
-    VIDEO_LABEL_INFER_LABEL,
-) 
 
 
 def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
@@ -101,7 +92,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     labeled_vid_dir = os.path.join(results_dir_1, MODEL_VIDEO_PREDS_TRAIN_DIR, "labeled_videos")
     assert os.path.exists(labeled_vid_dir)
     assert len(os.listdir(labeled_vid_dir)) > 0
-    
+
     # ----------------
     # infer
     # ----------------
@@ -142,8 +133,8 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow.proj_dir = "/" + str(tmp_proj_dir)
     flow.st_train_status = {
         "super": "initialized",
-        "semisuper": None, 
-        "super ctx": None, 
+        "semisuper": None,
+        "super ctx": None,
         "semisuper ctx": None,
     }
     flow.st_losses = {"super": []}
