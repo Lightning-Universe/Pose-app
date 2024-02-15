@@ -41,22 +41,6 @@ class StreamlitFrontend(LitStreamlitFrontend):
             pass
 
 
-def reencode_video(input_file: str, output_file: str) -> None:
-    """reencodes video into H.264 coded format using ffmpeg from a subprocess.
-
-    Args:
-        input_file: abspath to existing video
-        output_file: abspath to to new video
-
-    """
-    # check input file exists
-    assert os.path.isfile(input_file), "input video does not exist."
-    # check directory for saving outputs exists
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
-    subprocess.run(ffmpeg_cmd, shell=True)
-
-
 def check_codec_format(input_file: str) -> bool:
     """Run FFprobe command to get video codec and pixel format."""
 
@@ -73,6 +57,22 @@ def check_codec_format(input_file: str) -> bool:
         # print('Video does not use H.264 codec')
         is_codec = False
     return is_codec
+
+
+def reencode_video(input_file: str, output_file: str) -> None:
+    """reencodes video into H.264 coded format using ffmpeg from a subprocess.
+
+    Args:
+        input_file: abspath to existing video
+        output_file: abspath to to new video
+
+    """
+    # check input file exists
+    assert os.path.isfile(input_file), "input video does not exist."
+    # check directory for saving outputs exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
+    subprocess.run(ffmpeg_cmd, shell=True)
 
 
 def copy_and_reformat_video(video_file: str, dst_dir: str, remove_old=True) -> str:
@@ -224,6 +224,62 @@ def make_video_snippet(
         subprocess.run(ffmpeg_cmd, shell=True)
 
     return dst
+
+
+def get_frame_number(basename: str) -> tuple:
+    """img0000234.png -> (234, "img", ".png")"""
+    ext = basename.split(".")[-1]  # get base name
+    split_idx = None
+    for c_idx, c in enumerate(basename):
+        try:
+            int(c)
+            split_idx = c_idx
+            break
+        except ValueError:
+            continue
+    # remove prefix
+    prefix = basename[:split_idx]
+    idx = basename[split_idx:]
+    # remove file extension
+    idx = idx.replace(f".{ext}", "")
+    return int(idx), prefix, ext
+
+
+def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> bool:
+    """Starting from labeled data directory, determine if this is a context dataset or not."""
+    # loop over all labeled frames, break as soon as single frame fails
+    is_context = True
+    n_frames = 0
+    for d in os.listdir(labeled_data_dir):
+        frames_in_dir_file = os.path.join(labeled_data_dir, d, selected_frames_filename)
+        if not os.path.exists(frames_in_dir_file):
+            continue
+        frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
+        print(frames_in_dir)
+        for frame in frames_in_dir:
+            idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
+            # get the frames -> t-2, t-1, t, t+1, t + 2
+            list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
+            print(list_idx)
+            for fr_num in list_idx:
+                # replace frame number with 0 if we're at the beginning of the video
+                fr_num = max(0, fr_num)
+                # split name into pieces
+                img_pieces = frame.split("/")
+                # figure out length of integer
+                int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
+                # replace original frame number with context frame number
+                img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
+                img_name = "/".join(img_pieces)
+                if not os.path.exists(os.path.join(labeled_data_dir, d, img_name)):
+                    is_context = False
+                    break
+                else:
+                    n_frames += 1
+    # set to False if we didn't find any frames
+    if n_frames == 0:
+        is_context = False
+    return is_context
 
 
 def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:

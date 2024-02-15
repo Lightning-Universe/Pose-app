@@ -139,7 +139,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow = TrainUI()
 
     # set attributes
-    flow.proj_dir = tmp_proj_dir
+    flow.proj_dir = "/" + str(tmp_proj_dir)
     flow.st_train_status = {
         "super": "initialized",
         "semisuper": None, 
@@ -148,7 +148,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     }
     flow.st_losses = {"super": []}
     flow.st_train_label_opt = VIDEO_LABEL_NONE  # don't run inference on vids
-    flow.st_max_epochs = 5
+    flow.st_max_epochs = 2
 
     # ----------------
     # helper flow
@@ -163,6 +163,13 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     proj_name = os.path.split(tmp_proj_dir)[-1]
     flowp.run(action="update_paths", project_name=proj_name)
     flowp.run(action="update_frame_shapes")
+    flowp.run(
+        action="update_project_config",
+        new_vals_dict={
+            "data": {"num_keypoints": 17},
+            "training": {"check_val_every_n_epoch": 2},  # match flow.st_max_epochs
+        },
+    )
 
     # ----------------
     # train
@@ -170,8 +177,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     model_name_0 = "date_flow/time_flow"
     flow.st_datetimes = {"super": model_name_0}
     flow.run(action="train", config_filename=f"model_config_{proj_name}.yaml")
-    # TODO: assert os.path.isdir(video_dir) or os.path.isfile(video_dir) ERROR
-    
+
     # check flow state
     assert flow.st_train_status["super"] == "complete"
     assert flow.work.progress == 0.0
@@ -186,6 +192,37 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert "video_preds" not in results_artifacts_0
 
     # ----------------
+    # infer
+    # ----------------
+    flow.st_infer_status[video_file] = "initialized"
+    flow.st_inference_model = model_name_0
+    flow.run(action="run_inference", video_files=[video_file], testing=True)
+
+    # check flow state
+    assert flow.st_infer_status[video_file] == "complete"
+    assert flow.work_is_done_inference
+    assert len(flow.works_dict) == 0
+
+    # check output files
+    results_dir_1 = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_1 = os.listdir(results_dir_1)
+    preds = os.path.basename(video_file).replace(".mp4", ".csv")
+    assert preds in results_artifacts_1
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_1
+    # assert preds.replace(".csv", "_pca_singleview_error.csv") in results_artifacts_2
+    # assert preds.replace(".csv", "_pca_multiview_error.csv") in results_artifacts_2
+    assert preds.replace(".csv", ".short.mp4") in results_artifacts_1
+    assert preds.replace(".csv", ".short.csv") in results_artifacts_1
+    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_1
+
+    # ----------------
+    # determine type
+    # ----------------
+    flow.run(action="determine_dataset_type")
+    assert not flow.allow_context
+
+    # ----------------
     # clean up
     # ----------------
+    del flowp
     del flow

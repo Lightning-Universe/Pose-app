@@ -20,8 +20,13 @@ from lightning_pose_app import VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
 from lightning_pose_app import LABELED_DATA_DIR, MODELS_DIR, SELECTED_FRAMES_FILENAME
 from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.build_configs import LitPoseBuildConfig
-from lightning_pose_app.utilities import StreamlitFrontend
-from lightning_pose_app.utilities import copy_and_reformat_video, make_video_snippet, abspath
+from lightning_pose_app.utilities import (
+    StreamlitFrontend,
+    abspath,
+    copy_and_reformat_video,
+    is_context_dataset,
+    make_video_snippet,
+)
 
 
 _logger = logging.getLogger('APP.TRAIN_INFER')
@@ -423,6 +428,7 @@ class LitPose(LightningWork):
             new_vid_file = copy_and_reformat_video(
                 video_file=abspath(kwargs["video_file"]),
                 dst_dir=abspath(os.path.join(proj_dir, VIDEOS_INFER_DIR)),
+                remove_old=kwargs.pop("remove_old", True),
             )
             # save relative rather than absolute path
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
@@ -540,7 +546,7 @@ class TrainUI(LightningFlow):
 
         self.submit_count_train += 1
 
-    def _run_inference(self, model_dir=None, video_files=None):
+    def _run_inference(self, model_dir=None, video_files=None, testing=False):
 
         self.work_is_done_inference = False
 
@@ -565,6 +571,7 @@ class TrainUI(LightningFlow):
                     action="run_inference",
                     model_dir=model_dir,
                     video_file="/" + video_file,
+                    remove_old=not testing,  # remove bad format file by default
                 )
                 self.st_infer_status[video_file] = "complete"
 
@@ -575,7 +582,8 @@ class TrainUI(LightningFlow):
                         and self.works_dict[video_key].work_is_done_inference:
                     # kill work
                     _logger.info(f"killing work from video {video_key}")
-                    self.works_dict[video_key].stop()
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
         # set flag for parent app
@@ -583,48 +591,10 @@ class TrainUI(LightningFlow):
 
     def _determine_dataset_type(self, **kwargs):
         """Check if labeled data directory contains context frames."""
-
-        def get_frame_number(basename):
-            ext = basename.split(".")[-1]  # get base name
-            split_idx = None
-            for c_idx, c in enumerate(basename):
-                try:
-                    int(c)
-                    split_idx = c_idx
-                    break
-                except ValueError:
-                    continue
-            # remove prefix
-            prefix = basename[:split_idx]
-            idx = basename[split_idx:]
-            # remove file extension
-            idx = idx.replace(f".{ext}", "")
-            return int(idx), prefix, ext
-
-        # loop over all labeled frames, break as soon as single frame fails
-        dst = os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR)
-        for d in os.listdir(dst):
-            frames_in_dir_file = os.path.join(dst, d, SELECTED_FRAMES_FILENAME)
-            if not os.path.exists(frames_in_dir_file):
-                continue
-            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
-            for frame in frames_in_dir:
-                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
-                # get the frames -> t-2, t-1, t, t+1, t + 2
-                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
-                for fr_num in list_idx:
-                    # replace frame number with 0 if we're at the beginning of the video
-                    fr_num = max(0, fr_num)
-                    # split name into pieces
-                    img_pieces = frame.split("/")
-                    # figure out length of integer
-                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
-                    # replace original frame number with context frame number
-                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
-                    img_name = "/".join(img_pieces)
-                    if not os.path.exists(os.path.join(dst, d, img_name)):
-                        self.allow_context = False
-                        break
+        self.allow_context = is_context_dataset(
+            labeled_data_dir=os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR),
+            selected_frames_filename=SELECTED_FRAMES_FILENAME,
+        )
 
     def run(self, action, **kwargs):
         if action == "train":

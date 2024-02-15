@@ -17,15 +17,15 @@ def test_args_to_dict():
     assert args_dict["B"] == "2"
 
 
+def test_check_codec_format(video_file):
+    assert check_codec_format(video_file)
+
+
 def test_reencode_video(video_file, tmpdir):
     from lightning_pose_app.utilities import reencode_video
     video_file_new = os.path.join(str(tmpdir), 'test.mp4')
     reencode_video(video_file, video_file_new)
     assert check_codec_format(video_file_new)
-
-
-def test_check_codec_format(video_file):
-    assert check_codec_format(video_file)
 
 
 def test_copy_and_reformat_video(video_file, tmpdir):
@@ -108,6 +108,49 @@ def test_make_video_snippet(video_file, tmpdir):
     cap = cv2.VideoCapture(snippet_file)
     n_frames_2 = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     assert n_frames_2 == n_frames
+
+
+def test_get_frame_number():
+
+    from lightning_pose_app.utilities import get_frame_number
+
+    file = "img000346.png"
+    out = get_frame_number(file)
+    assert out == (346, "img", "png")
+
+    file = "frame3.jpg"
+    out = get_frame_number(file)
+    assert out == (3, "frame", "jpg")
+
+    file = "im000.jpeg"
+    out = get_frame_number(file)
+    assert out == (0, "im", "jpeg")
+
+
+def test_is_context_dataset(tmp_proj_dir):
+
+    from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME
+    from lightning_pose_app.utilities import is_context_dataset
+
+    labeled_data_dir = os.path.abspath(tmp_proj_dir)
+
+    # test should fail since each frame has an entry in the csv file
+    assert not is_context_dataset(
+        labeled_data_dir=labeled_data_dir,
+        selected_frames_filename=SELECTED_FRAMES_FILENAME,
+    )
+
+    # remove final two entries to provide context
+    csv_file = os.path.join(labeled_data_dir, LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME)
+    img_files = np.genfromtxt(csv_file, delimiter=',', dtype=str)
+    new_csv_file = csv_file.replace(".csv", ".tmp.csv")
+    np.savetxt(new_csv_file, img_files[:-2], delimiter=",", fmt="%s")
+
+    # test should pass since each frame has context (frame 00 will auto use 00 for negative frames)
+    assert is_context_dataset(
+        labeled_data_dir=labeled_data_dir,
+        selected_frames_filename=os.path.basename(new_csv_file),
+    )
 
 
 def test_abspath():
