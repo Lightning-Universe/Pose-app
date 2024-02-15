@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import yaml
 
@@ -57,7 +58,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
             "check_val_every_n_epoch": 2,
         },
     }
-    model_name_0 = "date0/time0"
+    model_name_0 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
     results_dir_0 = os.path.join(base_dir, MODELS_DIR, model_name_0)
     work._train(
         config_file=os.path.join(tmp_proj_dir, flow.config_name),
@@ -76,7 +77,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     # ----------------
     config_overrides["eval"]["predict_vids_after_training"] = True
     config_overrides["eval"]["save_vids_after_training"] = True
-    model_name_1 = "date1/time1"
+    model_name_1 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
     results_dir_1 = os.path.join(base_dir, MODELS_DIR, model_name_1)
     work._train(
         config_file=os.path.join(tmp_proj_dir, flow.config_name),
@@ -111,6 +112,16 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     assert preds.replace(".csv", ".short.mp4") in results_artifacts_2
     assert preds.replace(".csv", ".short.csv") in results_artifacts_2
     assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_2
+
+    # ----------------
+    # fiftyone
+    # ----------------
+    # just run and make sure it doesn't fail
+    work._make_fiftyone_dataset(
+        config_file=os.path.join(tmp_proj_dir, flow.config_name),
+        results_dir=results_dir_1,
+        config_overrides=config_overrides,
+    )
 
     # ----------------
     # clean up

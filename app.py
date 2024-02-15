@@ -15,7 +15,6 @@ import yaml
 
 from lightning_pose_app import LABELSTUDIO_DB_DIR, LIGHTNING_POSE_DIR
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
@@ -66,8 +65,10 @@ class LitPoseApp(LightningFlow):
         # training tab (flow + work)
         self.train_ui = TrainUI()
 
-        # fiftyone tab (flow + work)
-        self.fiftyone_ui = FiftyoneConfigUI()
+        # fiftyone tab (work)
+        self.fiftyone = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+        )
 
         # streamlit tabs (flow + work)
         self.streamlit_frame = StreamlitAppLightningPose(app_type="frame")
@@ -86,27 +87,20 @@ class LitPoseApp(LightningFlow):
         # works for inference
         self.inference = Dict()
 
-    # @property
-    # def ready(self) -> bool:
-    #     """Return true once all works have an assigned url"""
-    #     return all([
-    #         self.fiftyone_ui.work.url != "",
-    #         self.streamlit_frame.work.url != "",
-    #         self.streamlit_video.work.url != "",
-    #         self.train_ui.work.url != "",
-    #         self.label_studio.label_studio.url != ""
-    #     ])
-
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
+    def start_fiftyone(self):
+        """run fiftyone"""
+        cmd = "fiftyone app launch --address $host --port $port --remote --wait -1"
+        self.fiftyone.run(cmd, wait_for_exit=False, cwd=os.getcwd())
+
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
             self.train_ui.trained_models = self.project_ui.trained_models
-            self.fiftyone_ui.trained_models = self.project_ui.trained_models
 
     def run(self):
 
@@ -131,14 +125,11 @@ class LitPoseApp(LightningFlow):
         # find previously initialized projects, expose to project UI
         self.project_ui.run(action="find_initialized_projects")
 
-        # find previously constructed fiftyone datasets
-        self.fiftyone_ui.run(action="find_fiftyone_datasets")
-
         # -------------------------------------------------------------
         # start background services (run only once)
         # -------------------------------------------------------------
         self.label_studio.run(action="start_label_studio")
-        self.fiftyone_ui.run(action="start_fiftyone")
+        self.start_fiftyone()
         if self.project_ui.model_dir is not None:
             # find previously trained models for project, expose to training and diagnostics UIs
             # timer to force later runs
@@ -158,8 +149,6 @@ class LitPoseApp(LightningFlow):
             self.train_ui.proj_dir = self.project_ui.proj_dir
             self.streamlit_frame.proj_dir = self.project_ui.proj_dir
             self.streamlit_video.proj_dir = self.project_ui.proj_dir
-            self.fiftyone_ui.proj_dir = self.project_ui.proj_dir
-            self.fiftyone_ui.config_name = self.project_ui.config_name
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
@@ -283,13 +272,6 @@ class LitPoseApp(LightningFlow):
             )
             self.train_ui.run_script_infer = False
 
-        # -------------------------------------------------------------
-        # build fiftyone dataset on button press from FiftyoneUI
-        # -------------------------------------------------------------
-        if self.fiftyone_ui.run_script:
-            self.fiftyone_ui.run(action="build_fiftyone_dataset")
-            self.fiftyone_ui.run_script = False
-
     def configure_layout(self):
 
         # init tabs
@@ -304,8 +286,7 @@ class LitPoseApp(LightningFlow):
         # diagnostics tabs
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
-        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
-        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
+        fo_tab = {"name": "Fiftyone", "content": self.fiftyone}
 
         if self.extract_ui.proj_dir:
             return [
@@ -316,7 +297,6 @@ class LitPoseApp(LightningFlow):
                 train_status_tab,
                 st_frame_tab,
                 st_video_tab,
-                fo_prep_tab,
                 fo_tab,
             ]
         else:
