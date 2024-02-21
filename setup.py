@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
-    "lightning[app]",
+    "lightning[app]==2.1.3",
     "numpy",
     "opencv-python",
     "pandas",
