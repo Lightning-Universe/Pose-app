@@ -176,7 +176,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     # ----------------
     # train
     # ----------------
-    model_name_0 = "date_flow/time_flow"
+    model_name_0 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
     flow.st_datetimes = {"super": model_name_0}
     flow.run(action="train", config_filename=f"model_config_{proj_name}.yaml")
 

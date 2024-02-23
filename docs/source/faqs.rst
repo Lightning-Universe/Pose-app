@@ -43,7 +43,7 @@ Note that both semi-supervised and context models will increase memory usage (wi
 context models needing the most memory).
 If you encounter this error, reduce batch sizes during training or inference.
 This feature is currently not supported in the app, so you will need to manually open the config
-file, located at `Pose-app/.shared/data/<proj_name>/model_config_<proj_name>.yaml`, update bactch
+file, located at `Pose-app/data/<proj_name>/model_config_<proj_name>.yaml`, update bactch
 sizes, save the file, then close.
 We also recommend restarting the app after config updates.
 You can find the relevant parameters to adjust
