@@ -75,6 +75,7 @@ def test_extract_frames_work(video_file, tmpdir):
     os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
     n_frames_per_video = 10
     work._extract_frames(
+        method="random",
         video_file=video_file,
         proj_dir=proj_dir,
         n_frames_per_video=n_frames_per_video,
