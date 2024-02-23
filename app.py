@@ -7,38 +7,29 @@ To run from the command line (inside the conda environment named "lai" here):
 
 from lightning.app import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
-from lightning.app.utilities.cloud import is_running_in_cloud
 import logging
 import os
 import sys
 import time
 import yaml
 
-from lightning_pose_app import LABELSTUDIO_DB_DIR
+from lightning_pose_app import LABELSTUDIO_DB_DIR, LIGHTNING_POSE_DIR
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
-from lightning_pose_app.ui.train_infer import TrainUI, LitPose
-from lightning_pose_app.build_configs import TensorboardBuildConfig, LitPoseBuildConfig
-from lightning_pose_app.build_configs import lightning_pose_dir
-
+from lightning_pose_app.ui.train_infer import TrainUI
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger('APP')
 
 
 # TODO: HIGH PRIORITY
-# - import previous projects
-#   * should this be done with a Work, and a frame upload status bar?
-#   * automatically create context datasets
 # - `abort` button next to training/inference progress bars so user doesn't have to kill app
 # - active learning
 
 # TODO: LOW PRIORITY
-# - ProjectUI._put_to_drive_remove_local does NOT overwrite dirs already on FileSystem - ok?
 # - launch training in parallel (get this working with `extract_frames` standalone app first)
 # - update label studio xml and CollectedData.csv when user inputs new keypoint in project ui
 
@@ -52,10 +43,10 @@ class LitPoseApp(LightningFlow):
         # -----------------------------
         # paths
         # -----------------------------
-        self.data_dir = "/data"  # relative to FileSystem root
+        self.data_dir = "/data"  # # relative to Pose-app root
 
         # load default config and pass to project manager
-        config_dir = os.path.join(lightning_pose_dir, "scripts", "configs")
+        config_dir = os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs")
         default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
 
         # -----------------------------
@@ -74,8 +65,10 @@ class LitPoseApp(LightningFlow):
         # training tab (flow + work)
         self.train_ui = TrainUI()
 
-        # fiftyone tab (flow + work)
-        self.fiftyone_ui = FiftyoneConfigUI()
+        # fiftyone tab (work)
+        self.fiftyone = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+        )
 
         # streamlit tabs (flow + work)
         self.streamlit_frame = StreamlitAppLightningPose(app_type="frame")
@@ -83,9 +76,7 @@ class LitPoseApp(LightningFlow):
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
-            name="tensorboard",
             cloud_compute=CloudCompute("default"),
-            cloud_build_config=TensorboardBuildConfig(),
         )
 
         # label studio (flow + work)
@@ -96,27 +87,20 @@ class LitPoseApp(LightningFlow):
         # works for inference
         self.inference = Dict()
 
-    # @property
-    # def ready(self) -> bool:
-    #     """Return true once all works have an assigned url"""
-    #     return all([
-    #         self.fiftyone_ui.work.url != "",
-    #         self.streamlit_frame.work.url != "",
-    #         self.streamlit_video.work.url != "",
-    #         self.train_ui.work.url != "",
-    #         self.label_studio.label_studio.url != ""
-    #     ])
-
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
+    def start_fiftyone(self):
+        """run fiftyone"""
+        cmd = "fiftyone app launch --address $host --port $port --remote --wait -1"
+        self.fiftyone.run(cmd, wait_for_exit=False, cwd=os.getcwd())
+
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
             self.train_ui.trained_models = self.project_ui.trained_models
-            self.fiftyone_ui.trained_models = self.project_ui.trained_models
 
     def run(self):
 
@@ -127,12 +111,12 @@ class LitPoseApp(LightningFlow):
         # don't interfere /w train; since all Works use the same filesystem when running locally,
         # one Work updating the filesystem which is also used by the trainer can corrupt data, etc.
         run_while_training = True
-        if not is_running_in_cloud() and self.train_ui.run_script_train:
+        if self.train_ui.run_script_train:
             run_while_training = False
 
         # don't interfere w/ inference
         run_while_inferring = True
-        if not is_running_in_cloud() and self.train_ui.run_script_infer:
+        if self.train_ui.run_script_infer:
             run_while_inferring = False
 
         # -------------------------------------------------------------
@@ -141,15 +125,11 @@ class LitPoseApp(LightningFlow):
         # find previously initialized projects, expose to project UI
         self.project_ui.run(action="find_initialized_projects")
 
-        # find previously constructed fiftyone datasets
-        self.fiftyone_ui.run(action="find_fiftyone_datasets")
-
         # -------------------------------------------------------------
         # start background services (run only once)
         # -------------------------------------------------------------
-        self.label_studio.run(action="import_database")
         self.label_studio.run(action="start_label_studio")
-        self.fiftyone_ui.run(action="start_fiftyone")
+        self.start_fiftyone()
         if self.project_ui.model_dir is not None:
             # find previously trained models for project, expose to training and diagnostics UIs
             # timer to force later runs
@@ -169,8 +149,6 @@ class LitPoseApp(LightningFlow):
             self.train_ui.proj_dir = self.project_ui.proj_dir
             self.streamlit_frame.proj_dir = self.project_ui.proj_dir
             self.streamlit_video.proj_dir = self.project_ui.proj_dir
-            self.fiftyone_ui.proj_dir = self.project_ui.proj_dir
-            self.fiftyone_ui.config_name = self.project_ui.config_name
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
@@ -224,9 +202,9 @@ class LitPoseApp(LightningFlow):
                     self.project_ui.run_script = False
 
         # -------------------------------------------------------------
-        # extract frames for labeling from uploaded videos
+        # extract frames for labeling
         # -------------------------------------------------------------
-        if self.extract_ui.proj_dir and self.extract_ui.run_script and run_while_training:
+        if self.extract_ui.proj_dir and self.extract_ui.run_script_video_random:
             self.extract_ui.run(
                 action="extract_frames",
                 video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
@@ -234,9 +212,23 @@ class LitPoseApp(LightningFlow):
             # wait until frame extraction is complete, then update label studio tasks
             if self.extract_ui.work_is_done_extract_frames:
                 self.project_ui.run(action="update_frame_shapes")
-                self.extract_ui.run_script = False  # hack, app won't advance past ls run
+                # hack; for some reason the app won't advance past the ls run
+                self.extract_ui.run_script_video_random = False
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
-                self.extract_ui.run_script = False
+                self.extract_ui.run_script_video_random = False
+
+        if self.extract_ui.proj_dir and self.extract_ui.run_script_zipped_frames:
+            self.extract_ui.run(
+                action="unzip_frames",
+                video_files=self.extract_ui.st_frame_files,  # add arg for run caching purposes
+            )
+            # wait until frame extraction is complete, then update label studio tasks
+            if self.extract_ui.work_is_done_extract_frames:
+                self.project_ui.run(action="update_frame_shapes")
+                # hack; for some reason the app won't advance past the ls run
+                self.extract_ui.run_script_zipped_frames = False
+                self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_frame_files)
+                self.extract_ui.run_script_zipped_frames = False
 
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels
@@ -262,17 +254,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.train_ui.run_script_train and run_while_inferring:
             self.train_ui.run(action="train", config_filename=self.project_ui.config_name)
-            inputs = [self.project_ui.model_dir]
-            # have tensorboard pull the new data
-            self.tensorboard.run(
-                "null command",
-                cwd=os.getcwd(),
-                input_output_only=True,  # pull inputs from Drive, but do not run commands
-                inputs=inputs,
-            )
-            # have streamlit pull the new data
-            self.streamlit_frame.run(action="pull_models", inputs=inputs)
-            self.streamlit_video.run(action="pull_models", inputs=inputs)
             self.project_ui.update_models = True
             self.train_ui.run_script_train = False
 
@@ -291,13 +272,6 @@ class LitPoseApp(LightningFlow):
             )
             self.train_ui.run_script_infer = False
 
-        # -------------------------------------------------------------
-        # build fiftyone dataset on button press from FiftyoneUI
-        # -------------------------------------------------------------
-        if self.fiftyone_ui.run_script:
-            self.fiftyone_ui.run(action="build_fiftyone_dataset")
-            self.fiftyone_ui.run_script = False
-
     def configure_layout(self):
 
         # init tabs
@@ -312,8 +286,7 @@ class LitPoseApp(LightningFlow):
         # diagnostics tabs
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
-        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
-        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
+        fo_tab = {"name": "Fiftyone", "content": self.fiftyone}
 
         if self.extract_ui.proj_dir:
             return [
@@ -324,7 +297,6 @@ class LitPoseApp(LightningFlow):
                 train_status_tab,
                 st_frame_tab,
                 st_video_tab,
-                fo_prep_tab,
                 fo_tab,
             ]
         else:

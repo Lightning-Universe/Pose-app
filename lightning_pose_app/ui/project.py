@@ -1,7 +1,6 @@
 import copy
 import glob
-from lightning.app import LightningFlow, LightningWork
-from lightning.app.storage import FileSystem
+from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 import logging
 import math
@@ -28,6 +27,7 @@ from lightning_pose_app.utilities import (
     StreamlitFrontend,
     collect_dlc_labels,
     copy_and_reformat_video_directory,
+    abspath,
 )
 
 
@@ -41,16 +41,8 @@ class ProjectUI(LightningFlow):
 
         super().__init__(*args, **kwargs)
 
-        self._drive = FileSystem()
-
         # initialize data_dir if it doesn't yet exist
-        if not self._drive.isdir(data_dir):
-            d = self.abspath(data_dir)
-            os.makedirs(d, exist_ok=True)
-            f = os.path.join(d, "tmp.txt")
-            with open(f, "w") as fs:
-                fs.write("tmp")
-            self._drive.put(f, os.path.join(data_dir, "tmp.txt"))
+        os.makedirs(abspath(data_dir), exist_ok=True)
 
         # save default config info for initializing new projects
         self.default_config_dict = default_config_dict
@@ -112,59 +104,12 @@ class ProjectUI(LightningFlow):
 
     @property
     def proj_dir_abs(self):
-        return self.abspath(self.proj_dir)
-
-    def _get_from_drive_if_not_local(self, file_or_dir):
-
-        if not os.path.exists(self.abspath(file_or_dir)):
-            try:
-                _logger.debug(f"drive try get {file_or_dir}")
-                src = file_or_dir  # shared
-                dst = self.abspath(file_or_dir)  # local
-                self._drive.get(src, dst, overwrite=True)
-                _logger.debug(f"drive success get {file_or_dir}")
-            except Exception as e:
-                _logger.debug(e)
-                _logger.debug(f"could not find {file_or_dir} in {self.data_dir}")
-        else:
-            _logger.debug(f"loading local version of {file_or_dir}")
-
-    def _put_to_drive_remove_local(self, file_or_dir, remove_local=True):
-        _logger.debug(f"put to drive {file_or_dir}")
-        src = self.abspath(file_or_dir)  # local
-        if os.path.isfile(src):
-            dst = file_or_dir  # shared
-            self._drive.put(src, dst)
-        elif os.path.isdir(src):
-            files_local = os.listdir(src)
-            existing_files = self._drive.listdir(file_or_dir)
-            for file_or_dir_local in files_local:
-                rel_path = os.path.join(file_or_dir, file_or_dir_local)
-                if rel_path not in existing_files:
-                    src = self.abspath(rel_path)
-                    dst = rel_path
-                    self._drive.put(src, dst)
-                else:
-                    _logger.debug(f"{rel_path} already exists on FileSystem! not updating")
-        # clean up the local object
-        if remove_local:
-            if os.path.isfile(self.abspath(file_or_dir)):
-                os.remove(self.abspath(file_or_dir))
-            else:
-                shutil.rmtree(self.abspath(file_or_dir))
-
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
+        return abspath(self.proj_dir)
 
     def _find_initialized_projects(self):
         # find all directories inside the data_dir; these should be the projects
         # (except labelstudio database)
-        projects = self._drive.listdir(self.data_dir)
+        projects = os.listdir(abspath(self.data_dir))
         # strip leading dirs to just get project names
         projects = [
             os.path.basename(p) for p in projects
@@ -175,7 +120,7 @@ class ProjectUI(LightningFlow):
     def _update_paths(self, project_name=None, **kwargs):
         if not project_name:
             project_name = self.st_project_name
-        # these will all be paths RELATIVE to the FileSystem root
+        # these will all be paths RELATIVE to the Pose-app directory
         if project_name:
             self.proj_dir = os.path.join(self.data_dir, project_name)
             self.config_name = f"model_config_{project_name}.yaml"
@@ -188,12 +133,8 @@ class ProjectUI(LightningFlow):
         if not new_vals_dict:
             new_vals_dict = self.st_new_vals
 
-        # check to see if config exists locally; if not, try pulling from drive
-        if self.config_file:
-            self._get_from_drive_if_not_local(self.config_file)
-
         # check to see if config exists; copy default config if not
-        if (self.config_file is None) or (not os.path.exists(self.abspath(self.config_file))):
+        if (self.config_file is None) or (not os.path.exists(abspath(self.config_file))):
             _logger.debug(f"no config file at {self.config_file}")
             _logger.debug("loading default config")
             # copy default config
@@ -211,7 +152,7 @@ class ProjectUI(LightningFlow):
         else:
             _logger.debug("loading existing config")
             # load existing config
-            config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
+            config_dict = yaml.safe_load(open(abspath(self.config_file)))
 
         # update config using new_vals_dict; assume this is a dict of dicts
         # new_vals_dict = {
@@ -230,27 +171,22 @@ class ProjectUI(LightningFlow):
             # save out updated config file locally
             if not os.path.exists(self.proj_dir_abs):
                 os.makedirs(self.proj_dir_abs)
-            yaml.dump(config_dict, open(self.abspath(self.config_file), "w"))
+            yaml.dump(config_dict, open(abspath(self.config_file), "w"))
 
         # save current params
         self.config_dict = config_dict
-
-        # push data to drive and clean up local file
-        self._put_to_drive_remove_local(self.config_file, remove_local=False)
 
     def _update_frame_shapes(self):
 
         from PIL import Image
 
-        # get labeled data from drive
-        labeled_data_dir = os.path.join(self.proj_dir, LABELED_DATA_DIR)
-        # check to see if config exists locally; if not, try pulling from drive
-        self._get_from_drive_if_not_local(labeled_data_dir)
-
         # load single frame from labeled data
         imgs = glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.png")) \
-                   + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpg")) \
-                   + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg"))
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpg")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*", "*.jpeg")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*.png")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*.jpg")) \
+            + glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*.jpeg"))
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
@@ -268,15 +204,14 @@ class ProjectUI(LightningFlow):
             })
         else:
             _logger.debug(glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*")))
-            _logger.debug("did not find labeled data directory in FileSystem")
+            _logger.debug("did not find labeled data directory")
 
     def _compute_labeled_frame_fraction(self, timer=0.0):
 
         metadata_file = os.path.join(self.proj_dir, LABELSTUDIO_METADATA_FILENAME)
-        self._get_from_drive_if_not_local(metadata_file)
 
         try:
-            proj_details = yaml.safe_load(open(self.abspath(metadata_file), "r"))
+            proj_details = yaml.safe_load(open(abspath(metadata_file), "r"))
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
@@ -288,40 +223,36 @@ class ProjectUI(LightningFlow):
             n_labeled_frames = None
             n_total_frames = None
 
-        # remove local file so that Work is forced to load updated versions from Drive
-        if os.path.exists(self.abspath(metadata_file)):
-            os.remove(self.abspath(metadata_file))
-
         self.n_labeled_frames = n_labeled_frames
         self.n_total_frames = n_total_frames
 
     def _load_project_defaults(self, **kwargs):
 
-        # check to see if config exists locally; if not, try pulling from drive
-        if self.config_file:
-            self._get_from_drive_if_not_local(self.config_file)
-
         # check to see if config exists
-        if self.config_file and os.path.exists(self.abspath(self.config_file)):
+        if self.config_file and os.path.exists(abspath(self.config_file)):
             # set values from config
-            config_dict = yaml.safe_load(open(self.abspath(self.config_file)))
+            config_dict = yaml.safe_load(open(abspath(self.config_file)))
             self.st_keypoints_ = config_dict["data"]["keypoints"]
             self.st_n_keypoints = config_dict["data"]["num_keypoints"]
             self.st_pcasv_columns = config_dict["data"]["columns_for_singleview_pca"]
             self.st_pcamv_columns = config_dict["data"]["mirrored_column_matches"]
             self.st_n_views = 1 if len(self.st_pcamv_columns) == 0 else len(self.st_pcamv_columns)
+            # save current params
+            self.config_dict = config_dict
 
     def _update_trained_models_list(self, **kwargs):
 
-        if self._drive.isdir(self.model_dir):
+        if os.path.isdir(abspath(self.model_dir)):
             trained_models = []
             # this returns a list of model training days
-            dirs_day = self._drive.listdir(self.model_dir)
+            dirs_day = os.listdir(abspath(self.model_dir))
             # loop over days and find HH-MM-SS
             for dir_day in dirs_day:
-                dirs_time = self._drive.listdir("/" + dir_day)
+                fullpath1 = os.path.join(abspath(self.model_dir), dir_day)
+                dirs_time = os.listdir(fullpath1)
                 for dir_time in dirs_time:
-                    trained_models.append('/'.join(dir_time.split('/')[-2:]))
+                    fullpath2 = os.path.join(fullpath1, dir_time)
+                    trained_models.append('/'.join(fullpath2.split('/')[-2:]))
             self.trained_models = trained_models
 
     def _upload_existing_project(self, **kwargs):
@@ -372,7 +303,11 @@ class ProjectUI(LightningFlow):
                     else:
                         shutil.copyfile(src, dst)
 
-        elif self.st_existing_project_format == "DLC":
+        # -------------------
+    # test find models
+    # -------------------# -------------------
+    # test find models
+    # ------------------- == "DLC":
 
             # copy files
             files_and_dirs = os.listdir(unzipped_dir)
@@ -414,9 +349,6 @@ class ProjectUI(LightningFlow):
         # update config file with frame shapes
         self._update_frame_shapes()
 
-        # push files to FileSystem
-        self._put_to_drive_remove_local(self.proj_dir)
-
         # update counter
         self.count_upload_existing += 1
 
@@ -426,15 +358,7 @@ class ProjectUI(LightningFlow):
         if os.path.exists(self.proj_dir_abs):
             shutil.rmtree(self.proj_dir_abs)
 
-        # recursively delete project on FileSystem
-        def rmdir(directory, drive):
-            for item in drive.listdir(directory):
-                if drive.isdir("/" + item):
-                    rmdir("/" + item, drive)
-                else:
-                    drive.rm("/" + item)
-            drive.rm(directory)
-        rmdir(self.proj_dir, self._drive)
+        # TODO: how to delete from label studio db?
 
         # update project info
         self.st_project_name = ""
@@ -457,8 +381,6 @@ class ProjectUI(LightningFlow):
             self._load_project_defaults(**kwargs)
         elif action == "update_trained_models_list":
             self._update_trained_models_list(**kwargs)
-        elif action == "put_file_to_drive":
-            self._put_to_drive_remove_local(**kwargs)
         elif action == "upload_existing_project":
             self._upload_existing_project(**kwargs)
         elif action == "delete_project":
@@ -529,8 +451,31 @@ def _render_streamlit_fn(state: AppState):
     # ----------------------------------------------------
     # landing
     # ----------------------------------------------------
+    with st.sidebar:
+        st.title(""" Welcome to Lightning Pose App! """)
+        st.write(
+            "The first tab of the app is the project manager. Here you will be able to"
+            " create new projects and load or delete existing projects under your account."
+        )
+        st.write("## To move forward, you will need to complete all the steps in this tab.")
+        st.write("##")
+        st.markdown("**Need further help? Check the:**")
+        st.markdown(
+            "App [documentation]"
+            "(https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "Github [repository](https://github.com/Lightning-Universe/Pose-app.html#)",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "Lightning Pose [documentation]"
+            "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
+            unsafe_allow_html=True,
+        )
 
-    st.markdown(""" ## Manage Lightning Pose project """)
+    st.header("Manage Lightning Pose projects")
 
     CREATE_STR = "Create new project"
     UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
@@ -538,12 +483,14 @@ def _render_streamlit_fn(state: AppState):
     DELETE_STR = "Delete existing project"
 
     st_mode = st.radio(
-        "",
+        label="Check the box that applies:",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
         disabled=state.st_project_loaded,
         index=2 if (state.st_project_loaded and not state.st_create_new_project) else 0,
+        help="Create a new project from scratch, upload an existing DLC project as a foundation "
+             "for your new project, continue work on an ongoing lightning pose project, or remove "
+             "a project from your projects."
     )
-
     st.text(f"Available projects: {state.initialized_projects}")
 
     st_project_name = st.text_input(
@@ -551,7 +498,6 @@ def _render_streamlit_fn(state: AppState):
         value="" if (not state.st_project_loaded or state.st_reset_project_name)
         else state.st_project_name
     )
-
     # ----------------------------------------------------
     # determine project status - load existing, create new
     # ----------------------------------------------------
@@ -643,8 +589,10 @@ def _render_streamlit_fn(state: AppState):
     if st_project_name and st_mode == UPLOAD_STR:
 
         st_prev_format = st.radio(
-            "Uploaded project format",
+            "Select uploaded project format",
             options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
+            help="Select the file format that the project is stored at."
+            " If DLC selected make sure the zipped folder has meet all reqierments"
         )
         state.st_existing_project_format = st_prev_format
 
@@ -669,7 +617,9 @@ def _render_streamlit_fn(state: AppState):
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
-
+        st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
+                   "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
+                   unsafe_allow_html=True)
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
@@ -704,12 +654,24 @@ def _render_streamlit_fn(state: AppState):
         # camera views
         if enter_data:
             st.markdown("")
+            st.divider()
             st.markdown("")
-            st.markdown("##### Camera views")
+            st.markdown(
+                "##### Camera views",
+                help="Support for multiple views is currently limited to either fusing the views "
+                "into single frames or utilizing a mirror to generate multiple views from a "
+                "single camera",
+            )
             n_views = st.text_input(
                 "Enter number of camera views:",
                 disabled=not enter_data,
                 value="" if not state.st_project_loaded else str(st_n_views),
+            )
+            st.caption(
+                "For a multiview option check the [documentation]"
+                "(https://lightning-pose.readthedocs.io/en/latest/source/"
+                "user_guide_advanced/multiview_fused.html#)",
+                unsafe_allow_html=True
             )
             if n_views:
                 st_n_views = int(n_views)
@@ -719,7 +681,9 @@ def _render_streamlit_fn(state: AppState):
 
         # keypoints
         if st_n_views > 0:
+            st.divider()
             st.markdown("##### Define keypoints")
+            e1 = st.expander("Expand to see an exemple")
             keypoint_instructions = """
                 **Instructions**:
                 If your data has multiple views, make sure to create an entry for each bodypart
@@ -733,10 +697,10 @@ def _render_streamlit_fn(state: AppState):
                 r_ear_bottom
                 corner1_top
                 ```
-                It is also possible to track keypoints that are only present in a subset of the 
+                It is also possible to track keypoints that are only present in a subset of the
                 views, such as the keypoint `corner1_top` above.
             """
-            st.markdown(keypoint_instructions)
+            e1.markdown(keypoint_instructions)
             if state.st_upload_existing_project:
                 value = "\n".join(st_keypoints)
             elif not state.st_project_loaded:
@@ -757,13 +721,24 @@ def _render_streamlit_fn(state: AppState):
 
         # pca singleview
         if st_n_keypoints > 1:
+            st.divider()
             st.markdown("##### Select subset of keypoints for Pose PCA")
-            st.markdown("""
-                **Instructions**:
-                The selected subset will be used for a Pose PCA loss on unlabeled videos.
-                The subset should be keypoints that are not usually occluded (such as a tongue)
-                and are not static (such as the corner of a box).
+            # st.markdown("""
+            #     **Instructions**:
+            #     The selected subset will be used for a Pose PCA loss on unlabeled videos.
+            #     The subset should be keypoints that are not usually occluded (such as a tongue)
+            #     and are not static (such as the corner of a box).
+            # """)
+            e2 = st.expander("Expend for further instractions")
+            e2.markdown("""
+                **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
+                * **Selecting points with consistent visibility**, avoiding those prone to
+                 occlusion (e.g., tongue) during movement.
+                * **Selecting points that exhibit dynamic changes**,
+                excluding static elements (e.g., corner of a box)
+                offering minimal pose information.
             """)
+            e2.write("*The selected subset will be used for a Pose PCA loss on unlabeled videos")
             pcasv_selected = [False for _ in st_keypoints]
             for k, kp in enumerate(st_keypoints):
                 pcasv_selected[k] = st.checkbox(
@@ -779,8 +754,9 @@ def _render_streamlit_fn(state: AppState):
         if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
-            st.markdown("""
-                **Instructions**:
+            e3 = st.expander("Expand for further instractions")
+            e3.markdown("""
+                Select the same body part from different POV's.
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
                 The subset should be keypoints that are usually visible in all camera views.
             """)
@@ -811,7 +787,8 @@ def _render_streamlit_fn(state: AppState):
                     # set bodypart dropdowns
                     for c, col in enumerate(cols[1:]):
                         kp = col.selectbox(
-                            f"", st_keypoints, key=f"Bodypart {r} view {c}",
+                            "", st_keypoints,
+                            key=f"Bodypart {r} view {c}",
                             index=c * st_n_bodyparts + r
                         )
                         st_pcamv_columns[c, r] = np.where(np.array(st_keypoints) == kp)[0]
@@ -877,11 +854,10 @@ def _render_streamlit_fn(state: AppState):
         if state.st_submits > 0:
             proceed_str = """
                 Proceed to the next tab to extract frames for labeling.<br /><br />
-                LabelStudio login information:<br />
+                Use this LabelStudio login information:<br />
                 <strong>username</strong>: user@localhost<br />
                 <strong>password</strong>: pw
             """
-
             proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 

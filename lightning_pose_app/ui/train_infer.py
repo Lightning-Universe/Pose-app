@@ -1,8 +1,7 @@
 """UI for training models."""
 
 from datetime import datetime
-from lightning.app import CloudCompute, LightningFlow
-from lightning.app.storage import FileSystem
+from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
@@ -10,23 +9,23 @@ from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
 import logging
-import numpy as np
 import os
-import pandas as pd
+import shutil
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-import shutil
-import subprocess
-import sys
-import time
 import yaml
 
-from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
-from lightning_pose_app import MODELS_DIR, COLLECTED_DATA_FILENAME, SELECTED_FRAMES_FILENAME
+from lightning_pose_app import VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
+from lightning_pose_app import LABELED_DATA_DIR, MODELS_DIR, SELECTED_FRAMES_FILENAME
 from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.build_configs import LitPoseBuildConfig
-from lightning_pose_app.utilities import StreamlitFrontend, WorkWithFileSystem
-from lightning_pose_app.utilities import reencode_video, check_codec_format
+from lightning_pose_app.utilities import (
+    StreamlitFrontend,
+    abspath,
+    copy_and_reformat_video,
+    is_context_dataset,
+    make_video_snippet,
+)
 
 
 _logger = logging.getLogger('APP.TRAIN_INFER')
@@ -73,11 +72,11 @@ class TrainerProgress(Callback):
             self._update_progress(progress)
 
 
-class LitPose(WorkWithFileSystem):
+class LitPose(LightningWork):
 
     def __init__(self, *args, **kwargs) -> None:
 
-        super().__init__(*args, name="train_infer", **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.pwd = os.getcwd()
         self.progress = 0.0
@@ -87,55 +86,7 @@ class LitPose(WorkWithFileSystem):
         self.work_is_done_inference = False
         self.count = 0
 
-    def _reformat_video(self, video_file, **kwargs):
-
-        # get new names (ensure mp4 file extension, no tmp directory)
-        ext = os.path.splitext(os.path.basename(video_file))[1]
-        video_file_mp4_ext = video_file.replace(f"{ext}", ".mp4")
-        video_file_new = video_file_mp4_ext.replace(VIDEOS_TMP_DIR, VIDEOS_INFER_DIR)
-        video_file_abs_new = self.abspath(video_file_new)
-
-        # check 0: do we even need to reformat?
-        if self._drive.isfile(video_file_new):
-            return video_file_new
-
-        # pull videos from FileSystem
-        self.get_from_drive([video_file])
-        video_file_abs = self.abspath(video_file)
-
-        # check 1: does file exist?
-        video_file_exists = os.path.exists(video_file_abs)
-        if not video_file_exists:
-            _logger.info(f"{video_file_abs} does not exist! skipping")
-            return None
-
-        # check 2: is file in the correct format for DALI?
-        video_file_correct_codec = check_codec_format(video_file_abs)
-
-        # reencode/rename
-        if not video_file_correct_codec:
-            _logger.info("re-encoding video to be compatable with Lightning Pose video reader")
-            reencode_video(video_file_abs, video_file_abs_new)
-            # remove old video from local files
-            os.remove(video_file_abs)
-        else:
-            # make dir to write into
-            os.makedirs(os.path.dirname(video_file_abs_new), exist_ok=True)
-            # rename
-            os.rename(video_file_abs, video_file_abs_new)
-
-        # remove old video(s) from FileSystem
-        if self._drive.isfile(video_file):
-            self._drive.rm(video_file)
-        if self._drive.isfile(video_file_mp4_ext):
-            self._drive.rm(video_file_mp4_ext)
-
-        # push possibly reformated, renamed videos to FileSystem
-        self.put_to_drive([video_file_new])
-
-        return video_file_new
-
-    def _train(self, inputs, outputs, cfg_overrides, results_dir):
+    def _train(self, config_file, config_overrides, results_dir):
 
         import gc
         from omegaconf import DictConfig, OmegaConf
@@ -162,20 +113,14 @@ class LitPose(WorkWithFileSystem):
         self.work_is_done_training = False
 
         # ----------------------------------------------------------------------------------
-        # Pull data from FileSystem
+        # Set up config
         # ----------------------------------------------------------------------------------
 
-        # pull config, frames, labels, and videos (relative paths)
-        self.get_from_drive(inputs)
-
-        # load config (absolute path)
-        for i in inputs:
-            if i.endswith(".yaml"):
-                config_file = i
-        cfg = DictConfig(yaml.safe_load(open(self.abspath(config_file), "r")))
+        # load config
+        cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
 
         # update config with user-provided overrides
-        for key1, val1 in cfg_overrides.items():
+        for key1, val1 in config_overrides.items():
             for key2, val2 in val1.items():
                 cfg[key1][key2] = val2
 
@@ -299,7 +244,7 @@ class LitPose(WorkWithFileSystem):
                     f"Found {len(filenames)} videos to predict on "
                     f"(in cfg.eval.test_videos_directory)"
                 )
-            
+
             for v, video_file in enumerate(filenames):
                 assert os.path.isfile(video_file)
                 pretty_print_str(f"Predicting video: {video_file}...")
@@ -310,7 +255,8 @@ class LitPose(WorkWithFileSystem):
                 # get save name labeled video csv
                 if cfg.eval.save_vids_after_training:
                     labeled_vid_dir = os.path.join(video_pred_dir, "labeled_videos")
-                    labeled_mp4_file = os.path.join(labeled_vid_dir, video_pred_name + "_labeled.mp4")
+                    labeled_mp4_file = os.path.join(labeled_vid_dir,
+                                                    video_pred_name + "_labeled.mp4")
                 else:
                     labeled_mp4_file = None
                 # predict on video
@@ -337,15 +283,17 @@ class LitPose(WorkWithFileSystem):
                     continue
 
         # ----------------------------------------------------------------------------------
-        # Push results to FileSystem, clean up
+        # Clean up
         # ----------------------------------------------------------------------------------
         # save config file
         cfg_file_local = os.path.join(results_dir, "config.yaml")
         with open(cfg_file_local, "w") as fp:
             OmegaConf.save(config=cfg, f=fp.name)
 
+        # remove lightning logs
+        shutil.rmtree(os.path.join(results_dir, "lightning_logs"), ignore_errors=True)
+
         os.chdir(self.pwd)
-        self.put_to_drive(outputs)  # IMPORTANT! must come after changing directories
 
         # clean up memory
         del imgaug_transform
@@ -379,26 +327,24 @@ class LitPose(WorkWithFileSystem):
         self.work_is_done_inference = False
 
         # ----------------------------------------------------------------------------------
-        # Pull data from FileSystem
+        # Set up paths
         # ----------------------------------------------------------------------------------
 
-        # pull video from FileSystem
-        self.get_from_drive([video_file])
-
         # check: does file exist?
-        video_file_abs = self.abspath(video_file)
+        # check: does file exist?
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"video file exists? {video_file_exists}")
         if not video_file_exists:
             _logger.info("skipping inference")
             return
 
-        # pull model from FileSystem
-        self.get_from_drive([model_dir])
-
-        # load config (absolute path)
+        # load config
         config_file = os.path.join(model_dir, "config.yaml")
-        cfg = DictConfig(yaml.safe_load(open(self.abspath(config_file), "r")))
+        cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
         cfg.training.imgaug = "default"  # don't do imgaug
 
         # define paths
@@ -408,7 +354,7 @@ class LitPose(WorkWithFileSystem):
 
         pred_dir = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR)
         preds_file = os.path.join(
-            self.abspath(pred_dir), os.path.basename(video_file_abs).replace(".mp4", ".csv"))
+            abspath(pred_dir), os.path.basename(video_file_abs).replace(".mp4", ".csv"))
 
         # ----------------------------------------------------------------------------------
         # Set up data/model objects
@@ -425,7 +371,7 @@ class LitPose(WorkWithFileSystem):
         data_module.setup()
 
         ckpt_file = ckpt_path_from_base_path(
-            base_path=self.abspath(model_dir), model_name=cfg.model.model_name
+            base_path=abspath(model_dir), model_name=cfg.model.model_name
         )
 
         # ----------------------------------------------------------------------------------
@@ -458,8 +404,7 @@ class LitPose(WorkWithFileSystem):
         # make short labeled snippet for manual inspection
         self.progress = 0.0  # reset progress so it will again be updated during snippet inference
         self.status_ = "creating labeled video"
-        video_file_abs_short = self._make_video_snippet(
-            video_file=video_file_abs, preds_file=preds_file)
+        video_file_abs_short = make_video_snippet(video_file=video_file_abs, preds_file=preds_file)
         preds_file_short = preds_file.replace(".csv", ".short.csv")
         export_predictions_and_labeled_video(
             video_file=video_file_abs_short,
@@ -471,67 +416,53 @@ class LitPose(WorkWithFileSystem):
             data_module=data_module,
         )
 
-        # ----------------------------------------------------------------------------------
-        # Push results to FileSystem, clean up
-        # ----------------------------------------------------------------------------------
-        self.put_to_drive([pred_dir])
-
         # set flag for parent app
         self.work_is_done_inference = True
 
     @staticmethod
-    def _make_video_snippet(video_file, preds_file, clip_length=30, likelihood_thresh=0.9):
+    def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
 
-        import cv2
+        from lightning_pose.utils.fiftyone import FiftyOneImagePlotter, check_dataset
+        from omegaconf import DictConfig
 
-        # save videos with csv file
-        save_dir = os.path.dirname(preds_file)
+        # load config (absolute path)
+        cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
 
-        df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
+        # update config with user-provided overrides (this is mostly for unit testing)
+        for key1, val1 in config_overrides.items():
+            for key2, val2 in val1.items():
+                cfg[key1][key2] = val2
 
-        # how large is the clip window?
-        video = cv2.VideoCapture(video_file)
-        fps = video.get(cv2.CAP_PROP_FPS)
-        win_len = int(fps * clip_length)
+        # edit config
+        cfg.data.data_dir = os.path.join(os.getcwd(), cfg.data.data_dir)
+        model_dir = "/".join(results_dir.split("/")[-2:])
+        # get project name from config file, assuming first part is model_config_
+        proj_name = os.path.basename(config_file).split(".")[0][13:]
+        cfg.eval.fiftyone.dataset_name = f"{proj_name}_{model_dir}"
+        cfg.eval.fiftyone.model_display_names = [model_dir.split("_")[-1]]
+        cfg.eval.hydra_paths = [results_dir]
 
-        # make a `clip_length` second video clip that contains the highest keypoint motion energy
-        src = video_file
-        dst = os.path.join(save_dir, os.path.basename(video_file).replace(".mp4", ".short.mp4"))
-        if win_len >= df.shape[0]:
-            # short video, no need to shorten further. just copy existing video
-            shutil.copyfile(src, dst)
-        else:
-            # compute motion energy (averaged over keypoints)
-            kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
-            kps = kps_and_conf[:, :, :2]
-            conf = kps_and_conf[:, :, -1]
-            conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
-            kps[conf2 < likelihood_thresh] = np.nan
-            me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
-
-            # find window
-            df_me = pd.DataFrame({"me": np.concatenate([[0], me])})
-            df_me_win = df_me.rolling(window=win_len, center=False).mean()
-            # rolling places results in right edge of window, need to subtract this
-            clip_start_idx = df_me_win.me.argmax() - win_len
-            # convert to seconds
-            clip_start_sec = int(clip_start_idx / fps)
-            # if all predictions are bad, make sure we still create a valid snippet video
-            if np.isnan(clip_start_sec) or clip_start_sec < 0:
-                clip_start_sec = 0
-
-            # make clip
-            ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
-            subprocess.run(ffmpeg_cmd, shell=True)
-
-        return dst
+        # build dataset
+        fo_plotting_instance = FiftyOneImagePlotter(cfg=cfg)
+        dataset = fo_plotting_instance.create_dataset()
+        # create metadata and print if there are problems
+        check_dataset(dataset)
+        # print the name of the dataset
+        fo_plotting_instance.dataset_info_print()
 
     def run(self, action=None, **kwargs):
         if action == "train":
             self._train(**kwargs)
+            self._make_fiftyone_dataset(**kwargs)
         elif action == "run_inference":
-            new_vid_file = self._reformat_video(**kwargs)
-            kwargs["video_file"] = new_vid_file
+            proj_dir = '/'.join(kwargs["model_dir"].split('/')[:3])
+            new_vid_file = copy_and_reformat_video(
+                video_file=abspath(kwargs["video_file"]),
+                dst_dir=abspath(os.path.join(proj_dir, VIDEOS_INFER_DIR)),
+                remove_old=kwargs.pop("remove_old", True),
+            )
+            # save relative rather than absolute path
+            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._run_inference(**kwargs)
 
 
@@ -541,9 +472,6 @@ class TrainUI(LightningFlow):
     def __init__(self, *args, allow_context=True, max_epochs_default=300, **kwargs):
 
         super().__init__(*args, **kwargs)
-
-        # shared storage system
-        self._drive = FileSystem()
 
         # updated externally by parent app
         self.trained_models = []
@@ -593,35 +521,13 @@ class TrainUI(LightningFlow):
         self.st_infer_label_opt = None  # what to do with video evaluation
         self.st_inference_videos = []
 
-    def _push_video(self, video_file):
-        if video_file[0] == "/":
-            src = os.path.join(os.getcwd(), video_file[1:])
-            dst = video_file
-        else:
-            src = os.path.join(os.getcwd(), video_file)
-            dst = "/" + video_file
-        if not self._drive.isfile(dst) and os.path.exists(src):
-            # only put to FileSystem under two conditions:
-            # 1. file exists locally; if it doesn't, maybe it has already been deleted for a reason
-            # 2. file does not already exist on FileSystem; avoids excessive file transfers
-            _logger.debug(f"TRAIN_INFER UI try put {dst}")
-            self._drive.put(src, dst)
-            _logger.debug(f"TRAIN_INFER UI success put {dst}")
-
-    def _train(
-        self,
-        config_filename=None,
-        video_dirname=VIDEOS_DIR,
-        labeled_data_dirname=LABELED_DATA_DIR,
-        csv_filename=COLLECTED_DATA_FILENAME,
-    ):
+    def _train(self, config_filename=None, video_dirname=VIDEOS_DIR):
 
         if config_filename is None:
             _logger.error("config_filename must be specified for training models")
 
         # set config overrides
         base_dir = os.path.join(os.getcwd(), self.proj_dir[1:])
-        model_dir = os.path.join(self.proj_dir, MODELS_DIR)
 
         if self.st_train_label_opt == VIDEO_LABEL_NONE:
             predict_vids = False
@@ -633,7 +539,7 @@ class TrainUI(LightningFlow):
             predict_vids = True
             save_vids = True
 
-        cfg_overrides = {
+        config_overrides = {
             "data": {
                 "data_dir": base_dir,
                 "video_dir": os.path.join(base_dir, video_dirname),
@@ -645,7 +551,6 @@ class TrainUI(LightningFlow):
             },
             "model": {  # update these below if necessary
                 "model_type": "heatmap",
-                "do_context": False,
             },
             "training": {
                 "imgaug": "dlc",
@@ -653,26 +558,18 @@ class TrainUI(LightningFlow):
             }
         }
 
-        # list files needed from FileSystem
-        inputs = [
-            os.path.join(self.proj_dir, config_filename),
-            os.path.join(self.proj_dir, labeled_data_dirname),
-            os.path.join(self.proj_dir, video_dirname),
-            os.path.join(self.proj_dir, csv_filename),
-        ]
-
         # train models
         for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
             status = self.st_train_status[m]
             if status == "initialized" or status == "active":
                 self.st_train_status[m] = "active"
-                outputs = [os.path.join(model_dir, self.st_datetimes[m])]
-                cfg_overrides["model"]["losses_to_use"] = self.st_losses[m]
+                config_overrides["model"]["losses_to_use"] = self.st_losses[m]
                 if m.find("ctx") > -1:
-                    cfg_overrides["model"]["model_type"] = "heatmap_mhcrnn"
-                    cfg_overrides["model"]["do_context"] = True
+                    config_overrides["model"]["model_type"] = "heatmap_mhcrnn"
                 self.work.run(
-                    action="train", inputs=inputs, outputs=outputs, cfg_overrides=cfg_overrides,
+                    action="train",
+                    config_file=os.path.join(self.proj_dir, config_filename),
+                    config_overrides=config_overrides,
                     results_dir=os.path.join(base_dir, MODELS_DIR, self.st_datetimes[m])
                 )
                 self.st_train_status[m] = "complete"
@@ -680,7 +577,7 @@ class TrainUI(LightningFlow):
 
         self.submit_count_train += 1
 
-    def _run_inference(self, model_dir=None, video_files=None):
+    def _run_inference(self, model_dir=None, video_files=None, testing=False):
 
         self.work_is_done_inference = False
 
@@ -689,9 +586,7 @@ class TrainUI(LightningFlow):
         if not video_files:
             video_files = self.st_inference_videos
 
-        # launch works:
-        # - sequential if local
-        # - parallel if on cloud
+        # launch works (sequentially for now)
         for video_file in video_files:
             video_key = video_file.replace(".", "_")  # keys cannot contain "."
             if video_key not in self.works_dict.keys():
@@ -702,13 +597,12 @@ class TrainUI(LightningFlow):
             status = self.st_infer_status[video_file]
             if status == "initialized" or status == "active":
                 self.st_infer_status[video_file] = "active"
-                # move video from ui machine to shared FileSystem
-                self._push_video(video_file=video_file)
                 # run inference (automatically reformats video for DALI)
                 self.works_dict[video_key].run(
                     action="run_inference",
                     model_dir=model_dir,
                     video_file="/" + video_file,
+                    remove_old=not testing,  # remove bad format file by default
                 )
                 self.st_infer_status[video_file] = "complete"
 
@@ -719,7 +613,8 @@ class TrainUI(LightningFlow):
                         and self.works_dict[video_key].work_is_done_inference:
                     # kill work
                     _logger.info(f"killing work from video {video_key}")
-                    self.works_dict[video_key].stop()
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
         # set flag for parent app
@@ -727,58 +622,13 @@ class TrainUI(LightningFlow):
 
     def _determine_dataset_type(self, **kwargs):
         """Check if labeled data directory contains context frames."""
-
-        def get_frame_number(basename):
-            ext = basename.split(".")[-1]  # get base name
-            split_idx = None
-            for c_idx, c in enumerate(basename):
-                try:
-                    int(c)
-                    split_idx = c_idx
-                    break
-                except ValueError:
-                    continue
-            # remove prefix
-            prefix = basename[:split_idx]
-            idx = basename[split_idx:]
-            # remove file extension
-            idx = idx.replace(f".{ext}", "")
-            return int(idx), prefix, ext
-
-        # pull labeled data
-        src = os.path.join(self.proj_dir, LABELED_DATA_DIR)
-        dst = os.path.join(os.getcwd(), self.proj_dir[1:], LABELED_DATA_DIR)
-        if not os.path.exists(dst):
-            self._drive.get(src, dst)
-
-        # loop over all labeled frames, break as soon as single frame fails
-        for d in os.listdir(dst):
-            frames_in_dir_file = os.path.join(dst, d, SELECTED_FRAMES_FILENAME)
-            if not os.path.exists(frames_in_dir_file):
-                continue
-            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
-            for frame in frames_in_dir:
-                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
-                # get the frames -> t-2, t-1, t, t+1, t + 2
-                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
-                for fr_num in list_idx:
-                    # replace frame number with 0 if we're at the beginning of the video
-                    fr_num = max(0, fr_num)
-                    # split name into pieces
-                    img_pieces = frame.split("/")
-                    # figure out length of integer
-                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
-                    # replace original frame number with context frame number
-                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
-                    img_name = "/".join(img_pieces)
-                    if not os.path.exists(os.path.join(dst, d, img_name)):
-                        self.allow_context = False
-                        break
+        self.allow_context = is_context_dataset(
+            labeled_data_dir=os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR),
+            selected_frames_filename=SELECTED_FRAMES_FILENAME,
+        )
 
     def run(self, action, **kwargs):
-        if action == "push_video":
-            self._push_video(**kwargs)
-        elif action == "train":
+        if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
             self._run_inference(**kwargs)
@@ -836,11 +686,12 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-        expander = st.expander("Change Defaults")
-
+        # expander = st.expander("Change Defaults")
+        expander = st.expander(
+            "Expand to adjust maximum training epochs and select unsupervised losses")
         # max epochs
         st_max_epochs = expander.text_input(
-            "Max training epochs (all models)", value=state.max_epochs_default)
+            "Set the max training epochs (all models)", value=state.max_epochs_default)
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
@@ -858,8 +709,10 @@ def _render_streamlit_fn(state: AppState):
 
         st.markdown(
             """
-            #### Video handling options
-            """
+            #### Video handling options""",
+            help="Choose if you want to automatically run inference on the videos uploaded for "
+                 "labeling. **Warning** : Video traces will not be available in the "
+                 "Video Diagnostics tab if you choose “Do not run inference”"
         )
         st_train_label_opt = st.radio(
             "",
@@ -922,7 +775,7 @@ def _render_streamlit_fn(state: AppState):
             state.st_max_epochs = int(st_max_epochs)
             state.st_train_label_opt = st_train_label_opt
             state.st_train_status = {
-                "super": "initialized" if st_train_super else "none", 
+                "super": "initialized" if st_train_super else "none",
                 "semisuper": "initialized" if st_train_semisuper else "none",
                 "super ctx": "initialized" if st_train_super_ctx else "none",
                 "semisuper ctx": "initialized" if st_train_semisuper_ctx else "none",
@@ -949,13 +802,13 @@ def _render_streamlit_fn(state: AppState):
             # force different datetimes
             for i in range(4):
                 if i == 0:  # supervised model
-                    st_datetimes["super"] = dtime[:-2] + "00"
+                    st_datetimes["super"] = dtime[:-2] + "00_super"
                 if i == 1:  # semi-supervised model
-                    st_datetimes["semisuper"] = dtime[:-2] + "01"
+                    st_datetimes["semisuper"] = dtime[:-2] + "01_semisuper"
                 if i == 2:  # supervised context model
-                    st_datetimes["super ctx"] = dtime[:-2] + "02"
+                    st_datetimes["super ctx"] = dtime[:-2] + "02_super-ctx"
                 if i == 3:  # semi-supervised context model
-                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03"
+                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03_semisuper-ctx"
 
             # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
             state.st_datetimes = st_datetimes
@@ -966,7 +819,16 @@ def _render_streamlit_fn(state: AppState):
 
     with infer_tab:
 
-        st.header("Predict on New Videos")
+        st.header(
+            body="Predict on New Videos",
+            help="Select your preferred inference model, then"
+                 " drag and drop your video file(s). Monitor the upload progress bar"
+                 " and click **Run inference** once uploads are complete. After completion,"
+                 " a brief snippet is extracted for each video during the period of highest"
+                 " motion energy, and a diagnostic video with raw frames and model"
+                 " predictions is generated. Once inference concludes for all videos, the"
+                 " 'waiting for existing inference to finish' warning will disappear."
+        )
 
         model_dir = st.selectbox(
             "Choose model to run inference", sorted(state.trained_models, reverse=True))
@@ -1016,7 +878,8 @@ def _render_streamlit_fn(state: AppState):
                     p = 100.0
                 else:
                     st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
+                st.progress(
+                    p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
             st.warning("waiting for existing inference to finish")
 
         # Lightning way of returning the parameters

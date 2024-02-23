@@ -10,11 +10,13 @@ from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
 )
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.build_configs import LabelStudioBuildConfig, label_studio_venv
+from lightning_pose_app.utilities import abspath
 
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 log_level = "ERROR"  # log level sent to label studio sdk
+
+label_studio_venv = None
 
 
 class LitLabelStudio(LightningFlow):
@@ -24,12 +26,9 @@ class LitLabelStudio(LightningFlow):
         super().__init__(*args, **kwargs)
 
         self.label_studio = LitBashWork(
-            name="labelstudio",
             cloud_compute=CloudCompute("default"),
-            cloud_build_config=LabelStudioBuildConfig(),
         )
         self.counts = {
-            "import_database": 0,
             "start_label_studio": 0,
             "create_new_project": 0,
             "import_existing_annotations": 0,
@@ -59,32 +58,6 @@ class LitLabelStudio(LightningFlow):
         self.proj_name = None
         self.keypoints = None
 
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
-
-    def _import_database(self):
-        # pull database from FileSystem if it exists
-        # NOTE: db must be imported _after_ LabelStudio is started, otherwise some nginx error
-        if self.counts["import_database"] > 0:
-            return
-
-        self.label_studio.run(
-            "null command",
-            venv_name=label_studio_venv,
-            cwd=os.getcwd(),
-            input_output_only=True,
-            inputs=[self.database_dir],
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-        )
-
-        self.counts["import_database"] += 1
-
     def _start_label_studio(self):
 
         if self.counts["start_label_studio"] > 0:
@@ -97,7 +70,7 @@ class LitLabelStudio(LightningFlow):
 
         # start label-studio
         self.label_studio.run(
-            f"label-studio start --no-browser --internal-host $host --port $port",
+            "label-studio start --no-browser --internal-host $host --port $port",
             venv_name=label_studio_venv,
             wait_for_exit=False,
             env={
@@ -108,7 +81,7 @@ class LitLabelStudio(LightningFlow):
                 "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true",
                 "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT": os.path.abspath(os.getcwd()),
                 "LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
-                "LABEL_STUDIO_BASE_DATA_DIR": self.abspath(self.database_dir),
+                "LABEL_STUDIO_BASE_DATA_DIR": abspath(self.database_dir),
                 "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
                 "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
                 "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
@@ -148,10 +121,10 @@ class LitLabelStudio(LightningFlow):
         # build script command
         script_path = os.path.join(
             os.getcwd(), "lightning_pose_app", "label_studio", "create_new_project.py")
-        label_studio_config_file = self.abspath(self.filenames["label_studio_config"])
+        label_studio_config_file = abspath(self.filenames["label_studio_config"])
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
+                        f"--proj_dir {abspath(self.proj_dir)} " \
                         f"--api_key {self.user_token} " \
                         f"--project_name {self.proj_name} " \
                         f"--label_config {label_studio_config_file} "
@@ -165,13 +138,6 @@ class LitLabelStudio(LightningFlow):
             venv_name=label_studio_venv,
             wait_for_exit=True,
             env={"LOG_LEVEL": log_level},
-            inputs=[
-                self.filenames["label_studio_config"],
-                self.filenames["labeled_data_dir"],
-            ],
-            outputs=[
-                self.filenames["label_studio_metadata"],
-            ],
         )
 
     def _update_tasks(self, videos=[]):
@@ -182,7 +148,7 @@ class LitLabelStudio(LightningFlow):
             os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
+                        f"--proj_dir {abspath(self.proj_dir)} " \
                         f"--api_key {self.user_token} "
 
         # run command to update label studio tasks
@@ -192,15 +158,10 @@ class LitLabelStudio(LightningFlow):
             wait_for_exit=True,
             env={"LOG_LEVEL": log_level},
             timer=videos,
-            inputs=[
-                self.filenames["labeled_data_dir"],
-                self.filenames["label_studio_metadata"],
-            ],
-            outputs=[],
         )
 
     def _check_labeling_task_and_export(self, timer):
-        """Check for new labels, export to lightning pose format, export database to FileSystem."""
+        """Check for new labels, export to lightning pose format."""
 
         script_path = os.path.join(
             os.getcwd(), "lightning_pose_app", "label_studio", "check_labeling_task_and_export.py")
@@ -212,7 +173,7 @@ class LitLabelStudio(LightningFlow):
             keypoints_list = "/".join(self.keypoints)
             run_command = f"python {script_path} " \
                           f"--label_studio_url {self.label_studio_url} " \
-                          f"--proj_dir {self.abspath(self.proj_dir)} " \
+                          f"--proj_dir {abspath(self.proj_dir)} " \
                           f"--api_key {self.user_token} " \
                           f"--keypoints_list '{keypoints_list}' "
 
@@ -223,16 +184,6 @@ class LitLabelStudio(LightningFlow):
                 wait_for_exit=True,
                 env={"LOG_LEVEL": log_level},
                 timer=timer,
-                inputs=[
-                    self.filenames["labeled_data_dir"],
-                    self.filenames["label_studio_metadata"],
-                ],
-                outputs=[
-                    self.filenames["collected_data"],
-                    self.filenames["label_studio_tasks"],
-                    self.filenames["label_studio_metadata"],
-                    self.database_dir,  # sqlite database
-                ],
             )
 
         self.check_labels = True
@@ -247,7 +198,7 @@ class LitLabelStudio(LightningFlow):
         script_path = os.path.join(
             os.getcwd(), "lightning_pose_app", "label_studio", "create_labeling_config.py")
         build_command = f"python {script_path} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
+                        f"--proj_dir {abspath(self.proj_dir)} " \
                         f"--filename {os.path.basename(self.filenames['label_studio_config'])} " \
                         f"--keypoints_list {keypoints_list} "
 
@@ -260,8 +211,6 @@ class LitLabelStudio(LightningFlow):
             wait_for_exit=True,
             env={"LOG_LEVEL": log_level},
             timer=keypoints,
-            inputs=[],
-            outputs=[self.filenames["label_studio_config"]],
         )
 
     def _import_existing_annotations(self, **kwargs):
@@ -275,9 +224,9 @@ class LitLabelStudio(LightningFlow):
             os.getcwd(), "lightning_pose_app", "label_studio", "update_tasks.py")
         build_command = f"python {script_path} " \
                         f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {self.abspath(self.proj_dir)} " \
+                        f"--proj_dir {abspath(self.proj_dir)} " \
                         f"--api_key {self.user_token} " \
-                        f"--config_file {self.abspath(self.filenames['config_file'])} " \
+                        f"--config_file {abspath(self.filenames['config_file'])} " \
                         f"--update_from_csv "
 
         self.label_studio.run(
@@ -285,22 +234,13 @@ class LitLabelStudio(LightningFlow):
             venv_name=label_studio_venv,
             wait_for_exit=True,
             env={"LOG_LEVEL": log_level},
-            inputs=[
-                self.filenames["labeled_data_dir"],
-                self.filenames["label_studio_metadata"],
-                self.filenames["collected_data"],
-                self.filenames["config_file"],
-            ],
-            outputs=[]
         )
 
         self.counts["import_existing_annotations"] += 1
 
     def run(self, action=None, **kwargs):
 
-        if action == "import_database":
-            self._import_database()
-        elif action == "start_label_studio":
+        if action == "start_label_studio":
             self._start_label_studio()
         elif action == "create_labeling_config_xml":
             self._create_labeling_config_xml(**kwargs)
@@ -316,6 +256,6 @@ class LitLabelStudio(LightningFlow):
             self._import_existing_annotations(**kwargs)
 
     def on_exit(self):
-        # final save to drive
+        # final save
         _logger.info("SAVING DATA ONE LAST TIME")
         self._check_labeling_task_and_export(timer=0.0)

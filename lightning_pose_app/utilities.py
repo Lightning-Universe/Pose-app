@@ -1,8 +1,6 @@
 import cv2
 import glob
-from lightning.app import LightningWork
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
-from lightning.app.storage import FileSystem
 import logging
 import numpy as np
 import os
@@ -28,15 +26,6 @@ def args_to_dict(script_args: str) -> dict:
     return script_args_dict
 
 
-def dict_to_args(script_args_dict: dict) -> str:
-    """convert dict {'A':1, 'B':2} to str A=1 B=2 to """
-    script_args_array = []
-    for k,v in script_args_dict.items():
-        script_args_array.append(f"{k}={v}")
-    # return as a text
-    return " \n".join(script_args_array)
-
-
 class StreamlitFrontend(LitStreamlitFrontend):
     """Provide helpful print statements for where streamlit tabs are forwarded."""
 
@@ -50,70 +39,6 @@ class StreamlitFrontend(LitStreamlitFrontend):
         except:
             # on the cloud, args[0] = host, args[1] = port
             pass
-
-
-class WorkWithFileSystem(LightningWork):
-
-    def __init__(self, *args, name, **kwargs):
-
-        super().__init__(*args, **kwargs)
-
-        # uniquely identify prints
-        self.work_name = name
-
-        # initialize shared storage system
-        self._drive = FileSystem()
-
-    def get_from_drive(self, inputs, overwrite=True):
-        for i in inputs:
-            _logger.debug(f"{self.work_name.upper()} get {i}")
-            try:  # file may not be ready
-                src = i  # shared
-                dst = self.abspath(i)  # local
-                self._drive.get(src, dst, overwrite=overwrite)
-                _logger.debug(f"{self.work_name.upper()} data saved at {dst}")
-            except Exception as e:
-                _logger.debug(f"{self.work_name.upper()} did not load {i} from FileSystem: {e}")
-                continue
-
-    def put_to_drive(self, outputs):
-        for o in outputs:
-            _logger.debug(f"{self.work_name.upper()} drive try put {o}")
-            src = self.abspath(o)  # local
-            dst = o  # shared
-            # make sure dir ends with / so that put works correctly
-            if os.path.isdir(src):
-                src = os.path.join(src, "")
-                dst = os.path.join(dst, "")
-            # check to make sure file exists locally
-            if not os.path.exists(src):
-                continue
-            self._drive.put(src, dst)
-            _logger.debug(f"{self.work_name.upper()} drive success put {dst}")
-
-    @staticmethod
-    def abspath(path):
-        if path[0] == "/":
-            path_ = path[1:]
-        else:
-            path_ = path
-        return os.path.abspath(path_)
-
-
-def reencode_video(input_file: str, output_file: str) -> None:
-    """reencodes video into H.264 coded format using ffmpeg from a subprocess.
-
-    Args:
-        input_file: abspath to existing video
-        output_file: abspath to to new video
-
-    """
-    # check input file exists
-    assert os.path.isfile(input_file), "input video does not exist."
-    # check directory for saving outputs exists
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
-    subprocess.run(ffmpeg_cmd, shell=True)
 
 
 def check_codec_format(input_file: str) -> bool:
@@ -132,6 +57,61 @@ def check_codec_format(input_file: str) -> bool:
         # print('Video does not use H.264 codec')
         is_codec = False
     return is_codec
+
+
+def reencode_video(input_file: str, output_file: str) -> None:
+    """reencodes video into H.264 coded format using ffmpeg from a subprocess.
+
+    Args:
+        input_file: abspath to existing video
+        output_file: abspath to to new video
+
+    """
+    # check input file exists
+    assert os.path.isfile(input_file), "input video does not exist."
+    # check directory for saving outputs exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
+    subprocess.run(ffmpeg_cmd, shell=True)
+
+
+def copy_and_reformat_video(video_file: str, dst_dir: str, remove_old=True) -> str:
+    """Copy a single video, reformatting if necessary, and delete the original."""
+
+    src = video_file
+
+    # make sure copied vid has mp4 extension
+    dst = os.path.join(dst_dir, os.path.basename(video_file).replace(".avi", ".mp4"))
+
+    # check 0: do we even need to reformat?
+    if os.path.isfile(dst):
+        return dst
+
+    # check 1: does file exist?
+    if not os.path.exists(src):
+        _logger.info(f"{src} does not exist! skipping")
+        return None
+
+    # check 2: is file in the correct format for DALI?
+    video_file_correct_codec = check_codec_format(src)
+
+    # reencode/rename
+    if not video_file_correct_codec:
+        _logger.info(f"re-encoding {src} to be compatable with Lightning Pose video reader")
+        reencode_video(src, dst)
+        # remove old video
+        if remove_old:
+            os.remove(src)
+    else:
+        # make dir to write into
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        # rename
+        if remove_old:
+            os.rename(src, dst)
+        else:
+            shutil.copyfile(src, dst)
+
+    return dst
 
 
 def copy_and_reformat_video_directory(src_dir: str, dst_dir: str) -> None:
@@ -195,6 +175,114 @@ def get_frames_from_idxs(cap, idxs) -> np.ndarray:
     return frames
 
 
+def make_video_snippet(
+        video_file: str,
+        preds_file: str,
+        clip_length: int = 30,
+        likelihood_thresh: float = 0.9
+) -> str:
+
+    # save videos with csv file
+    save_dir = os.path.dirname(preds_file)
+
+    # load pose predictions
+    df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
+
+    # how large is the clip window?
+    video = cv2.VideoCapture(video_file)
+    fps = video.get(cv2.CAP_PROP_FPS)
+    win_len = int(fps * clip_length)
+
+    # make a `clip_length` second video clip that contains the highest keypoint motion energy
+    src = video_file
+    dst = os.path.join(save_dir, os.path.basename(video_file).replace(".mp4", ".short.mp4"))
+    if win_len >= df.shape[0]:
+        # short video, no need to shorten further. just copy existing video
+        shutil.copyfile(src, dst)
+    else:
+        # compute motion energy (averaged over keypoints)
+        kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
+        kps = kps_and_conf[:, :, :2]
+        conf = kps_and_conf[:, :, -1]
+        conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
+        kps[conf2 < likelihood_thresh] = np.nan
+        me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
+
+        # find window
+        df_me = pd.DataFrame({"me": np.concatenate([[0], me])})
+        df_me_win = df_me.rolling(window=win_len, center=False).mean()
+        # rolling places results in right edge of window, need to subtract this
+        clip_start_idx = df_me_win.me.argmax() - win_len
+        # convert to seconds
+        clip_start_sec = int(clip_start_idx / fps)
+        # if all predictions are bad, make sure we still create a valid snippet video
+        if np.isnan(clip_start_sec) or clip_start_sec < 0:
+            clip_start_sec = 0
+
+        # make clip
+        ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
+        subprocess.run(ffmpeg_cmd, shell=True)
+
+    return dst
+
+
+def get_frame_number(basename: str) -> tuple:
+    """img0000234.png -> (234, "img", ".png")"""
+    ext = basename.split(".")[-1]  # get base name
+    split_idx = None
+    for c_idx, c in enumerate(basename):
+        try:
+            int(c)
+            split_idx = c_idx
+            break
+        except ValueError:
+            continue
+    # remove prefix
+    prefix = basename[:split_idx]
+    idx = basename[split_idx:]
+    # remove file extension
+    idx = idx.replace(f".{ext}", "")
+    return int(idx), prefix, ext
+
+
+def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> bool:
+    """Starting from labeled data directory, determine if this is a context dataset or not."""
+    # loop over all labeled frames, break as soon as single frame fails
+    is_context = True
+    n_frames = 0
+    if os.path.isdir(labeled_data_dir):
+        for d in os.listdir(labeled_data_dir):
+            frames_in_dir_file = os.path.join(labeled_data_dir, d, selected_frames_filename)
+            if not os.path.exists(frames_in_dir_file):
+                continue
+            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
+            print(frames_in_dir)
+            for frame in frames_in_dir:
+                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
+                # get the frames -> t-2, t-1, t, t+1, t + 2
+                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
+                print(list_idx)
+                for fr_num in list_idx:
+                    # replace frame number with 0 if we're at the beginning of the video
+                    fr_num = max(0, fr_num)
+                    # split name into pieces
+                    img_pieces = frame.split("/")
+                    # figure out length of integer
+                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
+                    # replace original frame number with context frame number
+                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
+                    img_name = "/".join(img_pieces)
+                    if not os.path.exists(os.path.join(labeled_data_dir, d, img_name)):
+                        is_context = False
+                        break
+                    else:
+                        n_frames += 1
+    # set to False if we didn't find any frames
+    if n_frames == 0:
+        is_context = False
+    return is_context
+
+
 def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
     """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
 
@@ -207,17 +295,13 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
             df_tmp = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
             if len(df_tmp.index.unique()) != df_tmp.shape[0]:
                 # new DLC labeling scheme that splits video/image in different cells
-                vids = df_tmp.loc[
-                       :, ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")]
-                imgs = df_tmp.loc[
-                       :, ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")]
+                levels1 = ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")
+                vids = df_tmp.loc[:, levels1]
+                levels2 = ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")
+                imgs = df_tmp.loc[:, levels2]
                 new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                df_tmp1 = df_tmp.drop(
-                    ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2"), axis=1,
-                )
-                df_tmp2 = df_tmp1.drop(
-                    ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2"), axis=1,
-                )
+                df_tmp1 = df_tmp.drop(levels1, axis=1)
+                df_tmp2 = df_tmp1.drop(levels2, axis=1)
                 df_tmp2.index = new_col
                 df_tmp = df_tmp2
         except IndexError:
@@ -226,7 +310,7 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
                     os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
                 )[0]
                 df_tmp = pd.read_hdf(h5_file)
-                if type(df_tmp.index) == pd.core.indexes.multi.MultiIndex:
+                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):
                     # new DLC labeling scheme that splits video/image in different cells
                     imgs = [i[2] for i in df_tmp.index]
                     vids = [df_tmp.index[0][1] for _ in imgs]
@@ -243,3 +327,11 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
     df_all = pd.concat(dfs)
 
     return df_all
+
+
+def abspath(path):
+    if path[0] == "/":
+        path_ = path[1:]
+    else:
+        path_ = path
+    return os.path.abspath(path_)

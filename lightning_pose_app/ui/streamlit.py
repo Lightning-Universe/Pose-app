@@ -1,9 +1,8 @@
 from lightning.app import CloudCompute, LightningFlow
 import os
 
-from lightning_pose_app import MODELS_DIR
+from lightning_pose_app import MODELS_DIR, LIGHTNING_POSE_DIR
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.build_configs import LitPoseBuildConfig, lightning_pose_dir
 
 
 class StreamlitAppLightningPose(LightningFlow):
@@ -14,9 +13,7 @@ class StreamlitAppLightningPose(LightningFlow):
         super().__init__(*args, **kwargs)
 
         self.work = LitBashWork(
-            name=f"streamlit_{app_type}",
             cloud_compute=CloudCompute("default"),
-            cloud_build_config=LitPoseBuildConfig(),  # this may not be necessary
         )
 
         # choose labeled frame or video option
@@ -52,21 +49,9 @@ class StreamlitAppLightningPose(LightningFlow):
                 + " -- " \
                 + " " + model_dir_args
 
-            self.work.run(cmd, cwd=lightning_pose_dir, wait_for_exit=False)
-
-    def pull_models(self, **kwargs):
-        inputs = kwargs.get("inputs", None)
-        if inputs:
-            self.work.run(
-                "null command",
-                cwd=os.getcwd(),
-                input_output_only=True,  # pull inputs from Drive, but do not run commands
-                inputs=inputs,
-            )
+            self.work.run(cmd, cwd=LIGHTNING_POSE_DIR, wait_for_exit=False)
 
     def run(self, action, **kwargs):
 
         if action == "initialize":
             self.initialize(**kwargs)
-        elif action == "pull_models":
-            self.pull_models(**kwargs)

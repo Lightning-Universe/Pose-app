@@ -25,7 +25,7 @@ def retry(func):
             try:
                 return func(*args, **kwargs)
             except:
-                _logging.debug("Could not execute {}, retrying in one second...".format(func.__name__))
+                _logger.debug(f"Could not execute {func.__name__}, retrying in one second...")
                 attempts += 1
                 time.sleep(1)
                 if attempts > MAX_CONNECT_ATTEMPTS:
@@ -128,8 +128,7 @@ class LabelStudioJSONProcessor:
         width, height = result['original_width'], result['original_height']
 
         if all([key in value for key in ['x', 'y']]):  # if both x and y are in the dict
-            return width * value['x'] / 100.0, \
-                   height * value['y'] / 100.0
+            return width * value['x'] / 100.0, height * value['y'] / 100.0
 
     def __call__(self) -> pd.DataFrame:
         """Build a dataframe with the keypoint names as columns and the image paths as the index"""
@@ -156,6 +155,10 @@ class LabelStudioJSONProcessor:
 def get_rel_image_paths_from_idx_files(basedir: str) -> List[str]:
     img_list = []
     for root, dirs, files in os.walk(basedir):
+        if LABELED_DATA_DIR not in root:
+            # make sure we only look in the labeled data directory
+            # if we do not do this we risk uploading info from temp dirs too
+            continue
         for file in files:
             if file == SELECTED_FRAMES_FILENAME:
                 abspath = os.path.join(root, file)
