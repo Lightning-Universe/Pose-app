@@ -56,6 +56,16 @@ def test_extract_frames_work(video_file, tmpdir):
     )
     assert len(os.listdir(save_dir_1)) == 5 * len(idxs)
 
+    save_dir_2 = os.path.join(str(tmpdir), 'labeled-frames-2')
+    idxs = np.array([10])  # try with single frame
+    work._export_frames(
+        video_file=video_file,
+        save_dir=save_dir_2,
+        frame_idxs=idxs,
+        context_frames=2,  # 2-frame context
+    )
+    assert len(os.listdir(save_dir_2)) == 5 * len(idxs)
+
     # -----------------
     # extract frames
     # -----------------

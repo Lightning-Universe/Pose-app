@@ -30,7 +30,12 @@ class ExtractFramesWork(LightningWork):
         self.progress_delta = 0.5
         self.work_is_done_extract_frames = False
 
-    def _read_nth_frames(self, video_file, n=1, resize_dims=64):
+    def _read_nth_frames(
+        self,
+        video_file: str,
+        n: int = 1,
+        resize_dims: int = 64,
+    ) -> np.ndarray:
 
         from tqdm import tqdm
 
@@ -73,12 +78,12 @@ class ExtractFramesWork(LightningWork):
 
     def _select_frame_idxs(
         self,
-        video_file,
-        resize_dims=64,
-        n_clusters=20,
-        frame_skip=1,
-        frame_range=[0, 1],
-    ):
+        video_file: str,
+        resize_dims: int = 64,
+        n_clusters: int = 20,
+        frame_skip: int = 1,
+        frame_range: list = [0, 1],
+    ) -> np.ndarray:
 
         # check inputs
         if frame_skip != 1:
@@ -138,7 +143,7 @@ class ExtractFramesWork(LightningWork):
         format: str = "png",
         n_digits: int = 8,
         context_frames: int = 0,
-    ):
+    ) -> None:
         """
 
         Parameters
@@ -157,7 +162,7 @@ class ExtractFramesWork(LightningWork):
         # expand frame_idxs to include context frames
         if context_frames > 0:
             context_vec = np.arange(-context_frames, context_frames + 1)
-            frame_idxs = (frame_idxs.squeeze()[None, :] + context_vec[:, None]).flatten()
+            frame_idxs = (frame_idxs[None, :] + context_vec[:, None]).flatten()
             frame_idxs.sort()
             frame_idxs = frame_idxs[frame_idxs >= 0]
             frame_idxs = frame_idxs[frame_idxs < int(cap.get(cv2.CAP_PROP_FRAME_COUNT))]
@@ -174,7 +179,13 @@ class ExtractFramesWork(LightningWork):
                 img=frame[0],
             )
 
-    def _extract_frames(self, video_file, proj_dir, n_frames_per_video, frame_range=[0, 1]):
+    def _extract_frames(
+        self,
+        video_file: str,
+        proj_dir: str,
+        n_frames_per_video: int,
+        frame_range: list = [0, 1],
+    ) -> None:
 
         _logger.info(f"============== extracting frames from {video_file} ================")
 
@@ -240,7 +251,11 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def _unzip_frames(self, video_file, proj_dir):
+    def _unzip_frames(
+        self,
+        video_file: str,
+        proj_dir: str,
+    ) -> None:
 
         _logger.info(f"============== unzipping frames from {video_file} ================")
 
