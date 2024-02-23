@@ -683,7 +683,7 @@ def _render_streamlit_fn(state: AppState):
         if st_n_views > 0:
             st.divider()
             st.markdown("##### Define keypoints")
-            e1 = st.expander("Expand to see an exemple")
+            e1 = st.expander("Expand to see an example")
             keypoint_instructions = """
                 **Instructions**:
                 If your data has multiple views, make sure to create an entry for each bodypart
@@ -754,7 +754,7 @@ def _render_streamlit_fn(state: AppState):
         if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
-            e3 = st.expander("Expand for further instractions")
+            e3 = st.expander("Expand for further instructions")
             e3.markdown("""
                 Select the same body part from different POV's.
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.
