@@ -729,7 +729,7 @@ def _render_streamlit_fn(state: AppState):
             #     The subset should be keypoints that are not usually occluded (such as a tongue)
             #     and are not static (such as the corner of a box).
             # """)
-            e2 = st.expander("Expend for further instractions")
+            e2 = st.expander("Expand for further instructions")
             e2.markdown("""
                 **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
                 * **Selecting points with consistent visibility**, avoiding those prone to
