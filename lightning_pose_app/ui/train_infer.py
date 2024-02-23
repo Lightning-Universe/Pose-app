@@ -422,7 +422,7 @@ class LitPose(LightningWork):
     @staticmethod
     def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
 
-        from lightning_pose.utils.fiftyone import FiftyOneFactory, check_dataset
+        from lightning_pose.utils.fiftyone import FiftyOneImagePlotter, check_dataset
         from omegaconf import DictConfig
 
         # load config (absolute path)
@@ -443,8 +443,7 @@ class LitPose(LightningWork):
         cfg.eval.hydra_paths = [results_dir]
 
         # build dataset
-        FiftyOneClass = FiftyOneFactory(dataset_to_create="images")()
-        fo_plotting_instance = FiftyOneClass(cfg=cfg)
+        fo_plotting_instance = FiftyOneImagePlotter(cfg=cfg)
         dataset = fo_plotting_instance.create_dataset()
         # create metadata and print if there are problems
         check_dataset(dataset)
