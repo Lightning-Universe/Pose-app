@@ -250,32 +250,33 @@ def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> 
     # loop over all labeled frames, break as soon as single frame fails
     is_context = True
     n_frames = 0
-    for d in os.listdir(labeled_data_dir):
-        frames_in_dir_file = os.path.join(labeled_data_dir, d, selected_frames_filename)
-        if not os.path.exists(frames_in_dir_file):
-            continue
-        frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
-        print(frames_in_dir)
-        for frame in frames_in_dir:
-            idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
-            # get the frames -> t-2, t-1, t, t+1, t + 2
-            list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
-            print(list_idx)
-            for fr_num in list_idx:
-                # replace frame number with 0 if we're at the beginning of the video
-                fr_num = max(0, fr_num)
-                # split name into pieces
-                img_pieces = frame.split("/")
-                # figure out length of integer
-                int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
-                # replace original frame number with context frame number
-                img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
-                img_name = "/".join(img_pieces)
-                if not os.path.exists(os.path.join(labeled_data_dir, d, img_name)):
-                    is_context = False
-                    break
-                else:
-                    n_frames += 1
+    if os.path.isdir(labeled_data_dir):
+        for d in os.listdir(labeled_data_dir):
+            frames_in_dir_file = os.path.join(labeled_data_dir, d, selected_frames_filename)
+            if not os.path.exists(frames_in_dir_file):
+                continue
+            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
+            print(frames_in_dir)
+            for frame in frames_in_dir:
+                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
+                # get the frames -> t-2, t-1, t, t+1, t + 2
+                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
+                print(list_idx)
+                for fr_num in list_idx:
+                    # replace frame number with 0 if we're at the beginning of the video
+                    fr_num = max(0, fr_num)
+                    # split name into pieces
+                    img_pieces = frame.split("/")
+                    # figure out length of integer
+                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
+                    # replace original frame number with context frame number
+                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
+                    img_name = "/".join(img_pieces)
+                    if not os.path.exists(os.path.join(labeled_data_dir, d, img_name)):
+                        is_context = False
+                        break
+                    else:
+                        n_frames += 1
     # set to False if we didn't find any frames
     if n_frames == 0:
         is_context = False

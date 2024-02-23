@@ -152,6 +152,12 @@ def test_is_context_dataset(tmp_proj_dir):
         selected_frames_filename=os.path.basename(new_csv_file),
     )
 
+    # test should fail if labeled frame directory does not exist
+    assert not is_context_dataset(
+        labeled_data_dir=os.path.join(labeled_data_dir, "nonexistent_directory"),
+        selected_frames_filename=SELECTED_FRAMES_FILENAME,
+    )
+
 
 def test_abspath():
 
