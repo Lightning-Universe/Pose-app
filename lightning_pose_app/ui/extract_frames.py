@@ -528,6 +528,29 @@ def _render_streamlit_fn(state: AppState):
     VIDEO_MODEL_STR = "Upload videos and automatically extract frames using a given model"
 
     # TODO: implement find_models
+
+    @st.cache_resource
+    # def find_models(model_dir):
+    #     trained_models = []
+    #     # this returns a list of model training days
+    #     dirs_day = os.listdir(model_dir)
+    #     # loop over days and find HH-MM-SS
+    #     for dir_day in dirs_day:
+    #         fullpath1 = os.path.join(model_dir, dir_day)
+    #         dirs_time = os.listdir(fullpath1)
+    #         for dir_time in dirs_time:
+    #             fullpath2 = os.path.join(fullpath1, dir_time)
+    #             trained_models.append('/'.join(fullpath2.split('/')[-2:]))
+    #     return trained_models
+
+
+    def find_models(proj_dir):
+        model_dir = os.path.join(proj_dir, 'full_multiModels')
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)  # Or alternatively, raise a more informative error
+            return []
+        dirs_day = os.listdir(model_dir)
+        
     models_list = find_models(state.proj_dir)
     if len(models_list) == 0:
         options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
