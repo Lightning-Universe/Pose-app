@@ -37,6 +37,11 @@ class ExtractFramesWork(LightningWork):
         self.progress_delta = 0.5
         self.work_is_done_extract_frames = False
 
+        # updated externally by parent app
+        self.trained_models = []
+        self.proj_dir = None
+        self.config_dict = None
+
     def _read_nth_frames(
         self,
         video_file: str,
@@ -529,29 +534,27 @@ def _render_streamlit_fn(state: AppState):
 
     # TODO: implement find_models
 
-    @st.cache_resource
+    #@st.cache_resource
     # def find_models(model_dir):
     #     trained_models = []
     #     # this returns a list of model training days
     #     dirs_day = os.listdir(model_dir)
     #     # loop over days and find HH-MM-SS
     #     for dir_day in dirs_day:
-    #         fullpath1 = os.path.join(model_dir, dir_day)
+    #         fullpath1 = os.path.join(abspath(model_dir), abspath(dir_day))
     #         dirs_time = os.listdir(fullpath1)
     #         for dir_time in dirs_time:
     #             fullpath2 = os.path.join(fullpath1, dir_time)
     #             trained_models.append('/'.join(fullpath2.split('/')[-2:]))
     #     return trained_models
-
-
-    def find_models(proj_dir):
-        model_dir = os.path.join(proj_dir, 'full_multiModels')
-        if not os.path.exists(model_dir):
-            os.makedirs(model_dir)  # Or alternatively, raise a more informative error
-            return []
-        dirs_day = os.listdir(model_dir)
         
-    models_list = find_models(state.proj_dir)
+    model1_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-01_semisuper'
+    model2_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-02_super-ctx'
+    model3_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-03_semisuper-ctx'
+    
+    # fake model list for testing the UI
+    models_list = [model1_path,model2_path,model3_path]
+
     if len(models_list) == 0:
         options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
     else:
@@ -756,18 +759,21 @@ def _render_streamlit_fn(state: AppState):
                - find all .mp4 files 
                - skip videos with the string ".short.mp4"
         make sure to return model directory as the variable "model_dir", which gets stored below
+        """
+        # base_model_dir = abspath(os.path.join(state.proj_dir, MODEL_DIR, model_name))
+        # files = os.listdir(base_model_dir)
+        # good_files = []
+        # for file for files:
+        #     if f.endswith(".mp4") and not f.endswith(".short.mp4"):
+        #         good_files.append(file)
 
-        base_model_dir = abspath(os.path.join(state.proj_dir, MODEL_DIR, model_name))
-        files = os.listdir(base_model_dir)
-        good_files = []
-        for file for files:
-            if f.endswith(".mp4") and not f.endswith(".short.mp4"):
-                good_files.append(file)
+        # # good_files is the list we want to show the user
 
-        # good_files is the list we want to show the user
+        # mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
 
-        mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
 
+
+        """
         # allow user to select multiple videos
         # the result is called "st_videos"
         
@@ -778,16 +784,136 @@ def _render_streamlit_fn(state: AppState):
         """
 
         # NOTE: everything below might be ok?
-        if st_submit_button_model_frames:
-            state.st_submits += 1
+        # if st_submit_button_model_frames:
+        #     state.st_submits += 1
 
-            base_rel_path = os.path.join(
-                state.proj_dir, MODEL_DIR, model_name, MODEL_VIDEO_PREDS_INFER_DIR)
-            state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
-            state.model_dir = model_dir
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            st.text("Request submitted!")
-            state.run_script_video_model = True  # must the last to prevent race condition
+        #     base_rel_path = os.path.join(
+        #         state.proj_dir, MODEL_DIR, model_name, MODEL_VIDEO_PREDS_INFER_DIR)
+        #     state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+        #     state.model_dir = model_dir
+        #     state.st_extract_status = {s: 'initialized' for s in st_videos}
+        #     st.text("Request submitted!")
+        #     state.run_script_video_model = True  # must the last to prevent race condition
 
             # force rerun to show "waiting for existing..." message
+        #st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+                # def model_and_video_selector(models_list):
+
+        #     if models_list:
+        #         # Extract model names from the full paths
+        #         model_names = [os.path.basename(model_path) for model_path in models_list]
+                
+        #         # Create a mapping from model names to their full paths
+        #         model_name_to_path = dict(zip(model_names, models_list))
+                
+        #         # Create a selectbox widget with the list of model names
+        #         selected_model_name = st.selectbox("Select a model", model_names)
+                
+        #         # Retrieve the full path of the selected model
+        #         selected_model_path = model_name_to_path[selected_model_name]
+
+        #         # Directory where inference results are stored
+        #         video_preds_infer_dir = os.path.join(selected_model_path, "video_preds_infer")
+                
+        #         # List all .mp4 files excluding those with ".short.mp4"
+        #         available_videos = [f for f in os.listdir(video_preds_infer_dir) if f.endswith(".mp4") and not f.endswith(".short.mp4")]
+                
+        #         if available_videos:
+        #             # Show a dropdown menu with available videos
+        #             selected_video_name = st.selectbox("Select an available video", available_videos)
+        #             selected_video_path = os.path.join(video_preds_infer_dir, selected_video_name)
+        #         else:
+        #             st.write("No available videos for the selected model.")
+        #             selected_video_path = None
+
+        #         return selected_model_path, selected_video_path
+        #     else:
+        #         st.write("No models available.")
+        #         return None, None
+
+        # selected_model_path, selected_video_path = model_and_video_selector(models_list)
+
+        # if selected_model_path and selected_video_path:
+        #     # Increment the submission counter if a model and video have been selected
+        #     state.st_submits += 1
+
+        #     # Update the state with the selected model directory
+        #     state.model_dir = selected_model_path
+
+        #     state.selected_video_path = selected_video_path
+
+        #     # Initialize or update the extraction status for the selected video
+        #     state.st_extract_status[selected_video_path] = 'initialized'
+            
+        #     # Display a confirmation message
+        #     st.text("Request submitted!")
+
+        #     # Set a flag to indicate that the video model script should run
+        #     state.run_script_video_model = True
+
+        #     # Force rerun to show "waiting for existing..." message
+        #     st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+
+
+
+        ##############################################################################
+
+        def model_and_video_selector(models_list):
+            if not models_list:
+                st.write("No models available.")
+                return None, None
+
+            # Simplified the mapping creation by directly using the list for dropdown
+            selected_model_path = st.selectbox("Select a model", models_list, format_func=lambda x: os.path.basename(x))
+            
+            # Check if the selected model's directory exists to prevent errors
+            video_preds_infer_dir = os.path.join(selected_model_path, "video_preds_infer")
+            if not os.path.isdir(video_preds_infer_dir):
+                st.write("Inference results directory not found for the selected model.")
+                return selected_model_path, None
+
+            # Use try-except to handle potential os.listdir errors
+            try:
+                available_videos = [f for f in os.listdir(video_preds_infer_dir) if f.endswith(".mp4") and ".short.mp4" not in f]
+            except Exception as e:
+                st.write(f"Failed to list videos: {e}")
+                return selected_model_path, None
+
+            if not available_videos:
+                st.write("No available videos for the selected model.")
+                return selected_model_path, None
+
+            # Show a dropdown menu with available videos
+            selected_video_name = st.selectbox("Select an available video", available_videos)
+            selected_video_path = os.path.join(video_preds_infer_dir, selected_video_name)
+
+            return selected_model_path, selected_video_path
+
+        # After selecting the model and video
+
+        selected_model_path, selected_video_path = model_and_video_selector(models_list)
+
+        if selected_model_path and selected_video_path:
+            state.st_submits += 1 if hasattr(state, 'st_submits') else 1
+
+            # Safely update the state with selected model and video paths
+            setattr(state, 'model_dir', selected_model_path)
+            setattr(state, 'selected_video_path', selected_video_path)
+
+            # Update extraction status, initializing the attribute if it doesn't exist
+            if not hasattr(state, 'st_extract_status'):
+                setattr(state, 'st_extract_status', {})
+            state.st_extract_status[selected_video_path] = 'initialized'
+
+            st.text("Request submitted!")
+            state.run_script_video_model = True  # Ensure this attribute exists or is safely set
+
+            # Force rerun to refresh the Streamlit app interface
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+
+
+
+
