@@ -1,7 +1,6 @@
 import copy
 import glob
 from lightning.app import LightningFlow
-from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 import logging
 import math
@@ -213,7 +212,6 @@ class ProjectUI(LightningFlow):
 
         try:
             proj_details = yaml.safe_load(open(abspath(metadata_file), "r"))
-            proj_details = yaml.safe_load(open(abspath(metadata_file), "r"))
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
@@ -360,7 +358,6 @@ class ProjectUI(LightningFlow):
         if os.path.exists(self.proj_dir_abs):
             shutil.rmtree(self.proj_dir_abs)
 
-        # TODO: how to delete from label studio db?
         # TODO: how to delete from label studio db?
 
         # update project info
@@ -623,9 +620,7 @@ def _render_streamlit_fn(state: AppState):
         st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
                    "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
                    unsafe_allow_html=True)
-        st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
-                   "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
-                   unsafe_allow_html=True)
+                   
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
