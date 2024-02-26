@@ -13,7 +13,6 @@ import sys
 import yaml
 
 from lightning_pose_app.bashwork import LitBashWork
-from lightning_pose_app.ui.fifty_one import FiftyoneConfigUI
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
 from lightning_pose_app.ui.streamlit_video_viewer import StreamlitVideoViewer
@@ -54,8 +53,10 @@ class LitPoseApp(LightningFlow):
         self.train_ui.n_labeled_frames = 90  # hard-code these values for now
         self.train_ui.n_total_frames = 90
 
-        # fiftyone tab (flow + work)
-        self.fiftyone_ui = FiftyoneConfigUI()
+        # fiftyone tab (work)
+        self.fiftyone = LitBashWork(
+            cloud_compute=CloudCompute("default"),
+        )
 
         # streamlit tabs (flow + work)
         self.streamlit_frame = StreamlitAppLightningPose(app_type="frame")
@@ -125,26 +126,20 @@ class LitPoseApp(LightningFlow):
         except IOError as e:
             _logger.warning(f"Unable to copy directory. {e}")
 
-    # @property
-    # def ready(self) -> bool:
-    #     """Return true once all works have an assigned url"""
-    #     return all([
-    #         self.fiftyone_ui.work.url != "",
-    #         self.streamlit_frame.work.url != "",
-    #         self.streamlit_video.work.url != "",
-    #         self.train_ui.work.url != "",
-    #     ])
-
     def start_tensorboard(self, logdir):
         """run tensorboard"""
         cmd = f"tensorboard --logdir {logdir} --host $host --port $port --reload_interval 30"
         self.tensorboard.run(cmd, wait_for_exit=False, cwd=os.getcwd())
 
+    def start_fiftyone(self):
+        """run fiftyone"""
+        cmd = "fiftyone app launch --address $host --port $port --remote --wait -1"
+        self.fiftyone.run(cmd, wait_for_exit=False, cwd=os.getcwd())
+
     def update_trained_models_list(self, timer):
         self.project_ui.run(action="update_trained_models_list", timer=timer)
         if self.project_ui.trained_models:
             self.train_ui.trained_models = self.project_ui.trained_models
-            self.fiftyone_ui.trained_models = self.project_ui.trained_models
 
     def run(self):
 
@@ -184,7 +179,7 @@ class LitPoseApp(LightningFlow):
             # update config file
             self.project_ui.run(
                 action="update_project_config",
-                new_vals_dict={"data": {  # TODO: will this work on cloud?
+                new_vals_dict={"data": {
                     "data_dir": os.path.join(os.getcwd(), self.project_ui.proj_dir)[1:]}
                 },
             )
@@ -198,12 +193,9 @@ class LitPoseApp(LightningFlow):
 
         # start background services (only run once)
         self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
+        self.start_fiftyone()
         self.streamlit_frame.run(action="initialize")
         self.streamlit_video.run(action="initialize")
-        self.fiftyone_ui.run(action="start_fiftyone")
-
-        # find previously constructed fiftyone datasets
-        self.fiftyone_ui.run(action="find_fiftyone_datasets")
 
         # -------------------------------------------------------------
         # train models on ui button press
@@ -227,13 +219,6 @@ class LitPoseApp(LightningFlow):
                 video_files=self.train_ui.st_inference_videos,  # add arg for run caching purposes
             )
             self.train_ui.run_script_infer = False
-
-        # -------------------------------------------------------------
-        # build fiftyone dataset on button press from FiftyoneUI
-        # -------------------------------------------------------------
-        if self.fiftyone_ui.run_script:
-            self.fiftyone_ui.run(action="build_fiftyone_dataset")
-            self.fiftyone_ui.run_script = False
 
     def configure_layout(self):
 

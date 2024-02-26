@@ -9,7 +9,6 @@ from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 import lightning.pytorch as pl
 import logging
-import numpy as np
 import os
 import shutil
 import streamlit as st
@@ -20,8 +19,13 @@ from lightning_pose_app import VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
 from lightning_pose_app import LABELED_DATA_DIR, MODELS_DIR, SELECTED_FRAMES_FILENAME
 from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.build_configs import LitPoseBuildConfig
-from lightning_pose_app.utilities import StreamlitFrontend
-from lightning_pose_app.utilities import copy_and_reformat_video, make_video_snippet, abspath
+from lightning_pose_app.utilities import (
+    StreamlitFrontend,
+    abspath,
+    copy_and_reformat_video,
+    is_context_dataset,
+    make_video_snippet,
+)
 
 
 _logger = logging.getLogger('APP.TRAIN_INFER')
@@ -287,7 +291,7 @@ class LitPose(LightningWork):
             OmegaConf.save(config=cfg, f=fp.name)
 
         # remove lightning logs
-        shutil.rmtree(os.path.join(results_dir, "lightning_logs"))
+        shutil.rmtree(os.path.join(results_dir, "lightning_logs"), ignore_errors=True)
 
         os.chdir(self.pwd)
 
@@ -327,7 +331,11 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
 
         # check: does file exist?
-        video_file_abs = abspath(video_file)
+        # check: does file exist?
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"video file exists? {video_file_exists}")
         if not video_file_exists:
@@ -411,14 +419,47 @@ class LitPose(LightningWork):
         # set flag for parent app
         self.work_is_done_inference = True
 
+    @staticmethod
+    def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
+
+        from lightning_pose.utils.fiftyone import FiftyOneImagePlotter, check_dataset
+        from omegaconf import DictConfig
+
+        # load config (absolute path)
+        cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
+
+        # update config with user-provided overrides (this is mostly for unit testing)
+        for key1, val1 in config_overrides.items():
+            for key2, val2 in val1.items():
+                cfg[key1][key2] = val2
+
+        # edit config
+        cfg.data.data_dir = os.path.join(os.getcwd(), cfg.data.data_dir)
+        model_dir = "/".join(results_dir.split("/")[-2:])
+        # get project name from config file, assuming first part is model_config_
+        proj_name = os.path.basename(config_file).split(".")[0][13:]
+        cfg.eval.fiftyone.dataset_name = f"{proj_name}_{model_dir}"
+        cfg.eval.fiftyone.model_display_names = [model_dir.split("_")[-1]]
+        cfg.eval.hydra_paths = [results_dir]
+
+        # build dataset
+        fo_plotting_instance = FiftyOneImagePlotter(cfg=cfg)
+        dataset = fo_plotting_instance.create_dataset()
+        # create metadata and print if there are problems
+        check_dataset(dataset)
+        # print the name of the dataset
+        fo_plotting_instance.dataset_info_print()
+
     def run(self, action=None, **kwargs):
         if action == "train":
             self._train(**kwargs)
+            self._make_fiftyone_dataset(**kwargs)
         elif action == "run_inference":
             proj_dir = '/'.join(kwargs["model_dir"].split('/')[:3])
             new_vid_file = copy_and_reformat_video(
                 video_file=abspath(kwargs["video_file"]),
                 dst_dir=abspath(os.path.join(proj_dir, VIDEOS_INFER_DIR)),
+                remove_old=kwargs.pop("remove_old", True),
             )
             # save relative rather than absolute path
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
@@ -510,7 +551,6 @@ class TrainUI(LightningFlow):
             },
             "model": {  # update these below if necessary
                 "model_type": "heatmap",
-                "do_context": False,
             },
             "training": {
                 "imgaug": "dlc",
@@ -537,7 +577,7 @@ class TrainUI(LightningFlow):
 
         self.submit_count_train += 1
 
-    def _run_inference(self, model_dir=None, video_files=None):
+    def _run_inference(self, model_dir=None, video_files=None, testing=False):
 
         self.work_is_done_inference = False
 
@@ -562,6 +602,7 @@ class TrainUI(LightningFlow):
                     action="run_inference",
                     model_dir=model_dir,
                     video_file="/" + video_file,
+                    remove_old=not testing,  # remove bad format file by default
                 )
                 self.st_infer_status[video_file] = "complete"
 
@@ -572,7 +613,8 @@ class TrainUI(LightningFlow):
                         and self.works_dict[video_key].work_is_done_inference:
                     # kill work
                     _logger.info(f"killing work from video {video_key}")
-                    self.works_dict[video_key].stop()
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
         # set flag for parent app
@@ -580,48 +622,10 @@ class TrainUI(LightningFlow):
 
     def _determine_dataset_type(self, **kwargs):
         """Check if labeled data directory contains context frames."""
-
-        def get_frame_number(basename):
-            ext = basename.split(".")[-1]  # get base name
-            split_idx = None
-            for c_idx, c in enumerate(basename):
-                try:
-                    int(c)
-                    split_idx = c_idx
-                    break
-                except ValueError:
-                    continue
-            # remove prefix
-            prefix = basename[:split_idx]
-            idx = basename[split_idx:]
-            # remove file extension
-            idx = idx.replace(f".{ext}", "")
-            return int(idx), prefix, ext
-
-        # loop over all labeled frames, break as soon as single frame fails
-        dst = os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR)
-        for d in os.listdir(dst):
-            frames_in_dir_file = os.path.join(dst, d, SELECTED_FRAMES_FILENAME)
-            if not os.path.exists(frames_in_dir_file):
-                continue
-            frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
-            for frame in frames_in_dir:
-                idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
-                # get the frames -> t-2, t-1, t, t+1, t + 2
-                list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
-                for fr_num in list_idx:
-                    # replace frame number with 0 if we're at the beginning of the video
-                    fr_num = max(0, fr_num)
-                    # split name into pieces
-                    img_pieces = frame.split("/")
-                    # figure out length of integer
-                    int_len = len(img_pieces[-1].replace(f".{ext}", "").replace(prefix, ""))
-                    # replace original frame number with context frame number
-                    img_pieces[-1] = f"{prefix}{str(fr_num).zfill(int_len)}.{ext}"
-                    img_name = "/".join(img_pieces)
-                    if not os.path.exists(os.path.join(dst, d, img_name)):
-                        self.allow_context = False
-                        break
+        self.allow_context = is_context_dataset(
+            labeled_data_dir=os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR),
+            selected_frames_filename=SELECTED_FRAMES_FILENAME,
+        )
 
     def run(self, action, **kwargs):
         if action == "train":

@@ -56,6 +56,16 @@ def test_extract_frames_work(video_file, tmpdir):
     )
     assert len(os.listdir(save_dir_1)) == 5 * len(idxs)
 
+    save_dir_2 = os.path.join(str(tmpdir), 'labeled-frames-2')
+    idxs = np.array([10])  # try with single frame
+    work._export_frames(
+        video_file=video_file,
+        save_dir=save_dir_2,
+        frame_idxs=idxs,
+        context_frames=2,  # 2-frame context
+    )
+    assert len(os.listdir(save_dir_2)) == 5 * len(idxs)
+
     # -----------------
     # extract frames
     # -----------------
@@ -74,7 +84,7 @@ def test_extract_frames_work(video_file, tmpdir):
     assert len(os.listdir(video_dir)) > n_frames_per_video
     assert os.path.exists(os.path.join(video_dir, SELECTED_FRAMES_FILENAME))
     assert work.work_is_done_extract_frames
-    
+
     # -----------------
     # unzip frames
     # -----------------
@@ -101,7 +111,7 @@ def test_extract_frames_work(video_file, tmpdir):
     new_video_path = os.path.join(tmpdir, new_video_name)
     zipped_file = new_video_path + ".zip"
     shutil.make_archive(new_video_path, "zip", dst)
-    
+
     # test unzip frames
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, new_video_name)
@@ -118,6 +128,11 @@ def test_extract_frames_work(video_file, tmpdir):
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_to_zip
     assert work.work_is_done_extract_frames
+
+    # -----------------
+    # cleanup
+    # -----------------
+    del work
 
 
 def test_extract_frames_ui(root_dir, tmp_proj_dir):
@@ -165,3 +180,8 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     # unzip frames
     # -------------------
     # TODO
+
+    # -----------------
+    # cleanup
+    # -----------------
+    del flow

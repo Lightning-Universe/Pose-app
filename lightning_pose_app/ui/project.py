@@ -1,6 +1,7 @@
 import copy
 import glob
 from lightning.app import LightningFlow
+from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 import logging
 import math
@@ -212,6 +213,7 @@ class ProjectUI(LightningFlow):
 
         try:
             proj_details = yaml.safe_load(open(abspath(metadata_file), "r"))
+            proj_details = yaml.safe_load(open(abspath(metadata_file), "r"))
             n_labeled_frames = proj_details["n_labeled_tasks"]
             n_total_frames = proj_details["n_total_tasks"]
         except FileNotFoundError:
@@ -358,6 +360,7 @@ class ProjectUI(LightningFlow):
         if os.path.exists(self.proj_dir_abs):
             shutil.rmtree(self.proj_dir_abs)
 
+        # TODO: how to delete from label studio db?
         # TODO: how to delete from label studio db?
 
         # update project info
@@ -620,6 +623,9 @@ def _render_streamlit_fn(state: AppState):
         st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
                    "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
                    unsafe_allow_html=True)
+        st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
+                   "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
+                   unsafe_allow_html=True)
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
@@ -683,7 +689,7 @@ def _render_streamlit_fn(state: AppState):
         if st_n_views > 0:
             st.divider()
             st.markdown("##### Define keypoints")
-            e1 = st.expander("Expand to see an exemple")
+            e1 = st.expander("Expand to see an example")
             keypoint_instructions = """
                 **Instructions**:
                 If your data has multiple views, make sure to create an entry for each bodypart
@@ -729,7 +735,7 @@ def _render_streamlit_fn(state: AppState):
             #     The subset should be keypoints that are not usually occluded (such as a tongue)
             #     and are not static (such as the corner of a box).
             # """)
-            e2 = st.expander("Expend for further instractions")
+            e2 = st.expander("Expand for further instructions")
             e2.markdown("""
                 **When selecting keypoints for Pose PCA on unlabeled videos, focus on**:
                 * **Selecting points with consistent visibility**, avoiding those prone to
@@ -754,7 +760,7 @@ def _render_streamlit_fn(state: AppState):
         if st_n_keypoints > 1 and st_n_views > 1:
 
             st.markdown("##### Select subset of body parts for Multiview PCA")
-            e3 = st.expander("Expand for further instractions")
+            e3 = st.expander("Expand for further instructions")
             e3.markdown("""
                 Select the same body part from different POV's.
                 The selected subset will be used for a Multiview PCA loss on unlabeled videos.

@@ -1,5 +1,4 @@
 import os
-import pytest
 import shutil
 import yaml
 
@@ -176,3 +175,8 @@ def test_project_ui(root_dir, tmp_proj_dir):
     assert flow.st_project_name == ""
     assert not os.path.exists(dst)
     assert copy_proj_name not in flow.initialized_projects
+
+    # -------------------
+    # cleanup
+    # -------------------
+    del flow
