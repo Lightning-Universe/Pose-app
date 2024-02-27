@@ -557,7 +557,6 @@ def _render_streamlit_fn(state: AppState):
                 or state.run_script_video_random
             )
         )
-
         if state.run_script_video_random:
             keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
             for vid, status in state.st_extract_status.items():
@@ -589,13 +588,10 @@ def _render_streamlit_fn(state: AppState):
 
             state.st_submits += 1
 
-
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-
         elif st_mode == ZIPPED_FRAMES_STR:
-
             # upload zipped files to temporary directory
             frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
             os.makedirs(frames_dir, exist_ok=True)
@@ -605,10 +601,11 @@ def _render_streamlit_fn(state: AppState):
                 "Select zipped folders",
                 type="zip",
                 accept_multiple_files=True,
-                help="Upload one zip file per video. The file name should be the name of the video. "
-                    "The frames should be in the format 'img%08i.png', i.e. a png file with a name "
-                    "that starts with 'img' and contains the frame number with leading zeros such "
-                    "that there are 8 total digits (e.g. 'img00003453.png')."
+                help="Upload one zip file per video. The file name should be the"
+                        " name of the video. The frames should be in the format 'img%08i.png',"
+                        " i.e. a png file with a name that starts with 'img' and contains the"
+                        " frame number with leading zeros such that there are 8 total digits"
+                        " (e.g. 'img00003453.png')."
             )
 
         # for each of the uploaded files
