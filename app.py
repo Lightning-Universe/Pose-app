@@ -19,6 +19,7 @@ from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
+from lightning_pose_app.ui.streamlit_video_viewer import StreamlitVideoViewer
 from lightning_pose_app.ui.train_infer import TrainUI
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -73,6 +74,7 @@ class LitPoseApp(LightningFlow):
         # streamlit tabs (flow + work)
         self.streamlit_frame = StreamlitAppLightningPose(app_type="frame")
         self.streamlit_video = StreamlitAppLightningPose(app_type="video")
+        self.streamlit_video_player = StreamlitVideoViewer()
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
@@ -137,7 +139,7 @@ class LitPoseApp(LightningFlow):
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
             self.streamlit_frame.run(action="initialize")
-            self.streamlit_video.run(action="initialize")
+            self.streamlit_video.run(action="initialize") 
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
@@ -286,6 +288,7 @@ class LitPoseApp(LightningFlow):
         # diagnostics tabs
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
+        st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
         fo_tab = {"name": "Fiftyone", "content": self.fiftyone}
 
         if self.extract_ui.proj_dir:
@@ -297,6 +300,7 @@ class LitPoseApp(LightningFlow):
                 train_status_tab,
                 st_frame_tab,
                 st_video_tab,
+                st_video_player_tab,
                 fo_tab,
             ]
         else:

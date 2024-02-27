@@ -620,6 +620,7 @@ def _render_streamlit_fn(state: AppState):
         st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
                    "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
                    unsafe_allow_html=True)
+                   
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
