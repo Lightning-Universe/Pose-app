@@ -227,6 +227,7 @@ class LitPoseApp(LightningFlow):
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
         st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
+        fo_tab = {"name": "Fiftyone", "content": self.fiftyone}
 
         return [
             train_tab,
@@ -234,6 +235,7 @@ class LitPoseApp(LightningFlow):
             st_frame_tab,
             st_video_tab,
             st_video_player_tab,
+            fo_tab,
         ]
 
 
