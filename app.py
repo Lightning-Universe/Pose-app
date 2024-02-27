@@ -289,7 +289,6 @@ class LitPoseApp(LightningFlow):
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
         st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
-        fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
 
         if self.extract_ui.proj_dir:
             return [
@@ -301,7 +300,6 @@ class LitPoseApp(LightningFlow):
                 st_frame_tab,
                 st_video_tab,
                 st_video_player_tab,
-                fo_tab,
             ]
         else:
             return [
