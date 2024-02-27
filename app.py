@@ -151,9 +151,6 @@ class LitPoseApp(LightningFlow):
             self.train_ui.proj_dir = self.project_ui.proj_dir
             self.streamlit_frame.proj_dir = self.project_ui.proj_dir
             self.streamlit_video.proj_dir = self.project_ui.proj_dir
-            self.streamlit_video_player.proj_dir = self.project_ui.proj_dir
-            self.fiftyone_ui.proj_dir = self.project_ui.proj_dir
-            self.fiftyone_ui.config_name = self.project_ui.config_name
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
@@ -292,7 +289,6 @@ class LitPoseApp(LightningFlow):
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
         st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
-        fo_prep_tab = {"name": "Prepare Fiftyone", "content": self.fiftyone_ui}
         fo_tab = {"name": "Fiftyone", "content": self.fiftyone_ui.work}
 
         if self.extract_ui.proj_dir:
@@ -305,7 +301,6 @@ class LitPoseApp(LightningFlow):
                 st_frame_tab,
                 st_video_tab,
                 st_video_player_tab,
-                fo_prep_tab,
                 fo_tab,
             ]
         else:

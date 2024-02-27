@@ -80,13 +80,12 @@ def select_columns_by_text(df, text_pattern):
 def _render_streamlit_fn(state: AppState):
 
     ## in real dir need to append /models to path 
-    proj_dir = state.proj_dir  # "/teamspace/studios/this_studio/Pose-app/data/full_multiModels"
+    proj_dir = state.proj_dir  
 
     if proj_dir is None:
         return
 
     model_dir = abspath(os.path.join(proj_dir, MODELS_DIR)) 
-    #/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-05/15-45-00
 
     # Streamlit UI 
     st.header("Explore Predictive Analytics on Videos")
