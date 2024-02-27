@@ -270,20 +270,7 @@ class ExtractFramesWork(LightningWork):
         # TODO
         # n_digits = 8
         # extension = "png"
-        data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
-        if not os.path.exists(data_dir_rel):
-            data_dir = abspath(data_dir_rel)
-        else:
-            data_dir = data_dir_rel
-        # TODO
-        # n_digits = 8
-        # extension = "png"
 
-        # check: does file exist?
-        if not os.path.exists(video_file):
-            video_file_abs = abspath(video_file)
-        else:
-            video_file_abs = video_file
         # check: does file exist?
         if not os.path.exists(video_file):
             video_file_abs = abspath(video_file)
@@ -292,13 +279,6 @@ class ExtractFramesWork(LightningWork):
         video_file_exists = os.path.exists(video_file_abs)
         _logger.info(f"zipped file exists? {video_file_exists}")
         if not video_file_exists:
-            _logger.info("skipping frame extraction")
-            return
-
-        # create folder to save images
-        video_name = os.path.splitext(os.path.basename(video_file))[0]
-        save_dir = os.path.join(data_dir, video_name)
-        os.makedirs(save_dir, exist_ok=True)
             _logger.info("skipping frame extraction")
             return
 
@@ -373,8 +353,6 @@ class ExtractFramesUI(LightningFlow):
 
         # output from the UI
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
-        self.st_video_files_ = []  # list of uploaded video files
-        self.st_frame_files_ = []  # list of uploaded zipped frame files
         self.st_video_files_ = []  # list of uploaded video files
         self.st_frame_files_ = []  # list of uploaded zipped frame files
         self.st_submits = 0
@@ -507,22 +485,6 @@ def _render_streamlit_fn(state: AppState):
         # upload video files to temporary directory
         video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
         os.makedirs(video_dir, exist_ok=True)
-    VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
-    ZIPPED_FRAMES_STR = "Upload zipped files of frames"
-    VIDEO_MODEL_STR = "Upload videos and automatically extract frames using a given model"
-
-    st_mode = st.radio(
-        "Select data upload option",
-        options=[VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR],
-        # disabled=state.st_project_loaded,
-        index=0,
-    )
-
-    if st_mode == VIDEO_RANDOM_STR:
-
-        # upload video files to temporary directory
-        video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
-        os.makedirs(video_dir, exist_ok=True)
 
         # initialize the file uploader
         uploaded_files = st.file_uploader(
@@ -536,7 +498,6 @@ def _render_streamlit_fn(state: AppState):
             col1.markdown("**Video Name**")
             col2.markdown("**Video Duration**")
             col3.markdown("**Number of Frames**")
-
 
         # for each of the uploaded files
         st_videos = []
@@ -587,41 +548,6 @@ def _render_streamlit_fn(state: AppState):
                      "Skip any parts without the animals or with distracting elements like hands, "
                      "as these can confuse the model."
             )
-                # calculate video duration and frame count
-                cap = cv2.VideoCapture(filepath)
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                duration = float(frame_count) / float(fps)
-
-                col1.write(uploaded_file.name)
-                col2.write(f"{duration:.2f} seconds")
-                col3.write(str(frame_count))
-
-                # relese video
-                cap.release()
-
-        # insert an empty element to create empty space
-        st.markdown("###")
-
-        col0, col1 = st.columns(2, gap="large")
-        with col0:
-            # select number of frames to label per video
-            n_frames_per_video = st.text_input(
-                "Frames to label per video", 20,
-                help="Specify the desired number of frames for labeling per video. "
-                     "The app will select frames to maximize the diversity of animal poses "
-                     "captured within each video."
-            )
-            st_n_frames_per_video = int(n_frames_per_video)
-        with col1:
-            # select range of video to pull frames from
-            st_frame_range = st.slider(
-                "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
-                help="Focus on selecting video sections where the animals are clearly visible and "
-                     "performing the desired behaviors. "
-                     "Skip any parts without the animals or with distracting elements like hands, "
-                     "as these can confuse the model."
-            )
 
         st_submit_button = st.button(
             "Extract frames",
@@ -631,34 +557,7 @@ def _render_streamlit_fn(state: AppState):
                 or state.run_script_video_random
             )
         )
-        if state.run_script_video_random:
-            keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
-            for vid, status in state.st_extract_status.items():
-                if status == "initialized":
-                    p = 0.0
-                elif status == "active":
-                    vid_ = vid.replace(".", "_")
-                    if vid_ in keys:
-                        try:
-                            p = state.works_dict[vid_].progress
-                        except:
-                            p = 100.0  # if work is deleted while accessing
-                    else:
-                        p = 100.0  # state.work.progress
-                elif status == "complete":
-                    p = 100.0
-                else:
-                    st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
-            st.warning("waiting for existing extraction to finish")
-        st_submit_button = st.button(
-            "Extract frames",
-            disabled=(
-                (st_n_frames_per_video == 0)
-                or len(st_videos) == 0
-                or state.run_script_video_random
-            )
-        )
+
         if state.run_script_video_random:
             keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
             for vid, status in state.st_extract_status.items():
@@ -690,99 +589,27 @@ def _render_streamlit_fn(state: AppState):
 
             state.st_submits += 1
 
-            state.st_video_files_ = st_videos
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            state.st_n_frames_per_video = st_n_frames_per_video
-            state.st_frame_range = st_frame_range
-            st.text("Request submitted!")
-            state.run_script_video_random = True  # must the last to prevent race condition
 
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-    elif st_mode == ZIPPED_FRAMES_STR:
 
-        # upload zipped files to temporary directory
-        frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
-        os.makedirs(frames_dir, exist_ok=True)
+        elif st_mode == ZIPPED_FRAMES_STR:
 
-        # initialize the file uploader
-        uploaded_files = st.file_uploader(
-            "Select zipped folders",
-            type="zip",
-            accept_multiple_files=True,
-            help="Upload one zip file per video. The file name should be the name of the video. "
-                 "The frames should be in the format 'img%08i.png', i.e. a png file with a name "
-                 "that starts with 'img' and contains the frame number with leading zeros such "
-                 "that there are 8 total digits (e.g. 'img00003453.png')."
-        )
+            # upload zipped files to temporary directory
+            frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
+            os.makedirs(frames_dir, exist_ok=True)
 
-        # for each of the uploaded files
-        st_videos = []
-        for uploaded_file in uploaded_files:
-            # read it
-            bytes_data = uploaded_file.read()
-            # name it
-            filename = uploaded_file.name.replace(" ", "_")
-            filepath = os.path.join(frames_dir, filename)
-            st_videos.append(filepath)
-            if not state.run_script_zipped_frames:
-                # write the content of the file to the path, but not while processing
-                with open(filepath, "wb") as f:
-                    f.write(bytes_data)
-            # check files: TODO
-            # state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
-            #     filepath, project_type=st_prev_format)
-
-        st_submit_button_frames = st.button(
-            "Extract frames",
-            disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
-        )
-
-        if (
-            state.st_submits > 0
-            and not st_submit_button_frames
-            and not state.run_script_zipped_frames
-        ):
-            proceed_str = "Please proceed to the next tab to label frames."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
-
-        # Lightning way of returning the parameters
-        if st_submit_button_frames:
-
-            state.st_submits += 1
-
-            state.st_frame_files_ = st_videos
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            st.text("Request submitted!")
-            state.run_script_zipped_frames = True  # must the last to prevent race condition
-            state.st_video_files_ = st_videos
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            state.st_n_frames_per_video = st_n_frames_per_video
-            state.st_frame_range = st_frame_range
-            st.text("Request submitted!")
-            state.run_script_video_random = True  # must the last to prevent race condition
-
-            # force rerun to show "waiting for existing..." message
-            st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
-
-    elif st_mode == ZIPPED_FRAMES_STR:
-
-        # upload zipped files to temporary directory
-        frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
-        os.makedirs(frames_dir, exist_ok=True)
-
-        # initialize the file uploader
-        uploaded_files = st.file_uploader(
-            "Select zipped folders",
-            type="zip",
-            accept_multiple_files=True,
-            help="Upload one zip file per video. The file name should be the name of the video. "
-                 "The frames should be in the format 'img%08i.png', i.e. a png file with a name "
-                 "that starts with 'img' and contains the frame number with leading zeros such "
-                 "that there are 8 total digits (e.g. 'img00003453.png')."
-        )
+            # initialize the file uploader
+            uploaded_files = st.file_uploader(
+                "Select zipped folders",
+                type="zip",
+                accept_multiple_files=True,
+                help="Upload one zip file per video. The file name should be the name of the video. "
+                    "The frames should be in the format 'img%08i.png', i.e. a png file with a name "
+                    "that starts with 'img' and contains the frame number with leading zeros such "
+                    "that there are 8 total digits (e.g. 'img00003453.png')."
+            )
 
         # for each of the uploaded files
         st_videos = []
@@ -825,7 +652,5 @@ def _render_streamlit_fn(state: AppState):
             st.text("Request submitted!")
             state.run_script_zipped_frames = True  # must the last to prevent race condition
 
-            # force rerun to show "waiting for existing..." message
-            st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
