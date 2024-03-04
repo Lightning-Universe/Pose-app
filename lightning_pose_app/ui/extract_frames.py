@@ -12,8 +12,16 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import zipfile
 
-from lightning_pose_app import LABELED_DATA_DIR, VIDEOS_DIR, VIDEOS_TMP_DIR, ZIPPED_TMP_DIR
-from lightning_pose_app import SELECTED_FRAMES_FILENAME
+from lightning_pose_app import (
+    LABELED_DATA_DIR,
+    MODELS_DIR,
+    MODEL_VIDEO_PREDS_INFER_DIR,
+    SELECTED_FRAMES_FILENAME,
+    VIDEOS_DIR,
+    VIDEOS_INFER_DIR,
+    VIDEOS_TMP_DIR,
+    ZIPPED_TMP_DIR,
+)
 from lightning_pose_app.utilities import StreamlitFrontend, abspath
 from lightning_pose_app.utilities import copy_and_reformat_video, get_frames_from_idxs
 
@@ -29,6 +37,11 @@ class ExtractFramesWork(LightningWork):
         self.progress = 0.0
         self.progress_delta = 0.5
         self.work_is_done_extract_frames = False
+
+        # updated externally by parent app
+        self.trained_models = []
+        self.proj_dir = None
+        self.config_dict = None
 
     def _read_nth_frames(
         self,
@@ -136,6 +149,16 @@ class ExtractFramesWork(LightningWork):
         return idxs_prototypes
 
     @staticmethod
+    def _select_frame_idxs_using_model(
+        proj_dir: str,
+        model_dir: str,
+        n_frames_per_video: int,
+        frame_range: list,
+    ):
+        # TODO: put real active learning code here
+        return np.arange(n_frames_per_video)
+
+    @staticmethod
     def _export_frames(
         video_file: str,
         save_dir: str,
@@ -181,6 +204,7 @@ class ExtractFramesWork(LightningWork):
 
     def _extract_frames(
         self,
+        method: str,
         video_file: str,
         proj_dir: str,
         n_frames_per_video: int,
@@ -218,20 +242,28 @@ class ExtractFramesWork(LightningWork):
         os.makedirs(save_dir, exist_ok=True)
 
         # select indices for labeling
-        # reduce image size, even more if there are many frames
-        cap = cv2.VideoCapture(video_file_abs)
-        n_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        cap.release()
-        if n_frames > 1e5:
-            resize_dims = 32
-        else:
-            resize_dims = 64
-        idxs_selected = self._select_frame_idxs(
-            video_file=video_file_abs,
-            resize_dims=resize_dims,
-            n_clusters=n_frames_per_video,
-            frame_range=frame_range,
-        )
+        if method == "random":
+            # reduce image size, even more if there are many frames
+            cap = cv2.VideoCapture(video_file_abs)
+            n_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            cap.release()
+            if n_frames > 1e5:
+                resize_dims = 32
+            else:
+                resize_dims = 64
+            idxs_selected = self._select_frame_idxs(
+                video_file=video_file_abs,
+                resize_dims=resize_dims,
+                n_clusters=n_frames_per_video,
+                frame_range=frame_range,
+            )
+        elif method == "active":
+            idxs_selected = self._select_frame_idxs_using_model(
+                proj_dir=proj_dir,
+                model_dir=model_dir,
+                n_frames_per_video=n_frames_per_video,
+                frame_range=frame_range,
+            )
 
         # save csv file inside same output directory
         frames_to_label = np.array([
@@ -325,7 +357,9 @@ class ExtractFramesWork(LightningWork):
             )
             # save relative rather than absolute path
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
-            self._extract_frames(**kwargs)
+            self._extract_frames(method="random", **kwargs)
+        elif action == "extract_frames_using_model":
+            self._extract_frames(method="active", **kwargs)
         elif action == "unzip_frames":
             # TODO: maybe we need to reformat the file names?
             self._unzip_frames(**kwargs)
@@ -350,6 +384,7 @@ class ExtractFramesUI(LightningFlow):
         # flag; used internally and externally
         self.run_script_video_random = False
         self.run_script_zipped_frames = False
+        self.run_script_video_model = False
 
         # output from the UI
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
@@ -358,6 +393,7 @@ class ExtractFramesUI(LightningFlow):
         self.st_submits = 0
         self.st_frame_range = [0, 1]  # limits for frame selection
         self.st_n_frames_per_video = None
+        self.model_dir = None  # this will be used for extracting frames given a model
 
     @property
     def st_video_files(self):
@@ -367,14 +403,7 @@ class ExtractFramesUI(LightningFlow):
     def st_frame_files(self):
         return np.unique(self.st_frame_files_).tolist()
 
-    def _extract_frames(self, video_files=None, n_frames_per_video=None, testing=False):
-
-        self.work_is_done_extract_frames = False
-
-        if not video_files:
-            video_files = self.st_video_files
-        if not n_frames_per_video:
-            n_frames_per_video = self.st_n_frames_per_video
+    def _launch_works(self, action, video_files, work_kwargs, testing=False):
 
         # launch works (sequentially for now)
         for video_file in video_files:
@@ -388,11 +417,9 @@ class ExtractFramesUI(LightningFlow):
                 self.st_extract_status[video_file] = "active"
                 # extract frames for labeling (automatically reformats video for DALI)
                 self.works_dict[video_key].run(
-                    action="extract_frames",
+                    action=action,
                     video_file="/" + video_file,
-                    proj_dir=self.proj_dir,
-                    n_frames_per_video=n_frames_per_video,
-                    frame_range=self.st_frame_range,
+                    **work_kwargs,
                 )
                 self.st_extract_status[video_file] = "complete"
 
@@ -410,6 +437,55 @@ class ExtractFramesUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
+    def _extract_frames(self, video_files=None, n_frames_per_video=None, testing=False):
+
+        self.work_is_done_extract_frames = False
+
+        if not video_files:
+            video_files = self.st_video_files
+        if not n_frames_per_video:
+            n_frames_per_video = self.st_n_frames_per_video
+
+        work_kwargs = {
+            'proj_dir': self.proj_dir,
+            'n_frames_per_video': n_frames_per_video,
+            'frame_range': self.st_frame_range,
+        }
+        self._launch_works(
+            action="extract_frames",
+            video_files=video_files,
+            work_kwargs=work_kwargs,
+            testing=testing,
+        )
+
+    def _extract_frames_using_model(
+            self, video_files=None, n_frames_per_video=None, testing=False):
+
+        self.work_is_done_extract_frames = False
+
+        # NOTE: this could lead to problems if self.st_video_files is from uploading raw videos
+        # instead of choosing videos that inference has been run on
+        # if not video_files:
+        #     video_files = self.st_video_files
+        if not n_frames_per_video:
+            n_frames_per_video = self.st_n_frames_per_video
+
+        work_kwargs = {
+            'proj_dir': self.proj_dir,
+            'model_dir': self.model_dir,
+            'n_frames_per_video': n_frames_per_video,
+            'frame_range': self.st_frame_range,
+        }
+        self._launch_works(
+            action="extract_frames",
+            video_files=video_files,
+            work_kwargs=work_kwargs,
+            testing=testing,
+        )
+
+        # set flag for parent app
+        self.work_is_done_extract_frames = True
+
     def _unzip_frames(self, video_files=None):
 
         self.work_is_done_extract_frames = False
@@ -417,33 +493,14 @@ class ExtractFramesUI(LightningFlow):
         if not video_files:
             video_files = self.st_frame_files
 
-        # launch works
-        for video_file in video_files:
-            video_key = video_file.replace(".", "_")  # keys cannot contain "."
-            if video_key not in self.works_dict.keys():
-                self.works_dict[video_key] = ExtractFramesWork(
-                    cloud_compute=CloudCompute("default"),
-                )
-                status = self.st_extract_status[video_file]
-                if status == "initialized" or status == "active":
-                    self.st_extract_status[video_file] = "active"
-                    # extract frames for labeling (automatically reformats video for DALI)
-                    self.works_dict[video_key].run(
-                        action="unzip_frames",
-                        video_file="/" + video_file,
-                        proj_dir=self.proj_dir,
-                    )
-                    self.st_extract_status[video_file] = "complete"
-
-        # clean up works
-        while len(self.works_dict) > 0:
-            for video_key in list(self.works_dict):
-                if (video_key in self.works_dict.keys()) \
-                        and self.works_dict[video_key].work_is_done_extract_frames:
-                    # kill work
-                    _logger.info(f"killing work from video {video_key}")
-                    self.works_dict[video_key].stop()
-                    del self.works_dict[video_key]
+        work_kwargs = {
+            'proj_dir': self.proj_dir,
+        }
+        self._launch_works(
+            video_files=video_files,
+            work_kwargs=work_kwargs,
+            testing=testing,
+        )
 
         # set flag for parent app
         self.work_is_done_extract_frames = True
@@ -451,6 +508,8 @@ class ExtractFramesUI(LightningFlow):
     def run(self, action, **kwargs):
         if action == "extract_frames":
             self._extract_frames(**kwargs)
+        elif action == "extract_frames_using_model":
+            self._extract_frames_using_model(**kwargs)
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
 
@@ -459,6 +518,7 @@ class ExtractFramesUI(LightningFlow):
 
 
 def _render_streamlit_fn(state: AppState):
+
     st.markdown(
         """
         ## Extract frames for labeling
@@ -473,9 +533,37 @@ def _render_streamlit_fn(state: AppState):
     ZIPPED_FRAMES_STR = "Upload zipped files of frames"
     VIDEO_MODEL_STR = "Upload videos and automatically extract frames using a given model"
 
+    # TODO: implement find_models
+
+    @st.cache_resource
+    def find_models(model_dir):
+        trained_models = []
+        # this returns a list of model training days
+        dirs_day = os.listdir(model_dir)
+        # loop over days and find HH-MM-SS
+        for dir_day in dirs_day:
+            fullpath1 = os.path.join(model_dir, dir_day)
+            dirs_time = os.listdir(fullpath1)
+            for dir_time in dirs_time:
+                fullpath2 = os.path.join(fullpath1, dir_time)
+                trained_models.append('/'.join(fullpath2.split('/')[-2:]))
+        return trained_models
+        
+    # model1_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-01_semisuper'
+    # model2_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-02_super-ctx'
+    # model3_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-03_semisuper-ctx'
+    
+    # fake model list for testing the UI
+    models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))#[model1_path,model2_path,model3_path]
+
+    if len(models_list) == 0:
+        options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
+    else:
+        options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR, VIDEO_MODEL_STR]
+
     st_mode = st.radio(
         "Select data upload option",
-        options=[VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR],
+        options=options,
         # disabled=state.st_project_loaded,
         index=0,
     )
@@ -658,3 +746,189 @@ def _render_streamlit_fn(state: AppState):
 
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+    elif st_mode == VIDEO_MODEL_STR:
+        
+
+        selected_model_path = st.selectbox("Select a model", models_list)
+
+        video_list = []
+
+
+        # TODO (see above, L530)
+        # first, we only want the user to see a dropdown menu with available models
+        #   - copy over the function that shmuel wrote for video reader
+
+        """
+        once they select a model, show all available videos that have inference results
+           x look in model_dir/video_preds, get all vids from here (skip this for now, too hard)
+           - look in model_dir/video_preds_infer, get all vids from here (don't grab "short" vids)
+               - find all .csv files 
+               - skip videos with the string ".short.mp4"
+        make sure to return model directory as the variable "model_dir", which gets stored below
+        """
+        base_model_dir = abspath(os.path.join(state.proj_dir[1:], MODELS_DIR, selected_model_path, MODEL_VIDEO_PREDS_INFER_DIR))
+        if not os.path.exists(base_model_dir):
+            st.text("no data")
+            files = []
+        else:
+            files = os.listdir(base_model_dir)
+
+        if len(files) > 0:
+            good_files = []
+            for file in files:
+                if not file.endswith(".csv"):
+                    continue 
+                if file.endswith("temporal_norm.csv") or file.endswith("error.csv") or file.endswith("short.csv"):
+                    continue
+                good_files.append(file.split(".")[0])
+
+            st.text(good_files)
+
+        # good_files is the list we want to show the user
+
+        #mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
+
+        """
+        # allow user to select multiple videos
+        # the result is called "st_videos"
+        
+        # copy over some of the options from VIDEO_RANDOM_STR: frames/video and video slider
+        # call these st_videos
+
+        # extract frames button
+        """
+
+        # NOTE: everything below might be ok?
+        if st_submit_button_model_frames:
+            state.st_submits += 1
+
+            base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
+            state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+            state.model_dir = model_dir
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
+            st.text("Request submitted!")
+            state.run_script_video_model = True  # must the last to prevent race condition
+
+        #     #force rerun to show "waiting for existing..." message
+        # st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+                # def model_and_video_selector(models_list):
+
+        #     if models_list:
+        #         # Extract model names from the full paths
+        #         model_names = [os.path.basename(model_path) for model_path in models_list]
+                
+        #         # Create a mapping from model names to their full paths
+        #         model_name_to_path = dict(zip(model_names, models_list))
+                
+        #         # Create a selectbox widget with the list of model names
+        #         selected_model_name = st.selectbox("Select a model", model_names)
+                
+        #         # Retrieve the full path of the selected model
+        #         selected_model_path = model_name_to_path[selected_model_name]
+
+        #         # Directory where inference results are stored
+        #         video_preds_infer_dir = os.path.join(selected_model_path, "video_preds_infer")
+                
+        #         # List all .mp4 files excluding those with ".short.mp4"
+        #         available_videos = [f for f in os.listdir(video_preds_infer_dir) if f.endswith(".mp4") and not f.endswith(".short.mp4")]
+                
+        #         if available_videos:
+        #             # Show a dropdown menu with available videos
+        #             selected_video_name = st.selectbox("Select an available video", available_videos)
+        #             selected_video_path = os.path.join(video_preds_infer_dir, selected_video_name)
+        #         else:
+        #             st.write("No available videos for the selected model.")
+        #             selected_video_path = None
+
+        #         return selected_model_path, selected_video_path
+        #     else:
+        #         st.write("No models available.")
+        #         return None, None
+
+        # selected_model_path, selected_video_path = model_and_video_selector(models_list)
+
+        # if selected_model_path and selected_video_path:
+        #     # Increment the submission counter if a model and video have been selected
+        #     state.st_submits += 1
+
+        #     # Update the state with the selected model directory
+        #     state.model_dir = selected_model_path
+
+        #     state.selected_video_path = selected_video_path
+
+        #     # Initialize or update the extraction status for the selected video
+        #     state.st_extract_status[selected_video_path] = 'initialized'
+            
+        #     # Display a confirmation message
+        #     st.text("Request submitted!")
+
+        #     # Set a flag to indicate that the video model script should run
+        #     state.run_script_video_model = True
+
+        #     # Force rerun to show "waiting for existing..." message
+        #     st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+
+
+
+        ##############################################################################
+
+        # def model_and_video_selector(models_list):
+        #     if not models_list:
+        #         st.write("No models available.")
+        #         return None, None
+
+            # Simplified the mapping creation by directly using the list for dropdown
+        # selected_model_path = st.selectbox("Select a model", models_list, format_func=lambda x: os.path.basename(x))
+            
+        # # Check if the selected model's directory exists to prevent errors
+        # video_preds_infer_dir = os.path.join(selected_model_path, "video_preds_infer")
+        # if not os.path.isdir(video_preds_infer_dir):
+        #     st.write("Inference results directory not found for the selected model.")
+        #     return selected_model_path, None
+
+        #     # Use try-except to handle potential os.listdir errors
+        #     try:
+        #         available_videos = [f for f in os.listdir(video_preds_infer_dir) if f.endswith(".mp4") and ".short.mp4" not in f]
+        #     except Exception as e:
+        #         st.write(f"Failed to list videos: {e}")
+        #         return selected_model_path, None
+
+        #     if not available_videos:
+        #         st.write("No available videos for the selected model.")
+        #         return selected_model_path, None
+
+        #     # Show a dropdown menu with available videos
+        #     selected_video_name = st.selectbox("Select an available video", available_videos)
+        #     selected_video_path = os.path.join(video_preds_infer_dir, selected_video_name)
+
+        #     return selected_model_path, selected_video_path
+
+        # # After selecting the model and video
+
+        # selected_model_path, selected_video_path = model_and_video_selector(models_list)
+
+        # if selected_model_path and selected_video_path:
+        #     state.st_submits += 1 if hasattr(state, 'st_submits') else 1
+
+        #     # Safely update the state with selected model and video paths
+        #     setattr(state, 'model_dir', selected_model_path)
+        #     setattr(state, 'selected_video_path', selected_video_path)
+
+        #     # Update extraction status, initializing the attribute if it doesn't exist
+        #     if not hasattr(state, 'st_extract_status'):
+        #         setattr(state, 'st_extract_status', {})
+        #     state.st_extract_status[selected_video_path] = 'initialized'
+
+        #     st.text("Request submitted!")
+        #     state.run_script_video_model = True  # Ensure this attribute exists or is safely set
+
+        #     # Force rerun to refresh the Streamlit app interface
+        #     st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+
+
+
+
