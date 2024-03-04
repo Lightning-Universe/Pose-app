@@ -549,10 +549,6 @@ def _render_streamlit_fn(state: AppState):
                 trained_models.append('/'.join(fullpath2.split('/')[-2:]))
         return trained_models
         
-    # model1_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-01_semisuper'
-    # model2_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-02_super-ctx'
-    # model3_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-03_semisuper-ctx'
-    
     # fake model list for testing the UI
     models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))#[model1_path,model2_path,model3_path]
 
