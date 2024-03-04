@@ -18,6 +18,7 @@ from lightning_pose_app import (
     MODEL_VIDEO_PREDS_INFER_DIR,
     SELECTED_FRAMES_FILENAME,
     VIDEOS_DIR,
+    VIDEOS_INFER_DIR,
     VIDEOS_TMP_DIR,
     ZIPPED_TMP_DIR,
 )
@@ -534,26 +535,26 @@ def _render_streamlit_fn(state: AppState):
 
     # TODO: implement find_models
 
-    #@st.cache_resource
-    # def find_models(model_dir):
-    #     trained_models = []
-    #     # this returns a list of model training days
-    #     dirs_day = os.listdir(model_dir)
-    #     # loop over days and find HH-MM-SS
-    #     for dir_day in dirs_day:
-    #         fullpath1 = os.path.join(abspath(model_dir), abspath(dir_day))
-    #         dirs_time = os.listdir(fullpath1)
-    #         for dir_time in dirs_time:
-    #             fullpath2 = os.path.join(fullpath1, dir_time)
-    #             trained_models.append('/'.join(fullpath2.split('/')[-2:]))
-    #     return trained_models
+    @st.cache_resource
+    def find_models(model_dir):
+        trained_models = []
+        # this returns a list of model training days
+        dirs_day = os.listdir(model_dir)
+        # loop over days and find HH-MM-SS
+        for dir_day in dirs_day:
+            fullpath1 = os.path.join(model_dir, dir_day)
+            dirs_time = os.listdir(fullpath1)
+            for dir_time in dirs_time:
+                fullpath2 = os.path.join(fullpath1, dir_time)
+                trained_models.append('/'.join(fullpath2.split('/')[-2:]))
+        return trained_models
         
-    model1_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-01_semisuper'
-    model2_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-02_super-ctx'
-    model3_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-03_semisuper-ctx'
+    # model1_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-01_semisuper'
+    # model2_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-02_super-ctx'
+    # model3_path = r'/teamspace/studios/this_studio/Pose-app/data/full_multiModels/models/2024-02-07/17-59-03_semisuper-ctx'
     
     # fake model list for testing the UI
-    models_list = [model1_path,model2_path,model3_path]
+    models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))#[model1_path,model2_path,model3_path]
 
     if len(models_list) == 0:
         options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
@@ -747,6 +748,12 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
     elif st_mode == VIDEO_MODEL_STR:
+        
+
+        selected_model_path = st.selectbox("Select a model", models_list)
+
+        video_list = []
+
 
         # TODO (see above, L530)
         # first, we only want the user to see a dropdown menu with available models
@@ -756,22 +763,31 @@ def _render_streamlit_fn(state: AppState):
         once they select a model, show all available videos that have inference results
            x look in model_dir/video_preds, get all vids from here (skip this for now, too hard)
            - look in model_dir/video_preds_infer, get all vids from here (don't grab "short" vids)
-               - find all .mp4 files 
+               - find all .csv files 
                - skip videos with the string ".short.mp4"
         make sure to return model directory as the variable "model_dir", which gets stored below
         """
-        # base_model_dir = abspath(os.path.join(state.proj_dir, MODEL_DIR, model_name))
-        # files = os.listdir(base_model_dir)
-        # good_files = []
-        # for file for files:
-        #     if f.endswith(".mp4") and not f.endswith(".short.mp4"):
-        #         good_files.append(file)
+        base_model_dir = abspath(os.path.join(state.proj_dir[1:], MODELS_DIR, selected_model_path, MODEL_VIDEO_PREDS_INFER_DIR))
+        if not os.path.exists(base_model_dir):
+            st.text("no data")
+            files = []
+        else:
+            files = os.listdir(base_model_dir)
 
-        # # good_files is the list we want to show the user
+        if len(files) > 0:
+            good_files = []
+            for file in files:
+                if not file.endswith(".csv"):
+                    continue 
+                if file.endswith("temporal_norm.csv") or file.endswith("error.csv") or file.endswith("short.csv"):
+                    continue
+                good_files.append(file.split(".")[0])
 
-        # mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
+            st.text(good_files)
 
+        # good_files is the list we want to show the user
 
+        #mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
 
         """
         # allow user to select multiple videos
@@ -784,19 +800,18 @@ def _render_streamlit_fn(state: AppState):
         """
 
         # NOTE: everything below might be ok?
-        # if st_submit_button_model_frames:
-        #     state.st_submits += 1
+        if st_submit_button_model_frames:
+            state.st_submits += 1
 
-        #     base_rel_path = os.path.join(
-        #         state.proj_dir, MODEL_DIR, model_name, MODEL_VIDEO_PREDS_INFER_DIR)
-        #     state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
-        #     state.model_dir = model_dir
-        #     state.st_extract_status = {s: 'initialized' for s in st_videos}
-        #     st.text("Request submitted!")
-        #     state.run_script_video_model = True  # must the last to prevent race condition
+            base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
+            state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+            state.model_dir = model_dir
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
+            st.text("Request submitted!")
+            state.run_script_video_model = True  # must the last to prevent race condition
 
-            # force rerun to show "waiting for existing..." message
-        #st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+        #     #force rerun to show "waiting for existing..." message
+        # st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
                 # def model_and_video_selector(models_list):
 
@@ -860,58 +875,58 @@ def _render_streamlit_fn(state: AppState):
 
         ##############################################################################
 
-        def model_and_video_selector(models_list):
-            if not models_list:
-                st.write("No models available.")
-                return None, None
+        # def model_and_video_selector(models_list):
+        #     if not models_list:
+        #         st.write("No models available.")
+        #         return None, None
 
             # Simplified the mapping creation by directly using the list for dropdown
-            selected_model_path = st.selectbox("Select a model", models_list, format_func=lambda x: os.path.basename(x))
+        # selected_model_path = st.selectbox("Select a model", models_list, format_func=lambda x: os.path.basename(x))
             
-            # Check if the selected model's directory exists to prevent errors
-            video_preds_infer_dir = os.path.join(selected_model_path, "video_preds_infer")
-            if not os.path.isdir(video_preds_infer_dir):
-                st.write("Inference results directory not found for the selected model.")
-                return selected_model_path, None
+        # # Check if the selected model's directory exists to prevent errors
+        # video_preds_infer_dir = os.path.join(selected_model_path, "video_preds_infer")
+        # if not os.path.isdir(video_preds_infer_dir):
+        #     st.write("Inference results directory not found for the selected model.")
+        #     return selected_model_path, None
 
-            # Use try-except to handle potential os.listdir errors
-            try:
-                available_videos = [f for f in os.listdir(video_preds_infer_dir) if f.endswith(".mp4") and ".short.mp4" not in f]
-            except Exception as e:
-                st.write(f"Failed to list videos: {e}")
-                return selected_model_path, None
+        #     # Use try-except to handle potential os.listdir errors
+        #     try:
+        #         available_videos = [f for f in os.listdir(video_preds_infer_dir) if f.endswith(".mp4") and ".short.mp4" not in f]
+        #     except Exception as e:
+        #         st.write(f"Failed to list videos: {e}")
+        #         return selected_model_path, None
 
-            if not available_videos:
-                st.write("No available videos for the selected model.")
-                return selected_model_path, None
+        #     if not available_videos:
+        #         st.write("No available videos for the selected model.")
+        #         return selected_model_path, None
 
-            # Show a dropdown menu with available videos
-            selected_video_name = st.selectbox("Select an available video", available_videos)
-            selected_video_path = os.path.join(video_preds_infer_dir, selected_video_name)
+        #     # Show a dropdown menu with available videos
+        #     selected_video_name = st.selectbox("Select an available video", available_videos)
+        #     selected_video_path = os.path.join(video_preds_infer_dir, selected_video_name)
 
-            return selected_model_path, selected_video_path
+        #     return selected_model_path, selected_video_path
 
-        # After selecting the model and video
+        # # After selecting the model and video
 
-        selected_model_path, selected_video_path = model_and_video_selector(models_list)
+        # selected_model_path, selected_video_path = model_and_video_selector(models_list)
 
-        if selected_model_path and selected_video_path:
-            state.st_submits += 1 if hasattr(state, 'st_submits') else 1
+        # if selected_model_path and selected_video_path:
+        #     state.st_submits += 1 if hasattr(state, 'st_submits') else 1
 
-            # Safely update the state with selected model and video paths
-            setattr(state, 'model_dir', selected_model_path)
-            setattr(state, 'selected_video_path', selected_video_path)
+        #     # Safely update the state with selected model and video paths
+        #     setattr(state, 'model_dir', selected_model_path)
+        #     setattr(state, 'selected_video_path', selected_video_path)
 
-            # Update extraction status, initializing the attribute if it doesn't exist
-            if not hasattr(state, 'st_extract_status'):
-                setattr(state, 'st_extract_status', {})
-            state.st_extract_status[selected_video_path] = 'initialized'
+        #     # Update extraction status, initializing the attribute if it doesn't exist
+        #     if not hasattr(state, 'st_extract_status'):
+        #         setattr(state, 'st_extract_status', {})
+        #     state.st_extract_status[selected_video_path] = 'initialized'
 
-            st.text("Request submitted!")
-            state.run_script_video_model = True  # Ensure this attribute exists or is safely set
+        #     st.text("Request submitted!")
+        #     state.run_script_video_model = True  # Ensure this attribute exists or is safely set
 
-            # Force rerun to refresh the Streamlit app interface
-            st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+        #     # Force rerun to refresh the Streamlit app interface
+        #     st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
 
 
