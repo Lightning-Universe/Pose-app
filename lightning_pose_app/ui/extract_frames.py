@@ -781,6 +781,143 @@ def _render_streamlit_fn(state: AppState):
 
             st.text(good_files)
 
+##################################################################################
+############    Use video uploader for reupload videos for the active learning process
+#   
+        # upload video files to temporary directory
+        video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
+        os.makedirs(video_dir, exist_ok=True)
+
+        # initialize the file uploader
+        uploaded_files = st.file_uploader(
+            "Select video files",
+            type=["mp4", "avi"],
+            accept_multiple_files=True,
+        )
+
+        if len(uploaded_files) > 0:
+            col1, col2, col3 = st.columns(spec=3, gap="medium")
+            col1.markdown("**Video Name**")
+            col2.markdown("**Video Duration**")
+            col3.markdown("**Number of Frames**")
+
+        # # Upload a video and select n frames for AL 
+        
+        # for each of the uploaded files
+        st_videos = []
+        for uploaded_file in uploaded_files:
+            # read it
+            bytes_data = uploaded_file.read()
+            # name it
+            filename = uploaded_file.name.replace(" ", "_")
+            filepath = os.path.join(video_dir, filename)
+            st_videos.append(filepath)
+            if not state.run_script_video_random:
+                # write the content of the file to the path, but not while processing
+                with open(filepath, "wb") as f:
+                    f.write(bytes_data)
+
+                # calculate video duration and frame count
+                cap = cv2.VideoCapture(filepath)
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                duration = float(frame_count) / float(fps)
+
+                col1.write(uploaded_file.name)
+                col2.write(f"{duration:.2f} seconds")
+                col3.write(str(frame_count))
+
+                # relese video
+                cap.release()
+
+        # insert an empty element to create empty space
+        st.markdown("###")
+
+        col0, col1 = st.columns(2, gap="large")
+        with col0:
+            # select number of frames to label per video
+            n_frames_per_video = st.text_input(
+                "Frames to label per video", 20,
+                help="Specify the desired number of frames for labeling per video. "
+                     "The app will select frames to maximize the diversity of animal poses "
+                     "captured within each video."
+            )
+            st_n_frames_per_video = int(n_frames_per_video)
+        with col1:
+            # select range of video to pull frames from
+            st_frame_range = st.slider(
+                "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
+                help="Focus on selecting video sections where the animals are clearly visible and "
+                     "performing the desired behaviors. "
+                     "Skip any parts without the animals or with distracting elements like hands, "
+                     "as these can confuse the model."
+            )
+
+        st_submit_button_model_frames = st.button(
+            "Extract frames",
+            disabled=(
+                (st_n_frames_per_video == 0)
+                or len(st_videos) == 0
+                or state.run_script_video_random
+            )
+        )
+        if state.run_script_video_random:
+            keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
+            for vid, status in state.st_extract_status.items():
+                if status == "initialized":
+                    p = 0.0
+                elif status == "active":
+                    vid_ = vid.replace(".", "_")
+                    if vid_ in keys:
+                        try:
+                            p = state.works_dict[vid_].progress
+                        except:
+                            p = 100.0  # if work is deleted while accessing
+                    else:
+                        p = 100.0  # state.work.progress
+                elif status == "complete":
+                    p = 100.0
+                else:
+                    st.text(status)
+                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+            st.warning("waiting for existing extraction to finish")
+
+        if state.st_submits > 0 and not st_submit_button_model_frames and not state.run_script_video_random:
+            proceed_str = "Please proceed to the next tab to label frames."
+            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+
+        # Lightning way of returning the parameters
+        if st_submit_button_model_frames:
+            state.st_submits += 1
+
+            base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
+            state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+            state.model_dir = model_dir
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
+            st.text("Request submitted!")
+            state.run_script_video_model = True  # must the last to prevent race condition
+
+        #     #force rerun to show "waiting for existing..." message
+        st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+
+#######################################################################################
+########## Select the raw avalibale videos per model and extract frames 
+
+        # if len(good_files) > 0:
+                
+        #         #mp4_files = [os.path.join(base_model_dir, f) for f in files if f.endswith(".mp4")]
+                
+        #         raw_videos_dir = [abspath(os.path.join(state.proj_dir[1:], "videos_infer",f)) for f in files if f.endswith('.mp4') and not f.endswith('short.mp4') and not f.endswith('labeled.mp4')]
+        #         #filtered_videos = [f for f in filenames if f.endswith('.mp4') and not f.endswith('short.mp4') and not f.endswith('labeled.mp4')]
+        #         selected_file = st.radio('Select an MP4 file:', raw_videos_dir)
+        #         st.write(f'You selected: {selected_file}')
+        # else:
+        #     st.write("No Videos avalibale")
+
+
+
         # good_files is the list we want to show the user
 
         #mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
@@ -794,18 +931,25 @@ def _render_streamlit_fn(state: AppState):
 
         # extract frames button
         """
+        # st_submit_button_model_frames = st.button(
+        #     "Extract frames",
+        #     disabled=(
+        #         (st_n_frames_per_video == 0)
+        #         or len(st_videos) == 0
+        #         or state.run_script_video_random
+        #     )
 
-        # NOTE: everything below might be ok?
-        if st_submit_button_model_frames:
-            state.st_submits += 1
+        # # # NOTE: everything below might be ok?
+        # if st_submit_button_model_frames:
+        #     state.st_submits += 1
 
-            base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
-            state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
-            state.model_dir = model_dir
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            st.text("Request submitted!")
-            state.run_script_video_model = True  # must the last to prevent race condition
+        #     base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
+        #     state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+        #     state.model_dir = model_dir
+        #     state.st_extract_status = {s: 'initialized' for s in st_videos}
+        #     st.text("Request submitted!")
+        #     state.run_script_video_model = True  # must the last to prevent race condition
 
-        #     #force rerun to show "waiting for existing..." message
+        # #     #force rerun to show "waiting for existing..." message
         # st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
