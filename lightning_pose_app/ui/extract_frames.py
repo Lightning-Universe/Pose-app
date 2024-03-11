@@ -549,8 +549,7 @@ def _render_streamlit_fn(state: AppState):
                 trained_models.append('/'.join(fullpath2.split('/')[-2:]))
         return trained_models
         
-    # fake model list for testing the UI
-    models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))#[model1_path,model2_path,model3_path]
+    models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))
 
     if len(models_list) == 0:
         options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
@@ -745,7 +744,6 @@ def _render_streamlit_fn(state: AppState):
 
     elif st_mode == VIDEO_MODEL_STR:
         
-
         selected_model_path = st.selectbox("Select a model", models_list)
 
         video_list = []
@@ -775,8 +773,10 @@ def _render_streamlit_fn(state: AppState):
             for file in files:
                 if not file.endswith(".csv"):
                     continue 
-                if file.endswith("temporal_norm.csv") or file.endswith("error.csv") or file.endswith("short.csv"):
-                    continue
+                if file.endswith("temporal_norm.csv") \
+                    or file.endswith("error.csv") \
+                    or file.endswith("short.csv"):
+                        continue
                 good_files.append(file.split(".")[0])
 
             st.text(good_files)
@@ -812,7 +812,7 @@ def _render_streamlit_fn(state: AppState):
             filename = uploaded_file.name.replace(" ", "_")
             filepath = os.path.join(video_dir, filename)
             st_videos.append(filepath)
-            if not state.run_script_video_random:
+            if not state.run_script_video_model:
                 # write the content of the file to the path, but not while processing
                 with open(filepath, "wb") as f:
                     f.write(bytes_data)
@@ -858,10 +858,10 @@ def _render_streamlit_fn(state: AppState):
             disabled=(
                 (st_n_frames_per_video == 0)
                 or len(st_videos) == 0
-                or state.run_script_video_random
+                or state.run_script_video_model
             )
         )
-        if state.run_script_video_random:
+        if state.run_script_video_model:
             keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
             for vid, status in state.st_extract_status.items():
                 if status == "initialized":
@@ -893,7 +893,7 @@ def _render_streamlit_fn(state: AppState):
 
             base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
             state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
-            state.model_dir = model_dir
+            state.model_dir = base_model_dir
             state.st_extract_status = {s: 'initialized' for s in st_videos}
             st.text("Request submitted!")
             state.run_script_video_model = True  # must the last to prevent race condition
