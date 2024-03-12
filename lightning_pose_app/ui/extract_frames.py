@@ -209,6 +209,7 @@ class ExtractFramesWork(LightningWork):
         proj_dir: str,
         n_frames_per_video: int,
         frame_range: list = [0, 1],
+        model_dir: str = "None",
     ) -> None:
 
         _logger.info(f"============== extracting frames from {video_file} ================")
@@ -459,7 +460,7 @@ class ExtractFramesUI(LightningFlow):
         )
 
     def _extract_frames_using_model(
-            self, video_files=None, n_frames_per_video=None, testing=False):
+            self, video_files=None, n_frames_per_video=None,frame_range=None ,testing=False):
 
         self.work_is_done_extract_frames = False
 
@@ -477,7 +478,7 @@ class ExtractFramesUI(LightningFlow):
             'frame_range': self.st_frame_range,
         }
         self._launch_works(
-            action="extract_frames",
+            action="extract_frames_using_model",
             video_files=video_files,
             work_kwargs=work_kwargs,
             testing=testing,
@@ -506,6 +507,8 @@ class ExtractFramesUI(LightningFlow):
         self.work_is_done_extract_frames = True
 
     def run(self, action, **kwargs):
+        print(action)
+        print(kwargs)
         if action == "extract_frames":
             self._extract_frames(**kwargs)
         elif action == "extract_frames_using_model":
@@ -525,15 +528,13 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    if state.run_script_video_random or state.run_script_zipped_frames:
+    if state.run_script_video_random or state.run_script_zipped_frames or state.run_script_video_model:
         # don't autorefresh during large file uploads, only during processing
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
     VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
     ZIPPED_FRAMES_STR = "Upload zipped files of frames"
-    VIDEO_MODEL_STR = "Upload videos and automatically extract frames using a given model"
-
-    # TODO: implement find_models
+    VIDEO_MODEL_STR = "Automatically extract frames using a given model"
 
     @st.cache_resource
     def find_models(model_dir):
@@ -746,7 +747,7 @@ def _render_streamlit_fn(state: AppState):
         
         selected_model_path = st.selectbox("Select a model", models_list)
 
-        video_list = []
+        
 
 
         # TODO (see above, L530)
@@ -763,13 +764,13 @@ def _render_streamlit_fn(state: AppState):
         """
         base_model_dir = abspath(os.path.join(state.proj_dir[1:], MODELS_DIR, selected_model_path, MODEL_VIDEO_PREDS_INFER_DIR))
         if not os.path.exists(base_model_dir):
-            st.text("no data")
+            st.text("No video predictions avalibale for this model. Go to TRAIN/INFER tab to run infrence")
             files = []
         else:
             files = os.listdir(base_model_dir)
-
-        if len(files) > 0:
-            good_files = []
+        
+        video_list = []
+        if len(files) > 0: 
             for file in files:
                 if not file.endswith(".csv"):
                     continue 
@@ -777,131 +778,90 @@ def _render_streamlit_fn(state: AppState):
                     or file.endswith("error.csv") \
                     or file.endswith("short.csv"):
                         continue
-                good_files.append(file.split(".")[0])
+                video_list.append(file.split(".")[0])
 
-            st.text(good_files)
 
 ##################################################################################
-############    Use video uploader for reupload videos for the active learning process
-#   
+############    Use video uploader for upload videos for the active learning process
+#       
+
+
         # upload video files to temporary directory
         video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
         os.makedirs(video_dir, exist_ok=True)
 
-        # initialize the file uploader
-        uploaded_files = st.file_uploader(
-            "Select video files",
-            type=["mp4", "avi"],
-            accept_multiple_files=True,
-        )
-
-        if len(uploaded_files) > 0:
-            col1, col2, col3 = st.columns(spec=3, gap="medium")
-            col1.markdown("**Video Name**")
-            col2.markdown("**Video Duration**")
-            col3.markdown("**Number of Frames**")
-
-        # # Upload a video and select n frames for AL 
+        if len(video_list)>0:
+            st_videos = st.multiselect("Select videos", video_list)
         
-        # for each of the uploaded files
-        st_videos = []
-        for uploaded_file in uploaded_files:
-            # read it
-            bytes_data = uploaded_file.read()
-            # name it
-            filename = uploaded_file.name.replace(" ", "_")
-            filepath = os.path.join(video_dir, filename)
-            st_videos.append(filepath)
-            if not state.run_script_video_model:
-                # write the content of the file to the path, but not while processing
-                with open(filepath, "wb") as f:
-                    f.write(bytes_data)
+            # insert an empty element to create empty space
+            st.markdown("###")
 
-                # calculate video duration and frame count
-                cap = cv2.VideoCapture(filepath)
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                duration = float(frame_count) / float(fps)
+            col0, col1 = st.columns(2, gap="large")
+            with col0:
+                # select number of frames to label per video
+                n_frames_per_video = st.text_input(
+                    "Frames to label per video", 20,
+                    help="Specify the desired number of frames for labeling per video. "
+                        "The app will select frames to maximize the diversity of animal poses "
+                        "captured within each video."
+                )
+                st_n_frames_per_video = int(n_frames_per_video)
+            with col1:
+                # select range of video to pull frames from
+                st_frame_range = st.slider(
+                    "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
+                    help="Focus on selecting video sections where the animals are clearly visible and "
+                        "performing the desired behaviors. "
+                        "Skip any parts without the animals or with distracting elements like hands, "
+                        "as these can confuse the model."
+                )
 
-                col1.write(uploaded_file.name)
-                col2.write(f"{duration:.2f} seconds")
-                col3.write(str(frame_count))
-
-                # relese video
-                cap.release()
-
-        # insert an empty element to create empty space
-        st.markdown("###")
-
-        col0, col1 = st.columns(2, gap="large")
-        with col0:
-            # select number of frames to label per video
-            n_frames_per_video = st.text_input(
-                "Frames to label per video", 20,
-                help="Specify the desired number of frames for labeling per video. "
-                     "The app will select frames to maximize the diversity of animal poses "
-                     "captured within each video."
+            st_submit_button_model_frames = st.button(
+                "Extract frames",
+                disabled=(
+                    (st_n_frames_per_video == 0)
+                    or len(st_videos) == 0
+                    or state.run_script_video_model
+                )
             )
-            st_n_frames_per_video = int(n_frames_per_video)
-        with col1:
-            # select range of video to pull frames from
-            st_frame_range = st.slider(
-                "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
-                help="Focus on selecting video sections where the animals are clearly visible and "
-                     "performing the desired behaviors. "
-                     "Skip any parts without the animals or with distracting elements like hands, "
-                     "as these can confuse the model."
-            )
-
-        st_submit_button_model_frames = st.button(
-            "Extract frames",
-            disabled=(
-                (st_n_frames_per_video == 0)
-                or len(st_videos) == 0
-                or state.run_script_video_model
-            )
-        )
-        if state.run_script_video_model:
-            keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
-            for vid, status in state.st_extract_status.items():
-                if status == "initialized":
-                    p = 0.0
-                elif status == "active":
-                    vid_ = vid.replace(".", "_")
-                    if vid_ in keys:
-                        try:
-                            p = state.works_dict[vid_].progress
-                        except:
-                            p = 100.0  # if work is deleted while accessing
+            if state.run_script_video_model:
+                keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
+                for vid, status in state.st_extract_status.items():
+                    if status == "initialized":
+                        p = 0.0
+                    elif status == "active":
+                        vid_ = vid.replace(".", "_")
+                        if vid_ in keys:
+                            try:
+                                p = state.works_dict[vid_].progress
+                            except:
+                                p = 100.0  # if work is deleted while accessing
+                        else:
+                            p = 100.0  # state.work.progress
+                    elif status == "complete":
+                        p = 100.0
                     else:
-                        p = 100.0  # state.work.progress
-                elif status == "complete":
-                    p = 100.0
-                else:
-                    st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
-            st.warning("waiting for existing extraction to finish")
+                        st.text(status)
+                    st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+                st.warning("waiting for existing extraction to finish")
 
-        if state.st_submits > 0 and not st_submit_button_model_frames and not state.run_script_video_random:
-            proceed_str = "Please proceed to the next tab to label frames."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            if state.st_submits > 0 and not st_submit_button_model_frames and not state.run_script_video_model:
+                proceed_str = "Please proceed to the next tab to label frames."
+                proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+                st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
-        # Lightning way of returning the parameters
-        if st_submit_button_model_frames:
-            state.st_submits += 1
+            # Lightning way of returning the parameters
+            if st_submit_button_model_frames:
+                state.st_submits += 1
+                base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
+                state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+                state.model_dir = base_model_dir
+                state.st_extract_status = {s: 'initialized' for s in state.st_video_files_}
+                st.text("Request submitted!")
+                state.run_script_video_model = True  # must the last to prevent race condition
 
-            base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
-            state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
-            state.model_dir = base_model_dir
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            st.text("Request submitted!")
-            state.run_script_video_model = True  # must the last to prevent race condition
-
-        #     #force rerun to show "waiting for existing..." message
-        st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
-
-        # Test new 
+            #     #force rerun to show "waiting for existing..." message
+            st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
 #######################################################################################
 ########## Select the raw avalibale videos per model and extract frames 
