@@ -865,7 +865,6 @@ def _render_streamlit_fn(state: AppState):
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-``
 #######################################################################################
 ########## Select the raw avalibale videos per model and extract frames 
 
