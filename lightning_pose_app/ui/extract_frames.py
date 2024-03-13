@@ -460,7 +460,7 @@ class ExtractFramesUI(LightningFlow):
         )
 
     def _extract_frames_using_model(
-            self, video_files=None, n_frames_per_video=None,frame_range=None ,testing=False):
+            self, video_files=None, n_frames_per_video=None ,testing=False):
 
         self.work_is_done_extract_frames = False
 
@@ -853,15 +853,18 @@ def _render_streamlit_fn(state: AppState):
             # Lightning way of returning the parameters
             if st_submit_button_model_frames:
                 state.st_submits += 1
-                base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
+                base_rel_path = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
                 state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
                 state.model_dir = base_model_dir
                 state.st_extract_status = {s: 'initialized' for s in state.st_video_files_}
+                state.st_n_frames_per_video = st_n_frames_per_video
+                state.st_frame_range = st_frame_range
                 st.text("Request submitted!")
                 state.run_script_video_model = True  # must the last to prevent race condition
 
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
 
 #######################################################################################
 ########## Select the raw avalibale videos per model and extract frames 
