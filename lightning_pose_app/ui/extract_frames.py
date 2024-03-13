@@ -150,12 +150,14 @@ class ExtractFramesWork(LightningWork):
 
     @staticmethod
     def _select_frame_idxs_using_model(
+        video_file: str,
         proj_dir: str,
         model_dir: str,
         n_frames_per_video: int,
         frame_range: list,
     ):
         # TODO: put real active learning code here
+        # TODO: make sure to update test by making dummy prediction/metric files
         return np.arange(n_frames_per_video)
 
     @staticmethod
@@ -260,6 +262,7 @@ class ExtractFramesWork(LightningWork):
             )
         elif method == "active":
             idxs_selected = self._select_frame_idxs_using_model(
+                video_file=video_file_abs,
                 proj_dir=proj_dir,
                 model_dir=model_dir,
                 n_frames_per_video=n_frames_per_video,

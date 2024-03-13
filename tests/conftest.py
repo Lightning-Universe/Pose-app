@@ -4,8 +4,10 @@ These fixtures create data and data modules that can be reused by other tests.
 
 """
 
+import cv2
 import numpy as np
 import os
+import pandas as pd
 import pytest
 import shutil
 
@@ -74,6 +76,42 @@ def video_file() -> str:
     return os.path.join(
         ROOT, LIGHTNING_POSE_DIR, "data/mirror-mouse-example/videos/test_vid.mp4",
     )
+
+
+@pytest.fixture
+def video_file_pred_df(video_file) -> pd.DataFrame:
+
+    # get video info
+    cap = cv2.VideoCapture(video_file)
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    # make fake predictions
+    keypoints = ['paw1', 'paw2']
+    n_keypoints = len(keypoints)
+    xyl_labels = ["x", "y", "likelihood"]
+    pdindex = pd.MultiIndex.from_product(
+        [["tracker"], keypoints, xyl_labels], names=["scorer", "bodyparts", "coords"],
+    )
+    preds = np.random.rand(n_frames, n_keypoints * 3)  # x, y, likelihood
+    df = pd.DataFrame(preds, columns=pdindex)
+
+    return df
+
+
+@pytest.fixture
+def video_file_pca_singleview_df(video_file) -> pd.DataFrame:
+    pass
+
+
+@pytest.fixture
+def video_file_pca_multiview_df(video_file) -> pd.DataFrame:
+    pass
+
+
+@pytest.fixture
+def video_file_temporal_norm_df(video_file) -> pd.DataFrame:
+    pass
 
 
 @pytest.fixture
