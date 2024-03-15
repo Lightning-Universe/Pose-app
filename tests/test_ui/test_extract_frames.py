@@ -4,11 +4,11 @@ import os
 import pandas as pd
 import shutil
 
-from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME
+from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app import MODELS_DIR, VIDEOS_TMP_DIR, VIDEOS_DIR
 
 
-def test_extract_frames_work(video_file, video_file_pred_df, tmpdir):
+def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_singleview_df ,tmpdir):
     """Test private methods here; test run method externally from the UI object."""
 
     from lightning_pose_app.ui.extract_frames import ExtractFramesWork
@@ -40,6 +40,11 @@ def test_extract_frames_work(video_file, video_file_pred_df, tmpdir):
     # prediction: use video_file_pred_df
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
+
+    video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
+    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name +"_pca_singleview_error.csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    video_file_pca_singleview_df.to_csv(path)
     # save predictions
     # should be saved in os.path.join(model_dir, <video_name>.csv)
     # save metrics
@@ -47,7 +52,7 @@ def test_extract_frames_work(video_file, video_file_pred_df, tmpdir):
     idxs = work._select_frame_idxs_using_model(
         video_file=video_file,
         proj_dir=proj_dir,
-        model_dir=model_dir,
+        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR), ##TO FIX
         n_frames_per_video=n_frames_per_video,
         frame_range=[0, 1],
     )
@@ -110,7 +115,12 @@ def test_extract_frames_work(video_file, video_file_pred_df, tmpdir):
     # TODO: make sure to update test by making dummy prediction/metric files in model dir
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-2')
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
+
     video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
+    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name +"_pca_singleview_error.csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    video_file_pca_singleview_df.to_csv(path)
+
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, video_name)
     os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
     n_frames_per_video = 10
@@ -120,7 +130,7 @@ def test_extract_frames_work(video_file, video_file_pred_df, tmpdir):
         proj_dir=proj_dir,
         n_frames_per_video=n_frames_per_video,
         frame_range=[0, 1],
-        model_dir=model_dir,
+        model_dir=os.path.join(model_dir,MODEL_VIDEO_PREDS_INFER_DIR), ##TO FIX - remove all part and leave "model_dir"
     )
     assert os.path.exists(video_dir)
     assert len(os.listdir(video_dir)) > n_frames_per_video

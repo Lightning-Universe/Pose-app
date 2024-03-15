@@ -231,7 +231,6 @@ class LitPoseApp(LightningFlow):
                 self.extract_ui.run_script_zipped_frames = False
 
         if self.extract_ui.proj_dir and self.extract_ui.run_script_video_model:
-            print("about to run extract frames using model")
             self.extract_ui.run(
                 action="extract_frames_using_model",
                 video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes

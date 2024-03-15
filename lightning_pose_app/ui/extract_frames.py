@@ -11,6 +11,7 @@ from sklearn.cluster import KMeans
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import zipfile
+import pandas as pd
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -156,9 +157,25 @@ class ExtractFramesWork(LightningWork):
         n_frames_per_video: int,
         frame_range: list,
     ):
+        
+        
         # TODO: put real active learning code here
         # TODO: make sure to update test by making dummy prediction/metric files
-        return np.arange(n_frames_per_video)
+        
+        #return np.arange(n_frames_per_video)
+        video_name = os.path.splitext(os.path.basename(video_file))[0]
+        pred_file_dir = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
+        print(pred_file_dir)
+        
+        pred_df = pd.read_csv(pred_file_dir, index_col=0)
+        max_sum_column = pred_df.sum().idxmax()
+
+        highest_error_rows = pred_df[max_sum_column].sort_values(ascending=False).head(n_frames_per_video).index
+        print(highest_error_rows)
+        return np.array(highest_error_rows).astype('int')
+
+
+
 
     @staticmethod
     def _export_frames(
@@ -510,8 +527,6 @@ class ExtractFramesUI(LightningFlow):
         self.work_is_done_extract_frames = True
 
     def run(self, action, **kwargs):
-        print(action)
-        print(kwargs)
         if action == "extract_frames":
             self._extract_frames(**kwargs)
         elif action == "extract_frames_using_model":
@@ -553,7 +568,14 @@ def _render_streamlit_fn(state: AppState):
                 trained_models.append('/'.join(fullpath2.split('/')[-2:]))
         return trained_models
         
-    models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))
+    
+    model_dir = os.path.join(state.proj_dir[1:],MODELS_DIR)
+
+    if os.path.exists(model_dir):
+
+        models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))
+    else:
+        models_list=[]
 
     if len(models_list) == 0:
         options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
@@ -787,8 +809,6 @@ def _render_streamlit_fn(state: AppState):
 ##################################################################################
 ############    Use video uploader for upload videos for the active learning process
 #       
-
-
         # upload video files to temporary directory
         video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
         os.makedirs(video_dir, exist_ok=True)
@@ -867,55 +887,4 @@ def _render_streamlit_fn(state: AppState):
 
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
-
-#######################################################################################
-########## Select the raw avalibale videos per model and extract frames 
-
-        # if len(good_files) > 0:
-                
-        #         #mp4_files = [os.path.join(base_model_dir, f) for f in files if f.endswith(".mp4")]
-                
-        #         raw_videos_dir = [abspath(os.path.join(state.proj_dir[1:], "videos_infer",f)) for f in files if f.endswith('.mp4') and not f.endswith('short.mp4') and not f.endswith('labeled.mp4')]
-        #         #filtered_videos = [f for f in filenames if f.endswith('.mp4') and not f.endswith('short.mp4') and not f.endswith('labeled.mp4')]
-        #         selected_file = st.radio('Select an MP4 file:', raw_videos_dir)
-        #         st.write(f'You selected: {selected_file}')
-        # else:
-        #     st.write("No Videos avalibale")
-
-
-
-        # good_files is the list we want to show the user
-
-        #mp4_files = [os.path.join(base_model_dir, f) if f.endswith(".mp4") for f in files]
-
-        """
-        # allow user to select multiple videos
-        # the result is called "st_videos"
-        
-        # copy over some of the options from VIDEO_RANDOM_STR: frames/video and video slider
-        # call these st_videos
-
-        # extract frames button
-        """
-        # st_submit_button_model_frames = st.button(
-        #     "Extract frames",
-        #     disabled=(
-        #         (st_n_frames_per_video == 0)
-        #         or len(st_videos) == 0
-        #         or state.run_script_video_random
-        #     )
-
-        # # # NOTE: everything below might be ok?
-        # if st_submit_button_model_frames:
-        #     state.st_submits += 1
-
-        #     base_rel_path = os.path.join(state.proj_dir, VIDEOS_INFER_DIR)
-        #     state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
-        #     state.model_dir = model_dir
-        #     state.st_extract_status = {s: 'initialized' for s in st_videos}
-        #     st.text("Request submitted!")
-        #     state.run_script_video_model = True  # must the last to prevent race condition
-
-        # #     #force rerun to show "waiting for existing..." message
-        # st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 

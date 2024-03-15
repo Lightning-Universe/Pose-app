@@ -101,17 +101,56 @@ def video_file_pred_df(video_file) -> pd.DataFrame:
 
 @pytest.fixture
 def video_file_pca_singleview_df(video_file) -> pd.DataFrame:
-    pass
+    # get video info
+    cap = cv2.VideoCapture(video_file)
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    keypoints = ['paw1', 'paw2']
+    n_keypoints = len(keypoints)
+    preds = np.random.rand(n_frames, n_keypoints) 
+
+    df = pd.DataFrame(preds, columns=keypoints)
+    
+    return df
 
 
 @pytest.fixture
 def video_file_pca_multiview_df(video_file) -> pd.DataFrame:
-    pass
+
+    cap = cv2.VideoCapture(video_file)
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    keypoints = ['paw1', 'paw2']
+    n_keypoints = len(keypoints)
+    preds = np.random.rand(n_frames, n_keypoints) 
+
+    df = pd.DataFrame(preds, columns=keypoints)
+
+    return df
 
 
 @pytest.fixture
 def video_file_temporal_norm_df(video_file) -> pd.DataFrame:
-    pass
+    cap = cv2.VideoCapture(video_file)
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    keypoints = ['paw1', 'paw2']
+    n_keypoints = len(keypoints)
+
+    data = np.full((n_frames, n_keypoints + 1), np.nan)
+    data[:, 0] = range(n_frames)
+
+    for i in range(1, n_keypoints + 1):
+        data[1:, i] = np.random.rand(n_frames - 1) * 10 + np.random.randint(0, 5)
+
+    columns = ['Frame Index'] + keypoints
+    
+    df = pd.DataFrame(data, columns=columns)
+
+    return df
 
 
 @pytest.fixture
