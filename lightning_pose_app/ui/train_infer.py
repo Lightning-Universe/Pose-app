@@ -25,6 +25,7 @@ from lightning_pose_app.utilities import (
     copy_and_reformat_video,
     is_context_dataset,
     make_video_snippet,
+    update_config,
 )
 
 
@@ -120,9 +121,7 @@ class LitPose(LightningWork):
         cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
 
         # update config with user-provided overrides
-        for key1, val1 in config_overrides.items():
-            for key2, val2 in val1.items():
-                cfg[key1][key2] = val2
+        cfg = update_config(cfg, config_overrides)
 
         # reduce context batch sizes to fit on 8GB GPU; TODO: need to generalize this
         cfg.dali.context.train.batch_size = 8
