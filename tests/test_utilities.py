@@ -177,6 +177,70 @@ def test_compute_resize_dims():
     assert compute_resize_dims(2049) == 384
 
 
+def test_compute_batch_sizes():
+
+    from lightning_pose_app.utilities import compute_batch_sizes
+
+    train, dali_base, dali_cxt = compute_batch_sizes(400, 400)
+    assert train == 16
+    assert dali_base == 16
+    assert dali_cxt == 16
+
+    train, dali_base, dali_cxt = compute_batch_sizes(512, 512)
+    assert train == 8
+    assert dali_base == 8
+    assert dali_cxt == 8
+
+    train, dali_base, dali_cxt = compute_batch_sizes(1024, 1024)
+    assert train == 6
+    assert dali_base == 8
+    assert dali_cxt == 8
+
+
+def test_update_config():
+
+    from lightning_pose_app.utilities import update_config
+
+    # two fields deep
+    cfg = {"data": {"csv_file": "path0", "data_dir": "path1"}}
+    new = {"data": {"csv_file": "path2"}}
+    cfg_new = update_config(cfg, new)
+    assert cfg_new["data"]["csv_file"] == new["data"]["csv_file"]
+    assert cfg_new["data"]["data_dir"] == cfg["data"]["data_dir"]
+
+    # three fields deep
+    cfg = {
+        "eval": {
+            "conf_thresh": 0.9,
+            "fiftyone": {"port": 5151},
+        },
+    }
+    new = {
+        "eval": {
+            "fiftyone": {"port": 1000},
+        },
+    }
+    cfg_new = update_config(cfg, new)
+    assert cfg_new["eval"]["fiftyone"]["port"] == new["eval"]["fiftyone"]["port"]
+    assert cfg_new["eval"]["conf_thresh"] == cfg["eval"]["conf_thresh"]
+
+    # four fields deep
+    cfg = {
+        "dali": {
+            "general": {"seed": 123},
+            "base": {"train": {"seq_len": 10}},
+        },
+    }
+    new = {
+        "dali": {
+            "base": {"train": {"seq_len": 20}},
+        },
+    }
+    cfg_new = update_config(cfg, new)
+    assert cfg_new["dali"]["base"]["train"]["seq_len"] == new["dali"]["base"]["train"]["seq_len"]
+    assert cfg_new["dali"]["general"]["seed"] == cfg_new["dali"]["general"]["seed"]
+
+
 def test_abspath():
 
     from lightning_pose_app.utilities import abspath
