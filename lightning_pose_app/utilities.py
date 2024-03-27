@@ -289,6 +289,44 @@ def compute_resize_dims(pixels: int):
     return min(max(2 ** (math.floor(math.log(pixels, 2))), 128), 384)
 
 
+def compute_batch_sizes(height: int, width: int):
+    """These are hard-coded for values that max out a 16GB GPU (T4) with the example datasets."""
+    if height * width >= 1024 * 1024:
+        # resize dims likely 384 x 384
+        train_batch_size = 6
+        dali_base_seq_len = 8
+        dali_cxt_seq_len = 8
+    elif height * width >= 512 * 512:
+        # resize dims likely 384 x 384
+        train_batch_size = 8
+        dali_base_seq_len = 8
+        dali_cxt_seq_len = 8
+    else:
+        # resize dims likely 256 x 256 or smaller
+        train_batch_size = 16
+        dali_base_seq_len = 16
+        dali_cxt_seq_len = 16
+    return train_batch_size, dali_base_seq_len, dali_cxt_seq_len
+
+
+def update_config(config_dict: dict, new_vals_dict: dict):
+    # update config using new_vals_dict; assume this is a dict of dicts
+    # new_vals_dict = {
+    #     "data": new_data_dict,
+    #     "eval": new_eval_dict,
+    #     ...
+    # }
+    for sconfig_name, sconfig_dict in new_vals_dict.items():
+        for key1, val1 in sconfig_dict.items():
+            if isinstance(val1, dict):
+                # update config file up to depth 2
+                for key2, val2 in val1.items():
+                    config_dict[sconfig_name][key1][key2] = val2
+            else:
+                config_dict[sconfig_name][key1] = val1
+    return config_dict
+
+
 def abspath(path):
     if path[0] == "/":
         path_ = path[1:]

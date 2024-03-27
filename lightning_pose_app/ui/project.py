@@ -24,9 +24,11 @@ from lightning_pose_app import (
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
+    abspath,
+    compute_batch_sizes,
     compute_resize_dims,
     copy_and_reformat_video_directory,
-    abspath,
+    update_config
 )
 
 
@@ -153,20 +155,8 @@ class ProjectUI(LightningFlow):
             # load existing config
             config_dict = yaml.safe_load(open(abspath(self.config_file)))
 
-        # update config using new_vals_dict; assume this is a dict of dicts
-        # new_vals_dict = {
-        #     "data": new_data_dict,
-        #     "eval": new_eval_dict,
-        #     ...}
         if new_vals_dict is not None:
-            for sconfig_name, sconfig_dict in new_vals_dict.items():
-                for key, val in sconfig_dict.items():
-                    if isinstance(val, dict):
-                        # update config file up to depth 2
-                        for key1, val1 in val.items():
-                            config_dict[sconfig_name][key][key1] = val1
-                    else:
-                        config_dict[sconfig_name][key] = val
+            config_dict = update_config(config_dict, new_vals_dict)
             # save out updated config file locally
             if not os.path.exists(self.proj_dir_abs):
                 os.makedirs(self.proj_dir_abs)
@@ -189,17 +179,39 @@ class ProjectUI(LightningFlow):
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
+            # compute image resize height/width, between 128 and 384
+            height_resize = compute_resize_dims(image.height)
+            width_resize = compute_resize_dims(image.width)
+            # compute batch sizes batch on image size
+            train_batch_size, dali_base_seq_len, dali_ctx_seq_len = compute_batch_sizes(
+                image.height, image.width,
+            )
             self._update_project_config(new_vals_dict={
                 "data": {
                     "image_orig_dims": {
                         "height": image.height,
                         "width": image.width
                     },
-                    "image_resize_dims": {  # automatically compute resize dim, between 128 and 384
-                        "height": compute_resize_dims(image.height),
-                        "width": compute_resize_dims(image.width),
+                    "image_resize_dims": {
+                        "height": height_resize,
+                        "width": width_resize,
                     }
-                }
+                },
+                "training": {
+                    "train_batch_size": train_batch_size,
+                    "val_batch_size": 2 * train_batch_size,
+                    "test_batch_size": 2 * train_batch_size,
+                },
+                "dali": {
+                    "base": {
+                        "train": {"sequence_length": dali_base_seq_len},
+                        "predict": {"sequence_length": 4 * dali_base_seq_len},
+                    },
+                    "context": {
+                        "train": {"batch_size": dali_ctx_seq_len},
+                        "predict": {"sequence_length": 4 * dali_ctx_seq_len},
+                    },
+                },
             })
         else:
             _logger.debug(glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*")))
