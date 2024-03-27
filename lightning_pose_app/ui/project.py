@@ -188,6 +188,10 @@ class ProjectUI(LightningFlow):
             )
             self._update_project_config(new_vals_dict={
                 "data": {
+                    "image_orig_dims": {
+                        "height": image.height,
+                        "width": image.width,
+                    },
                     "image_resize_dims": {
                         "height": height_resize,
                         "width": width_resize,
