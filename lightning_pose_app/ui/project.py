@@ -3,7 +3,6 @@ import glob
 from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 import logging
-import math
 import numpy as np
 import os
 import pandas as pd
@@ -25,7 +24,7 @@ from lightning_pose_app import (
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
-    collect_dlc_labels,
+    compute_resize_dims,
     copy_and_reformat_video_directory,
     abspath,
 )
@@ -196,9 +195,9 @@ class ProjectUI(LightningFlow):
                         "height": image.height,
                         "width": image.width
                     },
-                    "image_resize_dims": {  # automatically scale between 128 and 256 for now
-                        "height": min(max(2 ** (math.floor(math.log(image.height, 2))), 128), 256),
-                        "width": min(max(2 ** (math.floor(math.log(image.width, 2))), 128), 256),
+                    "image_resize_dims": {  # automatically compute resize dim, between 128 and 384
+                        "height": compute_resize_dims(image.height),
+                        "width": compute_resize_dims(image.width),
                     }
                 }
             })
@@ -303,11 +302,7 @@ class ProjectUI(LightningFlow):
                     else:
                         shutil.copyfile(src, dst)
 
-        # -------------------
-    # test find models
-    # -------------------# -------------------
-    # test find models
-    # ------------------- == "DLC":
+        elif self.st_existing_project_format == "DLC":
 
             # copy files
             files_and_dirs = os.listdir(unzipped_dir)
@@ -444,6 +439,52 @@ def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") 
     proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
 
     return error_flag, proceed_fmt % error_msg
+
+
+def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
+    """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
+
+    dirs = os.listdir(os.path.join(dlc_dir, "labeled-data"))
+    dirs.sort()
+    dfs = []
+    for d in dirs:
+        try:
+            csv_file = glob.glob(os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.csv"))[0]
+            df_tmp = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+            if len(df_tmp.index.unique()) != df_tmp.shape[0]:
+                # new DLC labeling scheme that splits video/image in different cells
+                levels1 = ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")
+                vids = df_tmp.loc[:, levels1]
+                levels2 = ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")
+                imgs = df_tmp.loc[:, levels2]
+                new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
+                df_tmp1 = df_tmp.drop(levels1, axis=1)
+                df_tmp2 = df_tmp1.drop(levels2, axis=1)
+                df_tmp2.index = new_col
+                df_tmp = df_tmp2
+        except IndexError:
+            try:
+                h5_file = glob.glob(
+                    os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
+                )[0]
+                df_tmp = pd.read_hdf(h5_file)
+                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):
+                    # new DLC labeling scheme that splits video/image in different cells
+                    imgs = [i[2] for i in df_tmp.index]
+                    vids = [df_tmp.index[0][1] for _ in imgs]
+                    new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
+                    df_tmp1 = df_tmp.reset_index().drop(
+                        columns="level_0").drop(columns="level_1").drop(columns="level_2")
+                    df_tmp1.index = new_col
+                    df_tmp = df_tmp1
+            except IndexError:
+                _logger.error(f"Could not find labels for {d}; skipping")
+                continue
+
+        dfs.append(df_tmp)
+    df_all = pd.concat(dfs)
+
+    return df_all
 
 
 def _render_streamlit_fn(state: AppState):

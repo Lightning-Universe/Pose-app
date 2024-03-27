@@ -159,6 +159,24 @@ def test_is_context_dataset(tmp_proj_dir):
     )
 
 
+def test_compute_resize_dims():
+
+    from lightning_pose_app.utilities import compute_resize_dims
+
+    # 128 is minimum for resizing, since heatmaps will be smaller by a factor of 2
+    assert compute_resize_dims(24) == 128
+    assert compute_resize_dims(127) == 128
+
+    # should round down to nearest power of 2 until 512, then rounds down to 384
+    assert compute_resize_dims(129) == 128
+    assert compute_resize_dims(250) == 128
+    assert compute_resize_dims(380) == 256
+    assert compute_resize_dims(385) == 256
+    assert compute_resize_dims(512) == 384
+    assert compute_resize_dims(1025) == 384
+    assert compute_resize_dims(2049) == 384
+
+
 def test_abspath():
 
     from lightning_pose_app.utilities import abspath
