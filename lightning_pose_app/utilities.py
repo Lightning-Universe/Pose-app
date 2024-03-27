@@ -2,6 +2,7 @@ import cv2
 import glob
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 import logging
+import math
 import numpy as np
 import os
 import pandas as pd
@@ -176,10 +177,10 @@ def get_frames_from_idxs(cap, idxs) -> np.ndarray:
 
 
 def make_video_snippet(
-        video_file: str,
-        preds_file: str,
-        clip_length: int = 30,
-        likelihood_thresh: float = 0.9
+    video_file: str,
+    preds_file: str,
+    clip_length: int = 30,
+    likelihood_thresh: float = 0.9
 ) -> str:
 
     # save videos with csv file
@@ -283,50 +284,9 @@ def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> 
     return is_context
 
 
-def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
-    """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
-
-    dirs = os.listdir(os.path.join(dlc_dir, "labeled-data"))
-    dirs.sort()
-    dfs = []
-    for d in dirs:
-        try:
-            csv_file = glob.glob(os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.csv"))[0]
-            df_tmp = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
-            if len(df_tmp.index.unique()) != df_tmp.shape[0]:
-                # new DLC labeling scheme that splits video/image in different cells
-                levels1 = ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")
-                vids = df_tmp.loc[:, levels1]
-                levels2 = ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")
-                imgs = df_tmp.loc[:, levels2]
-                new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                df_tmp1 = df_tmp.drop(levels1, axis=1)
-                df_tmp2 = df_tmp1.drop(levels2, axis=1)
-                df_tmp2.index = new_col
-                df_tmp = df_tmp2
-        except IndexError:
-            try:
-                h5_file = glob.glob(
-                    os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
-                )[0]
-                df_tmp = pd.read_hdf(h5_file)
-                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):
-                    # new DLC labeling scheme that splits video/image in different cells
-                    imgs = [i[2] for i in df_tmp.index]
-                    vids = [df_tmp.index[0][1] for _ in imgs]
-                    new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                    df_tmp1 = df_tmp.reset_index().drop(
-                        columns="level_0").drop(columns="level_1").drop(columns="level_2")
-                    df_tmp1.index = new_col
-                    df_tmp = df_tmp1
-            except IndexError:
-                _logger.error(f"Could not find labels for {d}; skipping")
-                continue
-
-        dfs.append(df_tmp)
-    df_all = pd.concat(dfs)
-
-    return df_all
+def compute_resize_dims(pixels: int):
+    """Return value in {128, 256, 384} that is closest but not greater than pixel size."""
+    return min(max(2 ** (math.floor(math.log(pixels, 2))), 128), 384)
 
 
 def abspath(path):
