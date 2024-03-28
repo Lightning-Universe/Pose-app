@@ -217,7 +217,7 @@ def select_frames_using_metrics(preds,
         
     outliers_total = identify_outliers(metrics,likelihood_thresh,thresh_metric_z)
     
-    frames_sample_multiplier = 10 if frame_count<1e5 else 40
+    frames_sample_multiplier = 10 if preds.shape[0]<1e5 else 40
     frames_to_grab = min(n_frames_per_video * frames_sample_multiplier, preds.shape[0])
     outlier_frames = pd.DataFrame({"frames index": idxs_high_me, "error score": outliers_total}).sort_values(by="error score", ascending=False).head(frames_to_grab)
     
@@ -386,48 +386,29 @@ class ExtractFramesWork(LightningWork):
 
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         pred_file_dir = os.path.join(model_dir, video_name + ".csv")
-        pca_singleview_file_dir = os.path.join(model_dir,VIDEOS_INFER_DIR,video_name + "_pca_singleview_error.csv")
-        pca_multiview_file_dir = os.path.join(model_dir,VIDEOS_INFER_DIR,video_name + "_pca_multiview_error.csv")
-        temp_norm_file_dir = os.path.join(model_dir,VIDEOS_INFER_DIR,video_name + "_temporal_norm.csv")
+        pca_singleview_file_dir = os.path.join(model_dir,video_name + "_pca_singleview_error.csv")
+        pca_multiview_file_dir = os.path.join(model_dir,video_name + "_pca_multiview_error.csv")
+        temp_norm_file_dir = os.path.join(model_dir,video_name + "_temporal_norm.csv")
         
+        preds = pd.read_csv(pred_file_dir, header=[0,1,2], index_col=0)
+        pca_singleview = pd.read_csv(pca_singleview_file_dir, index_col=0)
+        pca_multiview = pd.read_csv(pca_multiview_file_dir, index_col=0)
+        temp_norm = pd.read_csv(temp_norm_file_dir, index_col=0)
 
-        # Initialize empty DataFrames
-        preds = pd.DataFrame()
-        pca_singleview = pd.DataFrame()
-        pca_multiview = pd.DataFrame()
-        temp_norm = pd.DataFrame()
-        
-        try:
-            preds = pd.read_csv(pred_file_dir, header=[0,1,2], index_col=0)
-        except FileNotFoundError:
-            pass
-        
-        try:
-            pca_singleview = pd.read_csv(pca_singleview_file_dir, index_col=0)
-        except FileNotFoundError:
-            pass
-        
-        try:
-            pca_multiview = pd.read_csv(pca_multiview_file_dir, index_col=0)
-        except FileNotFoundError:
-            pass
-        
-        try:
-            temp_norm = pd.read_csv(temp_norm_file_dir, index_col=0)
-        except FileNotFoundError:
-            pass
-        
-        # Set the key metrics
-        metrics = {
+        metrics = {        
             'likelihood': None,
-            'pca_singleview': pca_singleview if not pca_singleview.empty else None,
-            'pca_multiview': pca_multiview if not pca_multiview.empty else None,
-            'temporal_norm': temp_norm if not temp_norm.empty else None,
+            'pca_singleview': None,
+            'pca_multiview': None,
+            'temporal_norm': None,
         }
-            
-        idxs_selected = select_frames_using_metrics(preds,metrics,n_frames_per_video,likelihood_thresh, thresh_metric_z)
-        print("Selected indices",idxs_selected)                                                                                        
-        return idxs_selected
+
+        metrics['pca_singleview'] = pca_singleview
+        metrics['pca_multiview'] = pca_multiview
+        metrics['temporal_norm'] = temp_norm
+
+
+        idxs_selected = select_frames_using_metrics(preds,metrics,n_frames_per_video,likelihood_thresh, thresh_metric_z)                                                                                        
+        return np.array(idxs_selected)
 
 
     @staticmethod
@@ -1070,7 +1051,7 @@ def _render_streamlit_fn(state: AppState):
             st_videos = st.multiselect("Select videos", video_list)
         
             # insert an empty element to create empty space
-            st.markdown("###")
+            st.markdown("##")
 
             col0, col1 = st.columns(2, gap="large")
             with col0:
