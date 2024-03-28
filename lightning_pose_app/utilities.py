@@ -201,15 +201,9 @@ def make_video_snippet(
         shutil.copyfile(src, dst)
     else:
         # compute motion energy (averaged over keypoints)
-        kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
-        kps = kps_and_conf[:, :, :2]
-        conf = kps_and_conf[:, :, -1]
-        conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
-        kps[conf2 < likelihood_thresh] = np.nan
-        me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
-
+        me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
         # find window
-        df_me = pd.DataFrame({"me": np.concatenate([[0], me])})
+        df_me = pd.DataFrame({"me": me})
         df_me_win = df_me.rolling(window=win_len, center=False).mean()
         # rolling places results in right edge of window, need to subtract this
         clip_start_idx = df_me_win.me.argmax() - win_len
@@ -225,6 +219,23 @@ def make_video_snippet(
 
     return dst
 
+
+def compute_motion_energy_from_predection_df(df, likelihood_thresh):
+    
+    # Convert predictions to numpy array and reshape
+    kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
+    kps = kps_and_conf[:, :, :2]
+    conf = kps_and_conf[:, :, -1]
+    # Duplicate likelihood scores for x and y coordinates
+    conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
+    
+    # Apply likelihood threshold
+    kps[conf2 < likelihood_thresh] = np.nan
+    
+    # Compute motion energy
+    me = np.nanmean(np.linalg.norm(kps[1:] - kps[:-1], axis=2), axis=-1)
+    me = np.concatenate([[0], me])
+    return me
 
 def get_frame_number(basename: str) -> tuple:
     """img0000234.png -> (234, "img", ".png")"""

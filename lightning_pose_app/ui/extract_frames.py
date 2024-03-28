@@ -12,6 +12,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import zipfile
 import pandas as pd
+from scipy.stats import zscore
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -25,9 +26,225 @@ from lightning_pose_app import (
 )
 from lightning_pose_app.utilities import StreamlitFrontend, abspath
 from lightning_pose_app.utilities import copy_and_reformat_video, get_frames_from_idxs
+from lightning_pose_app.utilities import compute_motion_energy_from_predection_df
+
+
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
+
+
+
+
+# def identify_outliers(metrics_full, likelihood_thresh, thresh_metric_z):
+
+#     # Initialize dictionary to store outlier flags for each metric
+#     outliers = {m: None for m in metrics.keys()}
+
+#     # Determine outliers for each metric
+#     for metric, val in metrics_full.items():
+#         if metric == "likelihood":
+#             outliers[metric] = val < likelihood_thresh
+#         else:
+#             # Apply z-score and threshold to determine outliers
+#             outliers[metric] = val.apply(zscore).abs() > thresh_metric_z
+
+#     # Combine outlier flags from all metrics_full into a single 3D array
+#     outliers_all = np.concatenate(
+#         [d.to_numpy()[:, :, None] for _, d in outliers.items()],
+#         axis=-1
+#     )  # Shape: (n_frames, n_keypoints, n_metrics)
+
+#     # Sum outlier flags to identify total outliers for each frame
+#     outliers_total = np.sum(outliers_all, axis=(1, 2))
+
+#     return outliers_total
+
+# # TODO:
+# # write a test for the outliars function
+# # test again the new ME function in the notebook
+# # write a test to the big run fuction - select_frames_using_kmean 
+# # finish implement active learning by kmeans in the app
+# #  
+
+# def run_kmeans(X,n_clusters):
+#     kmeans_obj = KMeans(n_clusters, n_init="auto")
+#     kmeans_obj.fit(X)
+#     cluster_labels= kmeans_obj.labels_
+#     return cluster_labels
+
+# def select_max_frame_per_cluster(df):
+#     # Copy the DataFrame to avoid modifying the original
+#     df_copy = df.copy()
+
+#     # Group by 'cluster_labels' and find the index of the max 'error score' in each group
+#     idxs_max_error = df_copy.groupby('cluster_labels')['error score'].idxmax()
+
+#     # Select the rows that correspond to the max 'error score' in each cluster
+#     final_selection = df_copy.loc[idxs_max_error].sort_values(by="frames index")["frames index"].tolist()
+
+#     return final_selection
+
+# # need to test this again
+# def select_frames_using_metrics(preds,
+#                                 metrics,
+#                                 n_frames_per_video,
+#                                 likelihood_thresh: float=0.9,
+#                                 thresh_metric_z: int=3
+#                                 ):
+#     frame_count = preds.shape[0]
+
+#     #me, idxs_high_me, metrics = compute_motion_energy(preds, likelihood_thresh, metrics)
+
+#     me = compute_motion_energy_from_predection_df(preds,likelihood_thresh)
+
+#     me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
+#     # Select index of high ME frames
+#     idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
+    
+#     # Store likelihood scores in metrics dictionary
+#     mask = preds.columns.get_level_values('coords').isin(['likelihood'])
+#     metrics["likelihood"] = preds.loc[:,mask]
+#     #Select high ME frames from metrics
+
+#     for metric, val in metrics.items():
+#         metrics[metric] = val.loc[idxs_high_me]
+
+
+#     outliers_total = identify_outliers(metrics, likelihood_thresh, thresh_metric_z)
+#     frames_sample_multiplier = 10 if frame_count<1e5 else 40
+#     frames_to_grab = min(n_frames_per_video * frames_sample_multiplier, preds.shape[0])
+#     outlier_frames = pd.DataFrame({"frames index": idxs_high_me, "error score": outliers_total}).sort_values(by="error score", ascending=False).head(frames_to_grab)
+
+#     # Select frames with an error score greater than 0
+#     outlier_frames_nozero = outlier_frames[outlier_frames["error score"] > 0]
+
+#     # Prepare data for clustering
+#     outlier_idx = outlier_frames_nozero["frames index"].values
+#     mask = preds.columns.get_level_values('coords').isin(['x', 'y'])
+#     data_to_cluster = preds.loc[outlier_idx, mask]  # Flatten to numpy array for clustering
+
+#     #data_to_cluster_dropped = data_to_cluster.dropna()
+
+#     # Run KMeans clustering
+#     cluster_labels = run_kmeans(data_to_cluster.to_numpy(), n_frames_per_video)
+    
+
+#     # Merge cluster labels with outlier frame data
+#     outlier_frames_nozero['cluster_labels'] = cluster_labels
+
+#     clustered_data = outlier_frames_nozero.copy()
+
+#     # Select the frame with the maximum error score in each cluster for the final selection
+#     idxs_selected = select_max_frame_per_cluster(outlier_frames_nozero)
+
+#     return idxs_selected, clustered_data
+
+
+def identify_outliers(metrics,likelihood_thresh,thresh_metric_z):
+
+    # Initialize dictionary to store outlier flags for each metric
+    outliers = {m: None for m in metrics.keys()}
+
+    # Determine outliers for each metric
+    for metric, val in metrics.items():
+        if metric == "likelihood":
+            outliers[metric] = val < likelihood_thresh
+        else:
+            # Apply z-score and threshold to determine outliers
+            outliers[metric] = val.apply(zscore).abs() > thresh_metric_z
+
+    # Combine outlier flags from all metrics into a single 3D array
+    outliers_all = np.concatenate(
+        [d.to_numpy()[:, :, None] for _, d in outliers.items()],
+        axis=-1
+    )  # Shape: (n_frames, n_keypoints, n_metrics)
+
+    # Sum outlier flags to identify total outliers for each frame
+    outliers_total = np.sum(outliers_all, axis=(1, 2))
+
+    return outliers_total
+
+# TODO:
+# write a test for the outliars function
+# test again the new ME function in the notebook
+# write a test to the big run fuction - select_frames_using_kmean 
+# finish implement active learning by kmeans in the app
+#  
+
+def run_kmeans(X,n_clusters):
+    kmeans_obj = KMeans(n_clusters, n_init="auto")
+    kmeans_obj.fit(X)
+    cluster_labels= kmeans_obj.labels_
+    return cluster_labels
+
+def select_max_frame_per_cluster(df):
+    # Copy the DataFrame to avoid modifying the original
+    df_copy = df.copy()
+
+    # Group by 'cluster_labels' and find the index of the max 'error score' in each group
+    idxs_max_error = df_copy.groupby('cluster_labels')['error score'].idxmax()
+
+    # Select the rows that correspond to the max 'error score' in each cluster
+    final_selection = df_copy.loc[idxs_max_error].sort_values(by="frames index")["frames index"].tolist()
+
+    return final_selection
+
+def select_frames_using_metrics(preds,
+                                metrics,
+                                n_frames_per_video,
+                                likelihood_thresh, 
+                                thresh_metric_z
+                                ):
+                                
+    me = compute_motion_energy_from_predection_df(preds,likelihood_thresh)
+
+    me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
+    # Select index of high ME frames
+    idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
+
+    # Store likelihood scores in metrics dictionary
+    kps_and_conf = preds.to_numpy().reshape(preds.shape[0], -1, 3)
+    conf = kps_and_conf[:, :, -1]
+    mask = preds.columns.get_level_values('coords').isin(['likelihood'])
+    metrics["likelihood"] = pd.DataFrame(conf)
+    #Select high ME frames from metrics
+
+    # Store likelihood scores in metrics dictionary
+    metrics["likelihood"] = preds.loc[:,mask]
+    for metric, val in metrics.items():
+        metrics[metric] = val.loc[idxs_high_me]
+        
+    outliers_total = identify_outliers(metrics,likelihood_thresh,thresh_metric_z)
+    
+    frames_sample_multiplier = 10 if frame_count<1e5 else 40
+    frames_to_grab = min(n_frames_per_video * frames_sample_multiplier, preds.shape[0])
+    outlier_frames = pd.DataFrame({"frames index": idxs_high_me, "error score": outliers_total}).sort_values(by="error score", ascending=False).head(frames_to_grab)
+    
+    # Select frames with an error score greater than 0
+    outlier_frames_nozero = outlier_frames[outlier_frames["error score"] > 0]
+    
+    # Prepare data for clustering
+    outlier_idx = outlier_frames_nozero["frames index"].values
+    mask = preds.columns.get_level_values('coords').isin(['x', 'y'])
+    data_to_cluster = preds.loc[outlier_idx, mask]  # Flatten to numpy array for clustering
+
+    #drop all columns with NA in all cells and rows with NA in any cell   
+    data_to_cluster = data_to_cluster.dropna(axis=1,how='all').dropna(axis=0,how='any')
+    
+    # Run KMeans clustering
+    cluster_labels = run_kmeans(data_to_cluster.to_numpy(), n_frames_per_video)
+                            
+    clustered_data = pd.DataFrame({"frames index":data_to_cluster.index,
+    "cluster_labels":cluster_labels
+    })
+    
+    clustered_data_errors = clustered_data.merge(outlier_frames_nozero, on="frames index")
+
+    # Select the frame with the maximum error score in each cluster for the final selection
+    idxs_selected = select_max_frame_per_cluster(clustered_data_errors)
+    
+    return idxs_selected
 
 class ExtractFramesWork(LightningWork):
 
@@ -149,32 +366,68 @@ class ExtractFramesWork(LightningWork):
 
         return idxs_prototypes
 
+###################################################################################################
+# NEW ACTIVE LEARNING CODE FROM HERE
+# #################################################################################################    
+
     @staticmethod
     def _select_frame_idxs_using_model(
         video_file: str,
         proj_dir: str,
         model_dir: str,
         n_frames_per_video: int,
-        frame_range: list,
-    ):
-        
-        
-        # TODO: put real active learning code here
-        # TODO: make sure to update test by making dummy prediction/metric files
-        
-        #return np.arange(n_frames_per_video)
+        frame_range: list=[0,1],
+        likelihood_thresh: float=0.0,
+        thresh_metric_z: float=3.0,
+        ):
+
+        likelihood_thresh = likelihood_thresh
+        thresh_metric_z = thresh_metric_z
+
         video_name = os.path.splitext(os.path.basename(video_file))[0]
-        pred_file_dir = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
-        print(pred_file_dir)
+        pred_file_dir = os.path.join(model_dir, video_name + ".csv")
+        pca_singleview_file_dir = os.path.join(model_dir,VIDEOS_INFER_DIR,video_name + "_pca_singleview_error.csv")
+        pca_multiview_file_dir = os.path.join(model_dir,VIDEOS_INFER_DIR,video_name + "_pca_multiview_error.csv")
+        temp_norm_file_dir = os.path.join(model_dir,VIDEOS_INFER_DIR,video_name + "_temporal_norm.csv")
         
-        pred_df = pd.read_csv(pred_file_dir, index_col=0)
-        max_sum_column = pred_df.sum().idxmax()
 
-        highest_error_rows = pred_df[max_sum_column].sort_values(ascending=False).head(n_frames_per_video).index
-        print(highest_error_rows)
-        return np.array(highest_error_rows).astype('int')
-
-
+        # Initialize empty DataFrames
+        preds = pd.DataFrame()
+        pca_singleview = pd.DataFrame()
+        pca_multiview = pd.DataFrame()
+        temp_norm = pd.DataFrame()
+        
+        try:
+            preds = pd.read_csv(pred_file_dir, header=[0,1,2], index_col=0)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            pca_singleview = pd.read_csv(pca_singleview_file_dir, index_col=0)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            pca_multiview = pd.read_csv(pca_multiview_file_dir, index_col=0)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            temp_norm = pd.read_csv(temp_norm_file_dir, index_col=0)
+        except FileNotFoundError:
+            pass
+        
+        # Set the key metrics
+        metrics = {
+            'likelihood': None,
+            'pca_singleview': pca_singleview if not pca_singleview.empty else None,
+            'pca_multiview': pca_multiview if not pca_multiview.empty else None,
+            'temporal_norm': temp_norm if not temp_norm.empty else None,
+        }
+            
+        idxs_selected = select_frames_using_metrics(preds,metrics,n_frames_per_video,likelihood_thresh, thresh_metric_z)
+        print("Selected indices",idxs_selected)                                                                                        
+        return idxs_selected
 
 
     @staticmethod

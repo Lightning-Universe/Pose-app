@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import shutil
 
+
 from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app import MODELS_DIR, VIDEOS_TMP_DIR, VIDEOS_DIR
 
@@ -237,3 +238,92 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     # cleanup
     # -----------------
     del flow
+
+
+def test_run_kmeans():
+    from lightning_pose_app.ui.extract_frames import run_kmeans
+
+    n_samples = int(50)
+    n_features = int(5)
+    n_clusters = 10
+
+    data_to_cluster = np.random.rand(n_samples,n_features)
+    cluster = run_kmeans(data_to_cluster,n_clusters)
+  
+    assert len(cluster) == n_samples
+    assert len(np.unique(cluster)) == n_clusters
+
+
+def test_select_max_frame_per_cluster():
+    from lightning_pose_app.ui.extract_frames import select_max_frame_per_cluster
+
+    df = pd.DataFrame({"frames index":[1,2,3,4,5,6],
+                        "error score":[10,10,15,15,10,10],
+                        "cluster_labels":[1,1,2,1,2,2]
+    })
+
+    list_of_frames = select_max_frame_per_cluster(df)
+    assert list_of_frames[0] == 3
+    assert list_of_frames[1] == 4
+
+
+
+
+
+
+
+
+
+
+def compute_motion_energy_from_predection_df(df, likelihood_thresh):
+    kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
+    kps = kps_and_conf[:, :, :2]
+    conf = kps_and_conf[:, :, -1]
+    conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
+    kps[conf2 < likelihood_thresh] = np.nan
+    me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
+    me = np.concatenate([[0], me])
+    return me
+
+
+
+
+
+
+
+
+
+
+
+
+def compute_motion_energy(preds, likelihood_thresh, metrics):
+
+    # Convert predictions to numpy array and reshape
+    kps_and_conf = preds.to_numpy().reshape(preds.shape[0], -1, 3)  # n_frames x n_keypoints x 3 (x, y, conf)
+    kps = kps_and_conf[:, :, :2]
+    conf = kps_and_conf[:, :, -1]
+
+    # Store likelihood scores in metrics dictionary
+    metrics["likelihood"] = pd.DataFrame(conf)
+
+    # Duplicate likelihood scores for x and y coordinates
+    conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
+
+    # Apply likelihood threshold
+    kps[conf2 < likelihood_thresh] = np.nan  # Filter out low-likelihood keypoints
+
+    # Compute motion energy
+    me = np.nanmean(np.linalg.norm(kps[1:] - kps[:-1], axis=2), axis=-1)
+    me = np.concatenate([[0], me])  # Prepend 0 to maintain frame consistency
+
+    me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
+    # Select index of high ME frames
+    idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
+
+    #Select high ME frames from metrics
+    for metric, val in metrics.items():
+        metrics[metric] = val.loc[idxs_high_me]
+
+    return me, idxs_high_me, metrics
+
+
