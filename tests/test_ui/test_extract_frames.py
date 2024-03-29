@@ -240,6 +240,72 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     del flow
 
 
+
+def test_identify_outliers():
+    from lightning_pose_app.ui.extract_frames import identify_outliers
+    
+    base_array = np.random.normal(0, 1, 6)
+    mean = base_array.mean()
+    std = base_array.std()
+    base_array[1] = mean + 2.5 * std
+    base_array[4] = mean + 5 * std
+
+    data = {
+        'frame': [0, 1, 2, 3, 4, 5],
+        'paw1': base_array,
+        'paw2': base_array
+    }
+
+    
+    likelihood_df = pd.DataFrame(data).set_index('frame')
+    pca_singleview_df = pd.DataFrame(data).set_index('frame')
+    pca_multiview_df = pd.DataFrame(data).set_index('frame')
+
+    metrics = {
+    'likelihood': None,
+    'pca_singleview': None,
+    'pca_multiview': None,
+    }
+
+    metrics['likelihood'] = pca_singleview_mock
+    metrics['pca_singleview'] = pca_singleview_mock
+    metrics['pca_multiview'] = pca_multiview_mock
+    
+    outliers_total = identify_outliers(metrics,likelihood_thresh,thresh_metric_z)
+
+
+
+def identify_outliers(metrics,likelihood_thresh,thresh_metric_z):
+
+    # Initialize dictionary to store outlier flags for each metric
+    outliers = {m: None for m in metrics.keys()}
+
+    # Determine outliers for each metric
+    for metric, val in metrics.items():
+        if metric == "likelihood":
+            outliers[metric] = val < likelihood_thresh
+        else:
+            # Apply z-score and threshold to determine outliers
+            outliers[metric] = val.apply(zscore).abs() > thresh_metric_z
+
+    # Combine outlier flags from all metrics into a single 3D array
+    outliers_all = np.concatenate(
+        [d.to_numpy()[:, :, None] for _, d in outliers.items()],
+        axis=-1
+    )  # Shape: (n_frames, n_keypoints, n_metrics)
+
+    # Sum outlier flags to identify total outliers for each frame
+    outliers_total = np.sum(outliers_all, axis=(1, 2))
+
+    return outliers_total
+
+
+
+
+
+
+
+
 def test_run_kmeans():
     from lightning_pose_app.ui.extract_frames import run_kmeans
 
@@ -267,14 +333,6 @@ def test_select_max_frame_per_cluster():
     assert list_of_frames[1] == 4
 
 
-
-
-
-
-
-
-
-
 def compute_motion_energy_from_predection_df(df, likelihood_thresh):
     kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
     kps = kps_and_conf[:, :, :2]
@@ -289,41 +347,5 @@ def compute_motion_energy_from_predection_df(df, likelihood_thresh):
 
 
 
-
-
-
-
-
-
-
-def compute_motion_energy(preds, likelihood_thresh, metrics):
-
-    # Convert predictions to numpy array and reshape
-    kps_and_conf = preds.to_numpy().reshape(preds.shape[0], -1, 3)  # n_frames x n_keypoints x 3 (x, y, conf)
-    kps = kps_and_conf[:, :, :2]
-    conf = kps_and_conf[:, :, -1]
-
-    # Store likelihood scores in metrics dictionary
-    metrics["likelihood"] = pd.DataFrame(conf)
-
-    # Duplicate likelihood scores for x and y coordinates
-    conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
-
-    # Apply likelihood threshold
-    kps[conf2 < likelihood_thresh] = np.nan  # Filter out low-likelihood keypoints
-
-    # Compute motion energy
-    me = np.nanmean(np.linalg.norm(kps[1:] - kps[:-1], axis=2), axis=-1)
-    me = np.concatenate([[0], me])  # Prepend 0 to maintain frame consistency
-
-    me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
-    # Select index of high ME frames
-    idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
-
-    #Select high ME frames from metrics
-    for metric, val in metrics.items():
-        metrics[metric] = val.loc[idxs_high_me]
-
-    return me, idxs_high_me, metrics
 
 
