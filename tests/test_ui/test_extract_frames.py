@@ -5,11 +5,15 @@ import pandas as pd
 import shutil
 
 
-from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME, MODEL_VIDEO_PREDS_INFER_DIR
+from lightning_pose_app import (
+    LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME, MODEL_VIDEO_PREDS_INFER_DIR
+)
 from lightning_pose_app import MODELS_DIR, VIDEOS_TMP_DIR, VIDEOS_DIR
 
 
-def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_singleview_df ,tmpdir):
+def test_extract_frames_work(
+    video_file, video_file_pred_df, video_file_pca_singleview_df , tmpdir
+):
     """Test private methods here; test run method externally from the UI object."""
 
     from lightning_pose_app.ui.extract_frames import ExtractFramesWork
@@ -22,7 +26,7 @@ def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_sing
     # read frame function
     # -----------------
     resize_dims = 8
-    frames = work._read_nth_frames(video_file, n=10, resize_dims=resize_dims)
+    frames = work._read_nth_frames(video_file, n = 10, resize_dims=resize_dims)
     assert frames.shape == (100, resize_dims, resize_dims)
 
     # -----------------
@@ -30,7 +34,7 @@ def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_sing
     # -----------------
     n_clusters = 5
     idxs = work._select_frame_idxs(
-        video_file, resize_dims=resize_dims, n_clusters=n_clusters, frame_skip=1,
+        video_file, resize_dims = resize_dims, n_clusters = n_clusters, frame_skip = 1,
     )
     assert len(idxs) == n_clusters
 
@@ -38,12 +42,13 @@ def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_sing
     # select indices w/ model
     # -----------------
     # TODO: make sure to update test by making dummy prediction/metric files
-    # prediction: use video_file_pred_df
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
 
     video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
-    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name +"_pca_singleview_error.csv")
+    path = os.path.join(
+        model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + "_pca_singleview_error.csv"
+    )
     os.makedirs(os.path.dirname(path), exist_ok=True)
     video_file_pca_singleview_df.to_csv(path)
     # save predictions
@@ -53,7 +58,7 @@ def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_sing
     idxs = work._select_frame_idxs_using_model(
         video_file=video_file,
         proj_dir=proj_dir,
-        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR), ##TO FIX
+        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),  # TO FIX
         n_frames_per_video=n_frames_per_video,
         frame_range=[0, 1],
     )
@@ -118,7 +123,9 @@ def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_sing
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
 
     video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
-    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name +"_pca_singleview_error.csv")
+    path = os.path.join(
+        model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + "_pca_singleview_error.csv"
+    )
     os.makedirs(os.path.dirname(path), exist_ok=True)
     video_file_pca_singleview_df.to_csv(path)
 
@@ -131,7 +138,7 @@ def test_extract_frames_work(video_file, video_file_pred_df, video_file_pca_sing
         proj_dir=proj_dir,
         n_frames_per_video=n_frames_per_video,
         frame_range=[0, 1],
-        model_dir=os.path.join(model_dir,MODEL_VIDEO_PREDS_INFER_DIR), ##TO FIX - remove all part and leave "model_dir"
+        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),
     )
     assert os.path.exists(video_dir)
     assert len(os.listdir(video_dir)) > n_frames_per_video
@@ -240,10 +247,9 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     del flow
 
 
-
 def test_identify_outliers():
     from lightning_pose_app.ui.extract_frames import identify_outliers
-    
+
     base_array = np.random.normal(0, 1, 6)
     mean = base_array.mean()
     std = base_array.std()
@@ -255,27 +261,24 @@ def test_identify_outliers():
         'paw1': base_array,
         'paw2': base_array
     }
-
-    
     likelihood_df = pd.DataFrame(data).set_index('frame')
     pca_singleview_df = pd.DataFrame(data).set_index('frame')
     pca_multiview_df = pd.DataFrame(data).set_index('frame')
 
     metrics = {
-    'likelihood': None,
-    'pca_singleview': None,
-    'pca_multiview': None,
+        'likelihood': None,
+        'pca_singleview': None,
+        'pca_multiview': None,
     }
 
     metrics['likelihood'] = pca_singleview_mock
     metrics['pca_singleview'] = pca_singleview_mock
     metrics['pca_multiview'] = pca_multiview_mock
     
-    outliers_total = identify_outliers(metrics,likelihood_thresh,thresh_metric_z)
+    outliers_total = identify_outliers(metrics, likelihood_thresh, thresh_metric_z)
 
 
-
-def identify_outliers(metrics,likelihood_thresh,thresh_metric_z):
+def identify_outliers(metrics, likelihood_thresh, thresh_metric_z):
 
     # Initialize dictionary to store outlier flags for each metric
     outliers = {m: None for m in metrics.keys()}
@@ -300,12 +303,6 @@ def identify_outliers(metrics,likelihood_thresh,thresh_metric_z):
     return outliers_total
 
 
-
-
-
-
-
-
 def test_run_kmeans():
     from lightning_pose_app.ui.extract_frames import run_kmeans
 
@@ -313,9 +310,9 @@ def test_run_kmeans():
     n_features = int(5)
     n_clusters = 10
 
-    data_to_cluster = np.random.rand(n_samples,n_features)
-    cluster = run_kmeans(data_to_cluster,n_clusters)
-  
+    data_to_cluster = np.random.rand(n_samples, n_features)
+    cluster = run_kmeans(data_to_cluster, n_clusters)
+
     assert len(cluster) == n_samples
     assert len(np.unique(cluster)) == n_clusters
 
@@ -323,9 +320,10 @@ def test_run_kmeans():
 def test_select_max_frame_per_cluster():
     from lightning_pose_app.ui.extract_frames import select_max_frame_per_cluster
 
-    df = pd.DataFrame({"frames index":[1,2,3,4,5,6],
-                        "error score":[10,10,15,15,10,10],
-                        "cluster_labels":[1,1,2,1,2,2]
+    df = pd.DataFrame({
+        "frames index": [1, 2, 3, 4, 5, 6],
+        "error score": [10, 10, 15, 15, 10, 10],
+        "cluster_labels": [1, 1, 2, 1, 2, 2]
     })
 
     list_of_frames = select_max_frame_per_cluster(df)
@@ -342,10 +340,3 @@ def compute_motion_energy_from_predection_df(df, likelihood_thresh):
     me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
     me = np.concatenate([[0], me])
     return me
-
-
-
-
-
-
-

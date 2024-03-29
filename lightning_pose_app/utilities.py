@@ -221,21 +221,22 @@ def make_video_snippet(
 
 
 def compute_motion_energy_from_predection_df(df, likelihood_thresh):
-    
+
     # Convert predictions to numpy array and reshape
     kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
     kps = kps_and_conf[:, :, :2]
     conf = kps_and_conf[:, :, -1]
     # Duplicate likelihood scores for x and y coordinates
     conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
-    
+
     # Apply likelihood threshold
     kps[conf2 < likelihood_thresh] = np.nan
-    
+
     # Compute motion energy
     me = np.nanmean(np.linalg.norm(kps[1:] - kps[:-1], axis=2), axis=-1)
     me = np.concatenate([[0], me])
     return me
+
 
 def get_frame_number(basename: str) -> tuple:
     """img0000234.png -> (234, "img", ".png")"""
@@ -255,6 +256,7 @@ def get_frame_number(basename: str) -> tuple:
     idx = idx.replace(f".{ext}", "")
     return int(idx), prefix, ext
     print(idx)
+
 
 def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> bool:
     """Starting from labeled data directory, determine if this is a context dataset or not."""

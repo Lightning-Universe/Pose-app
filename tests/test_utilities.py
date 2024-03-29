@@ -97,27 +97,28 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
     n_frames_2 = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     assert n_frames_2 == n_frames
 
+
 def test_compute_motion_energy_from_predection_df(video_file_pred_df):
     from lightning_pose_app.utilities import compute_motion_energy_from_predection_df
 
-    likelihood_thresh =  0
-    me = compute_motion_energy_from_predection_df(video_file_pred_df,likelihood_thresh)
+    likelihood_thresh = 0
+    me = compute_motion_energy_from_predection_df(video_file_pred_df, likelihood_thresh)
     assert video_file_pred_df.shape[0] == len(me)
     assert np.isnan(me).sum() == 0
 
     df = video_file_pred_df.copy()
     mask = df.columns.get_level_values('coords').isin(['likelihood'])
     loc_until_row = 3
-    sum_of_nan = loc_until_row+1 #dataframe indexing includes this row
-    df.loc[:,mask] = 1
-    df.loc[:loc_until_row,mask] = 0
-    likelihood_thresh =  0.5
-    me = compute_motion_energy_from_predection_df(df,likelihood_thresh)
+    sum_of_nan = loc_until_row + 1  # dataframe indexing includes this row
+    df.loc[:, mask] = 1
+    df.loc[:loc_until_row, mask] = 0
+    likelihood_thresh = 0.5
+    me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
     assert df.shape[0] == len(me)
     assert np.isnan(me).sum() == sum_of_nan
 
-def test_get_frame_number():
 
+def test_get_frame_number():
     from lightning_pose_app.utilities import get_frame_number
 
     file = "img000346.png"
@@ -176,6 +177,3 @@ def test_abspath():
     path2 = '/test/directory'
     abspath2 = abspath(path2)
     assert abspath2 == os.path.abspath(path2[1:])
-
-
-
