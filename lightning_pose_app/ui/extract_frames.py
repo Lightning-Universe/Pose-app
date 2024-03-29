@@ -28,24 +28,13 @@ from lightning_pose_app.utilities import StreamlitFrontend, abspath
 from lightning_pose_app.utilities import copy_and_reformat_video, get_frames_from_idxs
 from lightning_pose_app.utilities import compute_motion_energy_from_predection_df
 
-
-
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
 
-# # TODO:
-# # write a test for the outliars function
-# # test again the new ME function in the notebook
-# # write a test to the big run fuction - select_frames_using_kmean 
-# # finish implement active learning by kmeans in the app
-# #  
-
-
-def identify_outliers(metrics,likelihood_thresh,thresh_metric_z):
+def identify_outliers(metrics, likelihood_thresh, thresh_metric_z):
 
     # Initialize dictionary to store outlier flags for each metric
     outliers = {m: None for m in metrics.keys()}
-
     # Determine outliers for each metric
     for metric, val in metrics.items():
         if metric == "likelihood":
@@ -53,52 +42,45 @@ def identify_outliers(metrics,likelihood_thresh,thresh_metric_z):
         else:
             # Apply z-score and threshold to determine outliers
             outliers[metric] = val.apply(zscore).abs() > thresh_metric_z
-
     # Combine outlier flags from all metrics into a single 3D array
     outliers_all = np.concatenate(
         [d.to_numpy()[:, :, None] for _, d in outliers.items()],
         axis=-1
     )  # Shape: (n_frames, n_keypoints, n_metrics)
-
     # Sum outlier flags to identify total outliers for each frame
     outliers_total = np.sum(outliers_all, axis=(1, 2))
-
     return outliers_total
 
-# TODO:
-# write a test for the outliars function
-# test again the new ME function in the notebook
-# write a test to the big run fuction - select_frames_using_kmean 
-# finish implement active learning by kmeans in the app
-#  
 
-def run_kmeans(X,n_clusters):
+def run_kmeans(X, n_clusters):
+
     kmeans_obj = KMeans(n_clusters, n_init="auto")
     kmeans_obj.fit(X)
-    cluster_labels= kmeans_obj.labels_
+    cluster_labels = kmeans_obj.labels_
+
     return cluster_labels
+
 
 def select_max_frame_per_cluster(df):
     # Copy the DataFrame to avoid modifying the original
     df_copy = df.copy()
-
     # Group by 'cluster_labels' and find the index of the max 'error score' in each group
     idxs_max_error = df_copy.groupby('cluster_labels')['error score'].idxmax()
-
     # Select the rows that correspond to the max 'error score' in each cluster
-    final_selection = df_copy.loc[idxs_max_error].sort_values(by="frames index")["frames index"].tolist()
+    final_selection = df_copy.loc[idxs_max_error].sort_values(
+        by="frames index")["frames index"].tolist()
 
     return final_selection
+
 
 def select_frames_using_metrics(preds,
                                 metrics,
                                 n_frames_per_video,
-                                likelihood_thresh, 
+                                likelihood_thresh,
                                 thresh_metric_z
                                 ):
-                                
-    me = compute_motion_energy_from_predection_df(preds,likelihood_thresh)
 
+    me = compute_motion_energy_from_predection_df(preds, likelihood_thresh)
     me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
     # Select index of high ME frames
     idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
@@ -108,43 +90,36 @@ def select_frames_using_metrics(preds,
     conf = kps_and_conf[:, :, -1]
     mask = preds.columns.get_level_values('coords').isin(['likelihood'])
     metrics["likelihood"] = pd.DataFrame(conf)
-    #Select high ME frames from metrics
-
     # Store likelihood scores in metrics dictionary
-    metrics["likelihood"] = preds.loc[:,mask]
+    metrics["likelihood"] = preds.loc[:, mask]
     for metric, val in metrics.items():
         metrics[metric] = val.loc[idxs_high_me]
-        
-    outliers_total = identify_outliers(metrics,likelihood_thresh,thresh_metric_z)
-    
-    frames_sample_multiplier = 10 if preds.shape[0]<1e5 else 40
+    outliers_total = identify_outliers(metrics, likelihood_thresh, thresh_metric_z)
+    frames_sample_multiplier = 10 if preds.shape[0] < 1e5 else 40
     frames_to_grab = min(n_frames_per_video * frames_sample_multiplier, preds.shape[0])
-    outlier_frames = pd.DataFrame({"frames index": idxs_high_me, "error score": outliers_total}).sort_values(by="error score", ascending=False).head(frames_to_grab)
-    
+    outlier_frames = pd.DataFrame(
+        {"frames index": idxs_high_me,
+         "error score": outliers_total
+         }).sort_values(by="error score", ascending=False).head(frames_to_grab)
     # Select frames with an error score greater than 0
     outlier_frames_nozero = outlier_frames[outlier_frames["error score"] > 0]
-    
     # Prepare data for clustering
     outlier_idx = outlier_frames_nozero["frames index"].values
     mask = preds.columns.get_level_values('coords').isin(['x', 'y'])
-    data_to_cluster = preds.loc[outlier_idx, mask]  # Flatten to numpy array for clustering
-
-    #drop all columns with NA in all cells and rows with NA in any cell   
-    data_to_cluster = data_to_cluster.dropna(axis=1,how='all').dropna(axis=0,how='any')
-    
+    data_to_cluster = preds.loc[outlier_idx, mask]
+    # drop all columns with NA in all cells and rows with NA in any cell
+    data_to_cluster = data_to_cluster.dropna(axis=1, how='all').dropna(axis=0, how='any')
     # Run KMeans clustering
     cluster_labels = run_kmeans(data_to_cluster.to_numpy(), n_frames_per_video)
-                            
-    clustered_data = pd.DataFrame({"frames index":data_to_cluster.index,
-    "cluster_labels":cluster_labels
+    clustered_data = pd.DataFrame({
+        "frames index": data_to_cluster.index,
+        "cluster_labels": cluster_labels
     })
-    
     clustered_data_errors = clustered_data.merge(outlier_frames_nozero, on="frames index")
-
     # Select the frame with the maximum error score in each cluster for the final selection
     idxs_selected = select_max_frame_per_cluster(clustered_data_errors)
-    
     return idxs_selected
+
 
 class ExtractFramesWork(LightningWork):
 
@@ -266,36 +241,32 @@ class ExtractFramesWork(LightningWork):
 
         return idxs_prototypes
 
-###################################################################################################
-# NEW ACTIVE LEARNING CODE FROM HERE
-# #################################################################################################    
-
     @staticmethod
     def _select_frame_idxs_using_model(
         video_file: str,
         proj_dir: str,
         model_dir: str,
         n_frames_per_video: int,
-        frame_range: list=[0,1],
-        likelihood_thresh: float=0.0,
-        thresh_metric_z: float=3.0,
-        ):
+        frame_range: list = [0, 1],
+        likelihood_thresh: float = 0.0,
+        thresh_metric_z: float = 3.0,
+    ):
 
         likelihood_thresh = likelihood_thresh
         thresh_metric_z = thresh_metric_z
 
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         pred_file_dir = os.path.join(model_dir, video_name + ".csv")
-        pca_singleview_file_dir = os.path.join(model_dir,video_name + "_pca_singleview_error.csv")
-        pca_multiview_file_dir = os.path.join(model_dir,video_name + "_pca_multiview_error.csv")
-        temp_norm_file_dir = os.path.join(model_dir,video_name + "_temporal_norm.csv")
-        
-        preds = pd.read_csv(pred_file_dir, header=[0,1,2], index_col=0)
+        pca_singleview_file_dir = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
+        pca_multiview_file_dir = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
+        temp_norm_file_dir = os.path.join(model_dir, video_name + "_temporal_norm.csv")
+
+        preds = pd.read_csv(pred_file_dir, header=[0, 1, 2], index_col=0)
         pca_singleview = pd.read_csv(pca_singleview_file_dir, index_col=0)
         pca_multiview = pd.read_csv(pca_multiview_file_dir, index_col=0)
         temp_norm = pd.read_csv(temp_norm_file_dir, index_col=0)
 
-        metrics = {        
+        metrics = {
             'likelihood': None,
             'pca_singleview': None,
             'pca_multiview': None,
@@ -306,10 +277,14 @@ class ExtractFramesWork(LightningWork):
         metrics['pca_multiview'] = pca_multiview
         metrics['temporal_norm'] = temp_norm
 
+        idxs_selected = select_frames_using_metrics(preds,
+                                                    metrics,
+                                                    n_frames_per_video,
+                                                    likelihood_thresh,
+                                                    thresh_metric_z
+                                                    )
 
-        idxs_selected = select_frames_using_metrics(preds,metrics,n_frames_per_video,likelihood_thresh, thresh_metric_z)                                                                                        
         return np.array(idxs_selected)
-
 
     @staticmethod
     def _export_frames(
@@ -614,7 +589,7 @@ class ExtractFramesUI(LightningFlow):
         )
 
     def _extract_frames_using_model(
-            self, video_files=None, n_frames_per_video=None ,testing=False):
+            self, video_files=None, n_frames_per_video=None, testing=False):
 
         self.work_is_done_extract_frames = False
 
@@ -680,7 +655,8 @@ def _render_streamlit_fn(state: AppState):
         """
     )
 
-    if state.run_script_video_random or state.run_script_zipped_frames or state.run_script_video_model:
+    if state.run_script_video_random or state.run_script_zipped_frames \
+            or state.run_script_video_model:
         # don't autorefresh during large file uploads, only during processing
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
 
@@ -701,15 +677,14 @@ def _render_streamlit_fn(state: AppState):
                 fullpath2 = os.path.join(fullpath1, dir_time)
                 trained_models.append('/'.join(fullpath2.split('/')[-2:]))
         return trained_models
-        
-    
-    model_dir = os.path.join(state.proj_dir[1:],MODELS_DIR)
+
+    model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
 
     if os.path.exists(model_dir):
 
-        models_list = find_models(os.path.join(state.proj_dir[1:],MODELS_DIR))
+        models_list = find_models(os.path.join(state.proj_dir[1:], MODELS_DIR))
     else:
-        models_list=[]
+        models_list = []
 
     if len(models_list) == 0:
         options = [VIDEO_RANDOM_STR, ZIPPED_FRAMES_STR]
@@ -810,7 +785,7 @@ def _render_streamlit_fn(state: AppState):
                     if vid_ in keys:
                         try:
                             p = state.works_dict[vid_].progress
-                        except:
+                        except KeyError:
                             p = 100.0  # if work is deleted while accessing
                     else:
                         p = 100.0  # state.work.progress
@@ -903,53 +878,39 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
     elif st_mode == VIDEO_MODEL_STR:
-        
+
         selected_model_path = st.selectbox("Select a model", models_list)
 
-        
+        base_model_dir = abspath(os.path.join(
+            state.proj_dir[1:], MODELS_DIR, selected_model_path, MODEL_VIDEO_PREDS_INFER_DIR
+        ))
 
-
-        # TODO (see above, L530)
-        # first, we only want the user to see a dropdown menu with available models
-        #   - copy over the function that shmuel wrote for video reader
-
-        """
-        once they select a model, show all available videos that have inference results
-           x look in model_dir/video_preds, get all vids from here (skip this for now, too hard)
-           - look in model_dir/video_preds_infer, get all vids from here (don't grab "short" vids)
-               - find all .csv files 
-               - skip videos with the string ".short.mp4"
-        make sure to return model directory as the variable "model_dir", which gets stored below
-        """
-        base_model_dir = abspath(os.path.join(state.proj_dir[1:], MODELS_DIR, selected_model_path, MODEL_VIDEO_PREDS_INFER_DIR))
         if not os.path.exists(base_model_dir):
-            st.text("No video predictions avalibale for this model. Go to TRAIN/INFER tab to run infrence")
+            st.text("No video predictions avalibale for this model. "
+                    "Go to TRAIN/INFER tab to run infrence"
+                    )
             files = []
         else:
             files = os.listdir(base_model_dir)
-        
+
         video_list = []
-        if len(files) > 0: 
+        if len(files) > 0:
             for file in files:
                 if not file.endswith(".csv"):
-                    continue 
+                    continue
                 if file.endswith("temporal_norm.csv") \
-                    or file.endswith("error.csv") \
-                    or file.endswith("short.csv"):
-                        continue
+                        or file.endswith("error.csv") \
+                        or file.endswith("short.csv"):
+                    continue
                 video_list.append(file.split(".")[0])
 
-
-##################################################################################
-############    Use video uploader for upload videos for the active learning process
-#       
         # upload video files to temporary directory
         video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
         os.makedirs(video_dir, exist_ok=True)
 
-        if len(video_list)>0:
+        if len(video_list) > 0:
             st_videos = st.multiselect("Select videos", video_list)
-        
+
             # insert an empty element to create empty space
             st.markdown("##")
 
@@ -959,18 +920,19 @@ def _render_streamlit_fn(state: AppState):
                 n_frames_per_video = st.text_input(
                     "Frames to label per video", 20,
                     help="Specify the desired number of frames for labeling per video. "
-                        "The app will select frames to maximize the diversity of animal poses "
-                        "captured within each video."
+                    "The app will select frames to maximize the diversity of animal poses "
+                    "captured within each video."
                 )
                 st_n_frames_per_video = int(n_frames_per_video)
             with col1:
                 # select range of video to pull frames from
                 st_frame_range = st.slider(
-                    "Portion of video used for frame selection", 0.0, 1.0, (0.0, 1.0),
-                    help="Focus on selecting video sections where the animals are clearly visible and "
-                        "performing the desired behaviors. "
-                        "Skip any parts without the animals or with distracting elements like hands, "
-                        "as these can confuse the model."
+                    "Portion of video used for frame selection",
+                    0.0, 1.0, (0.0, 1.0),
+                    help="Focus on selecting video sections where the animals "
+                         "are clearly visible and performing the desired behaviors. "
+                         "Skip any parts without the animals or with distracting "
+                         "elements like hands, as these can confuse the model."
                 )
 
             st_submit_button_model_frames = st.button(
@@ -991,7 +953,7 @@ def _render_streamlit_fn(state: AppState):
                         if vid_ in keys:
                             try:
                                 p = state.works_dict[vid_].progress
-                            except:
+                            except KeyError:
                                 p = 100.0  # if work is deleted while accessing
                         else:
                             p = 100.0  # state.work.progress
@@ -1002,7 +964,8 @@ def _render_streamlit_fn(state: AppState):
                     st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
                 st.warning("waiting for existing extraction to finish")
 
-            if state.st_submits > 0 and not st_submit_button_model_frames and not state.run_script_video_model:
+            if state.st_submits > 0 and not st_submit_button_model_frames \
+                    and not state.run_script_video_model:
                 proceed_str = "Please proceed to the next tab to label frames."
                 proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
                 st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
@@ -1011,7 +974,8 @@ def _render_streamlit_fn(state: AppState):
             if st_submit_button_model_frames:
                 state.st_submits += 1
                 base_rel_path = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
-                state.st_video_files_ = [os.path.join(base_rel_path, s + ".mp4") for s in st_videos]
+                state.st_video_files_ = [os.path.join(base_rel_path,
+                                                      s + ".mp4") for s in st_videos]
                 state.model_dir = base_model_dir
                 state.st_extract_status = {s: 'initialized' for s in state.st_video_files_}
                 state.st_n_frames_per_video = st_n_frames_per_video
@@ -1021,4 +985,3 @@ def _render_streamlit_fn(state: AppState):
 
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
-
