@@ -151,6 +151,7 @@ class LitPoseApp(LightningFlow):
             self.train_ui.proj_dir = self.project_ui.proj_dir
             self.streamlit_frame.proj_dir = self.project_ui.proj_dir
             self.streamlit_video.proj_dir = self.project_ui.proj_dir
+            self.streamlit_video_player.proj_dir = self.project_ui.proj_dir
             self.label_studio.run(
                 action="update_paths",
                 proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)

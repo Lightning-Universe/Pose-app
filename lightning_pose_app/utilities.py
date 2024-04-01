@@ -256,12 +256,10 @@ def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> 
             if not os.path.exists(frames_in_dir_file):
                 continue
             frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
-            print(frames_in_dir)
             for frame in frames_in_dir:
                 idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
                 # get the frames -> t-2, t-1, t, t+1, t + 2
                 list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
-                print(list_idx)
                 for fr_num in list_idx:
                     # replace frame number with 0 if we're at the beginning of the video
                     fr_num = max(0, fr_num)
