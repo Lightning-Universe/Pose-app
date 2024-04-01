@@ -33,9 +33,9 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     flow.run(action="update_paths", project_name=proj_name)
     flow.run(action="update_frame_shapes")
 
-    # ----------------
-    # train
-    # ----------------
+    # ----------------------------
+    # train, do not output videos
+    # ----------------------------
     base_dir = os.path.join(root_dir, tmp_proj_dir)
     config_overrides = {
         "data": {
@@ -72,9 +72,9 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     assert "lightning_logs" not in results_artifacts_0
     assert "video_preds" not in results_artifacts_0
 
-    # ----------------
-    # output videos
-    # ----------------
+    # ----------------------------
+    # train, output videos
+    # ----------------------------
     config_overrides["eval"]["predict_vids_after_training"] = True
     config_overrides["eval"]["save_vids_after_training"] = True
     model_name_1 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
@@ -94,12 +94,14 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     assert os.path.exists(labeled_vid_dir)
     assert len(os.listdir(labeled_vid_dir)) > 0
 
-    # ----------------
-    # infer
-    # ----------------
+    # ----------------------------
+    # infer, output labeled clip
+    # ----------------------------
     work._run_inference(
         model_dir=os.path.join(tmp_proj_dir, MODELS_DIR, model_name_0),
         video_file=video_file,
+        make_labeled_video_full=False,
+        make_labeled_video_clip=True,
     )
     results_dir_2 = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
     results_artifacts_2 = os.listdir(results_dir_2)
@@ -107,15 +109,29 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     preds = os.path.basename(video_file).replace(".mp4", ".csv")
     assert preds in results_artifacts_2
     assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_2
-    # assert preds.replace(".csv", "_pca_singleview_error.csv") in results_artifacts_2
-    # assert preds.replace(".csv", "_pca_multiview_error.csv") in results_artifacts_2
+    assert preds.replace(".csv", ".labeled.mp4") not in results_artifacts_2
     assert preds.replace(".csv", ".short.mp4") in results_artifacts_2
     assert preds.replace(".csv", ".short.csv") in results_artifacts_2
+    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_2
     assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_2
 
-    # ----------------
+    # ----------------------------
+    # infer, output full labeled
+    # ----------------------------
+    # also tests loading of predictions from previous inference
+    work._run_inference(
+        model_dir=os.path.join(tmp_proj_dir, MODELS_DIR, model_name_0),
+        video_file=video_file,
+        make_labeled_video_full=True,
+        make_labeled_video_clip=False,
+    )
+    results_artifacts_2 = os.listdir(results_dir_2)
+    assert work.work_is_done_inference
+    assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_2
+
+    # ----------------------------
     # fiftyone
-    # ----------------
+    # ----------------------------
     # just run and make sure it doesn't fail
     work._make_fiftyone_dataset(
         config_file=os.path.join(tmp_proj_dir, flow.config_name),
@@ -123,9 +139,9 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         config_overrides=config_overrides,
     )
 
-    # ----------------
+    # ----------------------------
     # clean up
-    # ----------------
+    # ----------------------------
     del flow
     del work
 
@@ -198,6 +214,8 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     # ----------------
     flow.st_infer_status[video_file] = "initialized"
     flow.st_inference_model = model_name_0
+    flow.st_label_full = False
+    flow.st_label_short = True
     flow.run(action="run_inference", video_files=[video_file], testing=True)
 
     # check flow state
@@ -211,10 +229,10 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     preds = os.path.basename(video_file).replace(".mp4", ".csv")
     assert preds in results_artifacts_1
     assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_1
-    # assert preds.replace(".csv", "_pca_singleview_error.csv") in results_artifacts_2
-    # assert preds.replace(".csv", "_pca_multiview_error.csv") in results_artifacts_2
+    assert preds.replace(".csv", ".labeled.mp4") not in results_artifacts_1
     assert preds.replace(".csv", ".short.mp4") in results_artifacts_1
     assert preds.replace(".csv", ".short.csv") in results_artifacts_1
+    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_1
     assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_1
 
     # ----------------
