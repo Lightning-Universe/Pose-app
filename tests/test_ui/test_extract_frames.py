@@ -26,7 +26,7 @@ def test_extract_frames_work(
     # read frame function
     # -----------------
     resize_dims = 8
-    frames = work._read_nth_frames(video_file, n = 10, resize_dims=resize_dims)
+    frames = work._read_nth_frames(video_file, n=10, resize_dims=resize_dims)
     assert frames.shape == (100, resize_dims, resize_dims)
 
     # -----------------
@@ -34,7 +34,7 @@ def test_extract_frames_work(
     # -----------------
     n_clusters = 5
     idxs = work._select_frame_idxs(
-        video_file, resize_dims = resize_dims, n_clusters = n_clusters, frame_skip = 1,
+        video_file, resize_dims=resize_dims, n_clusters=n_clusters, frame_skip=1,
     )
     assert len(idxs) == n_clusters
 
@@ -250,57 +250,41 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
 def test_identify_outliers():
     from lightning_pose_app.ui.extract_frames import identify_outliers
 
-    base_array = np.random.normal(0, 1, 6)
-    mean = base_array.mean()
-    std = base_array.std()
-    base_array[1] = mean + 2.5 * std
-    base_array[4] = mean + 5 * std
-
-    data = {
-        'frame': [0, 1, 2, 3, 4, 5],
-        'paw1': base_array,
-        'paw2': base_array
+    likelihood_data = {
+        'frame': [1, 2, 3, 4, 5],
+        'paw1': [1.0, 1.0, 1.0, 1.0, 1.0],
+        'paw2': [1.0, 1.0, 1.0, 1.0, 1.0],
+        'paw3': [1.0, 1.0, 1.0, 1.0, 1.0],
     }
-    likelihood_df = pd.DataFrame(data).set_index('frame')
-    pca_singleview_df = pd.DataFrame(data).set_index('frame')
-    pca_multiview_df = pd.DataFrame(data).set_index('frame')
+    pca_singleview_data = {
+        'frame': [1, 2, 3, 4, 5],
+        'paw1': [1.0, 1.0, 1.0, 10, 1.0],
+        'paw2': [1.0, 1.0, 1.0, 10, 1.0],
+        'paw3': [1.0, 1.0, 1.0, 10, 1.0],
+    }
+    likelihood_mock = pd.DataFrame(likelihood_data).set_index('frame')
+    pca_singleview_mock = pd.DataFrame(pca_singleview_data).set_index('frame')
+    pca_multiview_mock = pd.DataFrame(pca_singleview_data).set_index('frame')
+    temp_norm_mock = pd.DataFrame(pca_singleview_data).set_index('frame')
 
-    metrics = {
+    mock_metrics = {
         'likelihood': None,
         'pca_singleview': None,
         'pca_multiview': None,
+        'temporal_norm': None,
     }
+    mock_metrics['likelihood'] = likelihood_mock
+    mock_metrics['pca_singleview'] = pca_singleview_mock
+    mock_metrics['pca_multiview'] = pca_multiview_mock
+    mock_metrics['temporal_norm'] = temp_norm_mock
 
-    metrics['likelihood'] = pca_singleview_mock
-    metrics['pca_singleview'] = pca_singleview_mock
-    metrics['pca_multiview'] = pca_multiview_mock
-    
-    outliers_total = identify_outliers(metrics, likelihood_thresh, thresh_metric_z)
+    outlier_total = identify_outliers(mock_metrics, likelihood_thresh=1, thresh_metric_z=1)
 
-
-def identify_outliers(metrics, likelihood_thresh, thresh_metric_z):
-
-    # Initialize dictionary to store outlier flags for each metric
-    outliers = {m: None for m in metrics.keys()}
-
-    # Determine outliers for each metric
-    for metric, val in metrics.items():
-        if metric == "likelihood":
-            outliers[metric] = val < likelihood_thresh
-        else:
-            # Apply z-score and threshold to determine outliers
-            outliers[metric] = val.apply(zscore).abs() > thresh_metric_z
-
-    # Combine outlier flags from all metrics into a single 3D array
-    outliers_all = np.concatenate(
-        [d.to_numpy()[:, :, None] for _, d in outliers.items()],
-        axis=-1
-    )  # Shape: (n_frames, n_keypoints, n_metrics)
-
-    # Sum outlier flags to identify total outliers for each frame
-    outliers_total = np.sum(outliers_all, axis=(1, 2))
-
-    return outliers_total
+    assert len(outlier_total) == likelihood_mock.shape[0]
+    # check that the max index is on the fourth position = 3
+    assert np.argmax(outlier_total) == 3
+    # check that outlier score sums up to n_keypoints(=3) X (n_metrics iteams - 1)
+    assert outlier_total[3] == likelihood_mock.shape[1] * (len(mock_metrics) - 1)
 
 
 def test_run_kmeans():
@@ -331,12 +315,76 @@ def test_select_max_frame_per_cluster():
     assert list_of_frames[1] == 4
 
 
-def compute_motion_energy_from_predection_df(df, likelihood_thresh):
-    kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
-    kps = kps_and_conf[:, :, :2]
-    conf = kps_and_conf[:, :, -1]
-    conf2 = np.concatenate([conf[:, :, None], conf[:, :, None]], axis=2)
-    kps[conf2 < likelihood_thresh] = np.nan
-    me = np.nanmean(np.linalg.norm(kps[1:] - kps[:1], axis=2), axis=-1)
-    me = np.concatenate([[0], me])
-    return me
+# create a mock predictions files specially fits to test select_frames_using_metrics function
+def generate_mock_preds_for_AL_testing(n_frames, keypoints, high_motion_frames=None):
+    n_frames_per_group = 10
+    # Initialize the DataFrame to hold the data
+    columns = pd.MultiIndex.from_product(
+        [keypoints, ['x', 'y', 'likelihood']],
+        names=['keypoint', 'coords']
+    )
+    df = pd.DataFrame(index=range(n_frames), columns=columns).fillna(0.0)
+
+    # Assign the same x, y values across all keypoints for each group of 10 frames
+    for group_start in range(1, n_frames, n_frames_per_group):
+        # Generate a single set of x, y values for the current group
+        xy_values = np.random.rand(1, 2) * 0.1  # Low x, y values for simplicity
+
+        # Assign these x, y values across all keypoints for all 10 frames in the group
+        for keypoint in keypoints:
+            df.loc[group_start:group_start + 9, (keypoint, 'x')] = xy_values[0, 0]
+            df.loc[group_start:group_start + 9, (keypoint, 'y')] = xy_values[0, 1]
+            # Set a constant likelihood of 1.0 for simplicity, but this can be varied if needed
+            df.loc[group_start:group_start + 9, (keypoint, 'likelihood')] = 1.0
+    return df
+
+
+def mock_error_metrix_df(n_frames, keypoints):
+    n_frames_per_group = 10
+    # Initialize predictions with random values
+    preds = np.random.rand(n_frames, len(keypoints))
+    # Adjust predictions to ensure the first frame of each group has the highest score
+    for group_start in range(0, n_frames, n_frames_per_group):
+        # Find the maximum value in the group
+        max_value_in_group = np.max(preds[group_start:group_start + 10])
+        # Set the first frame of each group to have a slightly higher value than the max found,
+        # ensuring it has the highest error score
+        preds[group_start] = max_value_in_group + np.random.rand(1, len(keypoints)) * 0.1 + 0.9
+    df = pd.DataFrame(preds, columns=keypoints)
+    return df
+
+
+# Should return array of [1,11,21,31,41]
+def test_select_frames_using_metrics():
+    from lightning_pose_app.ui.extract_frames import select_frames_using_metrics
+
+    keypoints = ['paw1', 'paw2', 'paw3']
+    n_frames = 50
+    n_frames_per_video = 5
+
+    # Generate mock data
+    pca_singleview_mock = mock_error_metrix_df(n_frames, keypoints)
+    pca_multiview_mock = mock_error_metrix_df(n_frames, keypoints)
+    temp_norm_mock = mock_error_metrix_df(n_frames, keypoints)
+    preds_mock = generate_mock_preds_for_AL_testing(n_frames, keypoints, high_motion_frames=None)
+
+    metrics = {
+        'likelihood': None,
+        'pca_singleview': None,
+        'pca_multiview': None,
+        'temporal_norm': None,
+    }
+    metrics['pca_singleview'] = pca_singleview_mock
+    metrics['pca_multiview'] = pca_multiview_mock
+    metrics['temporal_norm'] = temp_norm_mock
+
+    idxs_selected = select_frames_using_metrics(
+        preds_mock,
+        metrics,
+        n_frames_per_video,
+        likelihood_thresh=0,
+        thresh_metric_z=1
+    )
+
+    assert len(idxs_selected) == n_frames_per_video
+    assert idxs_selected[0] == 1

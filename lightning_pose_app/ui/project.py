@@ -303,11 +303,7 @@ class ProjectUI(LightningFlow):
                     else:
                         shutil.copyfile(src, dst)
 
-        # -------------------
-    # test find models
-    # -------------------# -------------------
-    # test find models
-    # ------------------- == "DLC":
+        elif self.st_existing_project_format == "DLC":
 
             # copy files
             files_and_dirs = os.listdir(unzipped_dir)
