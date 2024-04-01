@@ -7,12 +7,16 @@ from lightning.app.utilities.cloud import is_running_in_cloud
 from lightning.app.utilities.state import AppState
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
+from omegaconf import DictConfig
+from streamlit_autorefresh import st_autorefresh
+from typing import Optional
 import lightning.pytorch as pl
 import logging
+import numpy as np
 import os
+import pandas as pd
 import shutil
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 import yaml
 
 from lightning_pose_app import VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
@@ -87,7 +91,12 @@ class LitPose(LightningWork):
         self.work_is_done_inference = False
         self.count = 0
 
-    def _train(self, config_file, config_overrides, results_dir):
+    def _train(
+        self,
+        config_file: str,
+        config_overrides: dict,
+        results_dir: str,
+    ) -> None:
 
         import gc
         from omegaconf import DictConfig, OmegaConf
@@ -99,7 +108,6 @@ class LitPose(LightningWork):
         )
         from lightning_pose.utils.predictions import predict_dataset
         from lightning_pose.utils.scripts import (
-            export_predictions_and_labeled_video,
             get_data_module,
             get_dataset,
             get_imgaug_transform,
@@ -114,7 +122,7 @@ class LitPose(LightningWork):
         self.work_is_done_training = False
 
         # ----------------------------------------------------------------------------------
-        # Set up config
+        # set up config
         # ----------------------------------------------------------------------------------
 
         # load config
@@ -123,15 +131,12 @@ class LitPose(LightningWork):
         # update config with user-provided overrides
         cfg = update_config(cfg, config_overrides)
 
-        # reduce context batch sizes to fit on 8GB GPU; TODO: need to generalize this
-        cfg.dali.context.train.batch_size = 8
-
         # mimic hydra, change dir into results dir
         os.makedirs(results_dir, exist_ok=True)
         os.chdir(results_dir)
 
         # ----------------------------------------------------------------------------------
-        # Set up data/model objects
+        # set up data/model objects
         # ----------------------------------------------------------------------------------
 
         pretty_print_cfg(cfg)
@@ -154,7 +159,7 @@ class LitPose(LightningWork):
         model = get_model(cfg=cfg, data_module=data_module, loss_factories=loss_factories)
 
         # ----------------------------------------------------------------------------------
-        # Set up and run training
+        # set up and run training
         # ----------------------------------------------------------------------------------
 
         # logger
@@ -186,7 +191,7 @@ class LitPose(LightningWork):
         trainer.fit(model=model, datamodule=data_module)
 
         # ----------------------------------------------------------------------------------
-        # Post-training analysis
+        # post-training analysis: labeled frames
         # ----------------------------------------------------------------------------------
         hydra_output_directory = os.getcwd()
         _logger.info("Hydra output directory: {}".format(hydra_output_directory))
@@ -227,7 +232,9 @@ class LitPose(LightningWork):
         except Exception as e:
             _logger.error(f"Error computing metrics\n{e}")
 
-        # predict folder of videos
+        # ----------------------------------------------------------------------------------
+        # post-training analysis: unlabeled videos
+        # ----------------------------------------------------------------------------------
         if cfg.eval.predict_vids_after_training:
 
             # make new trainer for inference so we can properly log inference progress
@@ -254,35 +261,25 @@ class LitPose(LightningWork):
                 # get save name labeled video csv
                 if cfg.eval.save_vids_after_training:
                     labeled_vid_dir = os.path.join(video_pred_dir, "labeled_videos")
-                    labeled_mp4_file = os.path.join(labeled_vid_dir,
-                                                    video_pred_name + "_labeled.mp4")
+                    labeled_mp4_file = os.path.join(
+                        labeled_vid_dir, video_pred_name + "_labeled.mp4")
                 else:
                     labeled_mp4_file = None
                 # predict on video
-                self.progress = 0.0  # reset progress so it will be updated during inference
-                self.status_ = f"inference on video {v + 1} / {len(filenames)}"
-                export_predictions_and_labeled_video(
+                self._inference_with_metrics_and_labeled_video(
                     video_file=video_file,
-                    cfg=cfg,
                     ckpt_file=best_ckpt,
-                    prediction_csv_file=prediction_csv_file,
-                    labeled_mp4_file=labeled_mp4_file,
-                    trainer=trainer,
-                    model=model,
+                    cfg=cfg,
+                    preds_file=prediction_csv_file,
                     data_module=data_module_pred,
-                    save_heatmaps=cfg.eval.get("predict_vids_after_training_save_heatmaps", False),
+                    trainer=trainer,
+                    make_labeled_video=True if labeled_mp4_file is not None else False,
+                    labeled_video_file=labeled_mp4_file,
+                    status_str=f"inference on video {v + 1} / {len(filenames)}",
                 )
-                # compute and save various metrics
-                try:
-                    compute_metrics(
-                        cfg=cfg, preds_file=prediction_csv_file, data_module=data_module_pred
-                    )
-                except Exception as e:
-                    _logger.error(f"Error predicting on video {video_file}:\n{e}")
-                    continue
 
         # ----------------------------------------------------------------------------------
-        # Clean up
+        # clean up
         # ----------------------------------------------------------------------------------
         # save config file
         cfg_file_local = os.path.join(results_dir, "config.yaml")
@@ -307,17 +304,19 @@ class LitPose(LightningWork):
 
         self.work_is_done_training = True
 
-    def _run_inference(self, model_dir, video_file):
+    def _run_inference(
+        self,
+        model_dir: str,
+        video_file: str,
+        make_labeled_video_full: bool,
+        make_labeled_video_clip: bool,
+    ):
 
-        from omegaconf import DictConfig
         from lightning_pose.utils.io import ckpt_path_from_base_path
-        from lightning_pose.utils.predictions import predict_single_video
         from lightning_pose.utils.scripts import (
             get_data_module,
             get_dataset,
             get_imgaug_transform,
-            compute_metrics,
-            export_predictions_and_labeled_video,
         )
 
         print(f"========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n=========")
@@ -326,10 +325,9 @@ class LitPose(LightningWork):
         self.work_is_done_inference = False
 
         # ----------------------------------------------------------------------------------
-        # Set up paths
+        # set up paths
         # ----------------------------------------------------------------------------------
 
-        # check: does file exist?
         # check: does file exist?
         if not os.path.exists(video_file):
             video_file_abs = abspath(video_file)
@@ -356,7 +354,7 @@ class LitPose(LightningWork):
             abspath(pred_dir), os.path.basename(video_file_abs).replace(".mp4", ".csv"))
 
         # ----------------------------------------------------------------------------------
-        # Set up data/model objects
+        # set up data/model/trainer objects
         # ----------------------------------------------------------------------------------
 
         # imgaug transform
@@ -373,26 +371,85 @@ class LitPose(LightningWork):
             base_path=abspath(model_dir), model_name=cfg.model.model_name
         )
 
-        # ----------------------------------------------------------------------------------
-        # Set up and run inference
-        # ----------------------------------------------------------------------------------
-
         # add callback to log progress
         callbacks = TrainerProgress(self, update_inference=True)
 
         # set up trainer
         trainer = pl.Trainer(accelerator="gpu", devices=1, callbacks=callbacks)
 
-        # compute predictions
-        self.status_ = "video inference"
-        predict_single_video(
+        # ----------------------------------------------------------------------------------
+        # run inference on full video; compute metrics; export labeled video
+        # ----------------------------------------------------------------------------------
+        self._inference_with_metrics_and_labeled_video(
             video_file=video_file_abs,
             ckpt_file=ckpt_file,
-            cfg_file=cfg,
+            cfg=cfg,
             preds_file=preds_file,
             data_module=data_module,
             trainer=trainer,
+            make_labeled_video=make_labeled_video_full,
         )
+
+        # ----------------------------------------------------------------------------------
+        # run inference on video clip; compute metrics; export labeled video
+        # ----------------------------------------------------------------------------------
+        if make_labeled_video_clip:
+            self.progress = 0.0  # reset progress so it will be updated during snippet inference
+            self.status_ = "creating labeled video"
+            video_file_abs_short = make_video_snippet(
+                video_file=video_file_abs,
+                preds_file=preds_file,
+            )
+            preds_file_short = preds_file.replace(".csv", ".short.csv")
+            self._inference_with_metrics_and_labeled_video(
+                video_file=video_file_abs_short,
+                ckpt_file=ckpt_file,
+                cfg=cfg,
+                preds_file=preds_file_short,
+                data_module=data_module,
+                trainer=trainer,
+                make_labeled_video=make_labeled_video_clip,
+            )
+
+        # set flag for parent app
+        self.work_is_done_inference = True
+
+    def _inference_with_metrics_and_labeled_video(
+        self,
+        video_file: str,
+        ckpt_file: str,
+        cfg: DictConfig,
+        preds_file: str,
+        data_module: callable,
+        trainer: pl.Trainer,
+        make_labeled_video: bool = False,
+        labeled_video_file: Optional[str] = None,
+        status_str: str = "video inference",
+    ) -> None:
+
+        from lightning_pose.utils.predictions import create_labeled_video, predict_single_video
+        from lightning_pose.utils.scripts import compute_metrics
+        from moviepy.editor import VideoFileClip
+
+        # update video size in config
+        video_clip = VideoFileClip(video_file)
+        cfg.data.image_orig_dims.width = video_clip.w
+        cfg.data.image_orig_dims.height = video_clip.h
+
+        # compute predictions if they don't already exist
+        self.progress = 0.0
+        self.status_ = status_str
+        if not os.path.exists(preds_file):
+            preds_df = predict_single_video(
+                video_file=video_file,
+                ckpt_file=ckpt_file,
+                cfg_file=cfg,
+                preds_file=preds_file,
+                data_module=data_module,
+                trainer=trainer,
+            )
+        else:
+            preds_df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
 
         # compute and save various metrics
         try:
@@ -400,23 +457,23 @@ class LitPose(LightningWork):
         except Exception as e:
             _logger.error(f"Error predicting on {video_file}:\n{e}")
 
-        # make short labeled snippet for manual inspection
-        self.progress = 0.0  # reset progress so it will again be updated during snippet inference
-        self.status_ = "creating labeled video"
-        video_file_abs_short = make_video_snippet(video_file=video_file_abs, preds_file=preds_file)
-        preds_file_short = preds_file.replace(".csv", ".short.csv")
-        export_predictions_and_labeled_video(
-            video_file=video_file_abs_short,
-            cfg=cfg,
-            prediction_csv_file=preds_file_short,
-            labeled_mp4_file=preds_file_short.replace(".csv", ".labeled.mp4"),
-            ckpt_file=ckpt_file,
-            trainer=trainer,
-            data_module=data_module,
-        )
-
-        # set flag for parent app
-        self.work_is_done_inference = True
+        # export labeled video
+        if make_labeled_video:
+            self.status_ = "creating labeled video"
+            keypoints_arr = np.reshape(preds_df.to_numpy(), [preds_df.shape[0], -1, 3])
+            xs_arr = keypoints_arr[:, :, 0]
+            ys_arr = keypoints_arr[:, :, 1]
+            mask_array = keypoints_arr[:, :, 2] > cfg.eval.confidence_thresh_for_vid
+            filename = labeled_video_file or preds_file.replace(".csv", ".labeled.mp4")
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            # video generation
+            create_labeled_video(
+                clip=video_clip,
+                xs_arr=xs_arr,
+                ys_arr=ys_arr,
+                mask_array=mask_array,
+                filename=filename,
+            )
 
     @staticmethod
     def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
@@ -519,6 +576,8 @@ class TrainUI(LightningFlow):
         self.st_inference_model = None
         self.st_infer_label_opt = None  # what to do with video evaluation
         self.st_inference_videos = []
+        self.st_label_short = True
+        self.st_label_full = False
 
     def _train(self, config_filename=None, video_dirname=VIDEOS_DIR):
 
@@ -601,6 +660,8 @@ class TrainUI(LightningFlow):
                     action="run_inference",
                     model_dir=model_dir,
                     video_file="/" + video_file,
+                    make_labeled_video_full=self.st_label_full,
+                    make_labeled_video_clip=self.st_label_short,
                     remove_old=not testing,  # remove bad format file by default
                 )
                 self.st_infer_status[video_file] = "complete"
@@ -820,13 +881,13 @@ def _render_streamlit_fn(state: AppState):
 
         st.header(
             body="Predict on New Videos",
-            help="Select your preferred inference model, then"
-                 " drag and drop your video file(s). Monitor the upload progress bar"
-                 " and click **Run inference** once uploads are complete. After completion,"
-                 " a brief snippet is extracted for each video during the period of highest"
-                 " motion energy, and a diagnostic video with raw frames and model"
-                 " predictions is generated. Once inference concludes for all videos, the"
-                 " 'waiting for existing inference to finish' warning will disappear."
+            help="Select your preferred inference model, then drag and drop your video file(s). "
+                 "Monitor the upload progress bar and click **Run inference** once uploads are "
+                 "complete. "
+                 "After completion, labeled videos are created if requested "
+                 "(see 'Video handling options' section below). "
+                 "Once inference concludes for all videos, the "
+                 "'waiting for existing inference to finish' warning will disappear."
         )
 
         model_dir = st.selectbox(
@@ -852,6 +913,21 @@ def _render_streamlit_fn(state: AppState):
                 # write the content of the file to the path, but not while processing
                 with open(filepath, "wb") as f:
                     f.write(bytes_data)
+
+        # allow user to select labeled video option
+        st.markdown(
+            """
+            #### Video handling options""",
+            help="Select checkboxes to automatically save a labeled video (short clip or full "
+                 "video or both) after inference is complete. The short clip contains the 30 "
+                 "second period of highest motion energy in the predictions."
+        )
+        st_label_short = st.checkbox(
+            "Save labeled video (30 second clip)", value=state.st_label_short,
+        )
+        st_label_full = st.checkbox(
+            "Save labeled video (full video)", value=state.st_label_full,
+        )
 
         st_submit_button_infer = st.button(
             "Run inference",
@@ -888,7 +964,9 @@ def _render_streamlit_fn(state: AppState):
 
             state.st_inference_model = model_dir
             state.st_inference_videos = st_videos
-            state.st_infer_status = {s: 'initialized' for s in st_videos}
+            state.st_infer_status = {s: "initialized" for s in st_videos}
+            state.st_label_short = st_label_short
+            state.st_label_full = st_label_full
             st.text("Request submitted!")
             state.run_script_infer = True  # must the last to prevent race condition
 
