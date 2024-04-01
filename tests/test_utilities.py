@@ -88,7 +88,7 @@ def test_make_video_snippet(video_file, tmpdir):
 
     # CHECK 1: requested clip is shorter than actual video
     clip_length = 1
-    snippet_file = make_video_snippet(
+    snippet_file, _, _ = make_video_snippet(
         video_file=video_file,
         preds_file=preds_file,
         clip_length=clip_length,
@@ -100,7 +100,7 @@ def test_make_video_snippet(video_file, tmpdir):
 
     # CHECK 2: requested clip is longer than actual video (return original video)
     clip_length = 100
-    snippet_file = make_video_snippet(
+    snippet_file, _, _ = make_video_snippet(
         video_file=video_file,
         preds_file=preds_file,
         clip_length=clip_length,

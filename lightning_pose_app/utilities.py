@@ -180,7 +180,7 @@ def make_video_snippet(
     preds_file: str,
     clip_length: int = 30,
     likelihood_thresh: float = 0.9
-) -> str:
+) -> tuple:
 
     # save videos with csv file
     save_dir = os.path.dirname(preds_file)
@@ -199,6 +199,8 @@ def make_video_snippet(
     if win_len >= df.shape[0]:
         # short video, no need to shorten further. just copy existing video
         shutil.copyfile(src, dst)
+        clip_start_idx = 0
+        clip_start_sec = 0.0
     else:
         # compute motion energy (averaged over keypoints)
         kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
@@ -223,7 +225,7 @@ def make_video_snippet(
         ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
         subprocess.run(ffmpeg_cmd, shell=True)
 
-    return dst
+    return dst, int(clip_start_idx), float(clip_start_sec)
 
 
 def get_frame_number(basename: str) -> tuple:

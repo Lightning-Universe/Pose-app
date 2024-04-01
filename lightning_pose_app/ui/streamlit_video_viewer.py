@@ -70,7 +70,7 @@ def _render_streamlit_fn(state: AppState):
     model_dir = abspath(os.path.join(proj_dir, MODELS_DIR))
 
     # Streamlit UI
-    st.header("Visualise Model Predictions")
+    st.header("Visualize Model Predictions")
 
     with st.sidebar:
 

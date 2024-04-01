@@ -396,7 +396,7 @@ class LitPose(LightningWork):
         if make_labeled_video_clip:
             self.progress = 0.0  # reset progress so it will be updated during snippet inference
             self.status_ = "creating labeled video"
-            video_file_abs_short = make_video_snippet(
+            video_file_abs_short, clip_start_idx, clip_start_sec = make_video_snippet(
                 video_file=video_file_abs,
                 preds_file=preds_file,
             )
@@ -409,6 +409,7 @@ class LitPose(LightningWork):
                 data_module=data_module,
                 trainer=trainer,
                 make_labeled_video=make_labeled_video_clip,
+                video_start_time=clip_start_sec,
             )
 
         # set flag for parent app
@@ -424,6 +425,7 @@ class LitPose(LightningWork):
         trainer: pl.Trainer,
         make_labeled_video: bool = False,
         labeled_video_file: Optional[str] = None,
+        video_start_time: float = 0.0,
         status_str: str = "video inference",
     ) -> None:
 
@@ -473,6 +475,7 @@ class LitPose(LightningWork):
                 ys_arr=ys_arr,
                 mask_array=mask_array,
                 filename=filename,
+                start_time=video_start_time,
             )
 
     @staticmethod
