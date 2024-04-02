@@ -15,6 +15,7 @@ import yaml
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.ui.project import ProjectUI
 from lightning_pose_app.ui.streamlit import StreamlitAppLightningPose
+from lightning_pose_app.ui.streamlit_video_viewer import StreamlitVideoViewer
 from lightning_pose_app.ui.train_infer import TrainUI
 from lightning_pose_app import LIGHTNING_POSE_DIR
 
@@ -60,6 +61,7 @@ class LitPoseApp(LightningFlow):
         # streamlit tabs (flow + work)
         self.streamlit_frame = StreamlitAppLightningPose(app_type="frame")
         self.streamlit_video = StreamlitAppLightningPose(app_type="video")
+        self.streamlit_video_player = StreamlitVideoViewer()
 
         # tensorboard tab (work)
         self.tensorboard = LitBashWork(
@@ -165,7 +167,7 @@ class LitPoseApp(LightningFlow):
         self.train_ui.proj_dir = self.project_ui.proj_dir
         self.streamlit_frame.proj_dir = self.project_ui.proj_dir
         self.streamlit_video.proj_dir = self.project_ui.proj_dir
-
+        self.streamlit_video_player.proj_dir = self.project_ui.proj_dir
         # write demo data to the FileSystem so other Works have access (run once)
         if not self.demo_data_transferred:
             # we call the run method twice with two sets of arguments so the run cache will always
@@ -224,6 +226,7 @@ class LitPoseApp(LightningFlow):
         # diagnostics tabs
         st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
+        st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
         fo_tab = {"name": "Fiftyone", "content": self.fiftyone}
 
         return [
@@ -231,6 +234,7 @@ class LitPoseApp(LightningFlow):
             train_status_tab,
             st_frame_tab,
             st_video_tab,
+            st_video_player_tab,
             fo_tab,
         ]
 

@@ -799,32 +799,25 @@ def _render_streamlit_fn(state: AppState):
 
             state.st_submits += 1
 
-            state.st_video_files_ = st_videos
-            state.st_extract_status = {s: 'initialized' for s in st_videos}
-            state.st_n_frames_per_video = st_n_frames_per_video
-            state.st_frame_range = st_frame_range
-            st.text("Request submitted!")
-            state.run_script_video_random = True  # must the last to prevent race condition
-
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-    elif st_mode == ZIPPED_FRAMES_STR:
+        elif st_mode == ZIPPED_FRAMES_STR:
+            # upload zipped files to temporary directory
+            frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
+            os.makedirs(frames_dir, exist_ok=True)
 
-        # upload zipped files to temporary directory
-        frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
-        os.makedirs(frames_dir, exist_ok=True)
-
-        # initialize the file uploader
-        uploaded_files = st.file_uploader(
-            "Select zipped folders",
-            type="zip",
-            accept_multiple_files=True,
-            help="Upload one zip file per video. The file name should be the name of the video. "
-                 "The frames should be in the format 'img%08i.png', i.e. a png file with a name "
-                 "that starts with 'img' and contains the frame number with leading zeros such "
-                 "that there are 8 total digits (e.g. 'img00003453.png')."
-        )
+            # initialize the file uploader
+            uploaded_files = st.file_uploader(
+                "Select zipped folders",
+                type="zip",
+                accept_multiple_files=True,
+                help="Upload one zip file per video. The file name should be the"
+                        " name of the video. The frames should be in the format 'img%08i.png',"
+                        " i.e. a png file with a name that starts with 'img' and contains the"
+                        " frame number with leading zeros such that there are 8 total digits"
+                        " (e.g. 'img00003453.png')."
+            )
 
         # for each of the uploaded files
         st_videos = []

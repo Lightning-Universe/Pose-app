@@ -3,7 +3,6 @@ import glob
 from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 import logging
-import math
 import numpy as np
 import os
 import pandas as pd
@@ -25,9 +24,11 @@ from lightning_pose_app import (
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
-    collect_dlc_labels,
-    copy_and_reformat_video_directory,
     abspath,
+    compute_batch_sizes,
+    compute_resize_dims,
+    copy_and_reformat_video_directory,
+    update_config,
 )
 
 
@@ -154,20 +155,8 @@ class ProjectUI(LightningFlow):
             # load existing config
             config_dict = yaml.safe_load(open(abspath(self.config_file)))
 
-        # update config using new_vals_dict; assume this is a dict of dicts
-        # new_vals_dict = {
-        #     "data": new_data_dict,
-        #     "eval": new_eval_dict,
-        #     ...}
         if new_vals_dict is not None:
-            for sconfig_name, sconfig_dict in new_vals_dict.items():
-                for key, val in sconfig_dict.items():
-                    if isinstance(val, dict):
-                        # update config file up to depth 2
-                        for key1, val1 in val.items():
-                            config_dict[sconfig_name][key][key1] = val1
-                    else:
-                        config_dict[sconfig_name][key] = val
+            config_dict = update_config(config_dict, new_vals_dict)
             # save out updated config file locally
             if not os.path.exists(self.proj_dir_abs):
                 os.makedirs(self.proj_dir_abs)
@@ -190,17 +179,39 @@ class ProjectUI(LightningFlow):
         if len(imgs) > 0:
             img = imgs[0]
             image = Image.open(img)
+            # compute image resize height/width, between 128 and 384
+            height_resize = compute_resize_dims(image.height)
+            width_resize = compute_resize_dims(image.width)
+            # compute batch sizes batch on image size
+            train_batch_size, dali_base_seq_len, dali_ctx_seq_len = compute_batch_sizes(
+                image.height, image.width,
+            )
             self._update_project_config(new_vals_dict={
                 "data": {
                     "image_orig_dims": {
                         "height": image.height,
-                        "width": image.width
+                        "width": image.width,
                     },
-                    "image_resize_dims": {  # automatically scale between 128 and 256 for now
-                        "height": min(max(2 ** (math.floor(math.log(image.height, 2))), 128), 256),
-                        "width": min(max(2 ** (math.floor(math.log(image.width, 2))), 128), 256),
-                    }
-                }
+                    "image_resize_dims": {
+                        "height": height_resize,
+                        "width": width_resize,
+                    },
+                },
+                "training": {
+                    "train_batch_size": train_batch_size,
+                    "val_batch_size": 2 * train_batch_size,
+                    "test_batch_size": 2 * train_batch_size,
+                },
+                "dali": {
+                    "base": {
+                        "train": {"sequence_length": dali_base_seq_len},
+                        "predict": {"sequence_length": 4 * dali_base_seq_len},
+                    },
+                    "context": {
+                        "train": {"batch_size": dali_ctx_seq_len},
+                        "predict": {"sequence_length": 4 * dali_ctx_seq_len},
+                    },
+                },
             })
         else:
             _logger.debug(glob.glob(os.path.join(self.proj_dir_abs, LABELED_DATA_DIR, "*")))
@@ -444,6 +455,52 @@ def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") 
     return error_flag, proceed_fmt % error_msg
 
 
+def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
+    """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
+
+    dirs = os.listdir(os.path.join(dlc_dir, "labeled-data"))
+    dirs.sort()
+    dfs = []
+    for d in dirs:
+        try:
+            csv_file = glob.glob(os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.csv"))[0]
+            df_tmp = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+            if len(df_tmp.index.unique()) != df_tmp.shape[0]:
+                # new DLC labeling scheme that splits video/image in different cells
+                levels1 = ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")
+                vids = df_tmp.loc[:, levels1]
+                levels2 = ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")
+                imgs = df_tmp.loc[:, levels2]
+                new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
+                df_tmp1 = df_tmp.drop(levels1, axis=1)
+                df_tmp2 = df_tmp1.drop(levels2, axis=1)
+                df_tmp2.index = new_col
+                df_tmp = df_tmp2
+        except IndexError:
+            try:
+                h5_file = glob.glob(
+                    os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
+                )[0]
+                df_tmp = pd.read_hdf(h5_file)
+                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):
+                    # new DLC labeling scheme that splits video/image in different cells
+                    imgs = [i[2] for i in df_tmp.index]
+                    vids = [df_tmp.index[0][1] for _ in imgs]
+                    new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
+                    df_tmp1 = df_tmp.reset_index().drop(
+                        columns="level_0").drop(columns="level_1").drop(columns="level_2")
+                    df_tmp1.index = new_col
+                    df_tmp = df_tmp1
+            except IndexError:
+                _logger.error(f"Could not find labels for {d}; skipping")
+                continue
+
+        dfs.append(df_tmp)
+    df_all = pd.concat(dfs)
+
+    return df_all
+
+
 def _render_streamlit_fn(state: AppState):
 
     # ----------------------------------------------------
@@ -615,9 +672,12 @@ def _render_streamlit_fn(state: AppState):
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
-        st.caption("If your zip file is larger than the 200MB limit, see the [FAQ]"
-                   "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
-                   unsafe_allow_html=True)
+        st.caption(
+            "If your zip file is larger than the 200MB limit, see the [FAQ]"
+            "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
+            unsafe_allow_html=True,
+        )
+
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False

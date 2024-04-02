@@ -76,7 +76,7 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
 
     # CHECK 1: requested clip is shorter than actual video
     clip_length = 1
-    snippet_file = make_video_snippet(
+    snippet_file, _, _ = make_video_snippet(
         video_file=video_file,
         preds_file=preds_file,
         clip_length=clip_length,
@@ -88,7 +88,7 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
 
     # CHECK 2: requested clip is longer than actual video (return original video)
     clip_length = 100
-    snippet_file = make_video_snippet(
+    snippet_file, _, _ = make_video_snippet(
         video_file=video_file,
         preds_file=preds_file,
         clip_length=clip_length,
@@ -164,6 +164,88 @@ def test_is_context_dataset(tmp_proj_dir):
         labeled_data_dir=os.path.join(labeled_data_dir, "nonexistent_directory"),
         selected_frames_filename=SELECTED_FRAMES_FILENAME,
     )
+
+
+def test_compute_resize_dims():
+
+    from lightning_pose_app.utilities import compute_resize_dims
+
+    # 128 is minimum for resizing, since heatmaps will be smaller by a factor of 2
+    assert compute_resize_dims(24) == 128
+    assert compute_resize_dims(127) == 128
+
+    # should round down to nearest power of 2 until 512, then rounds down to 384
+    assert compute_resize_dims(129) == 128
+    assert compute_resize_dims(250) == 128
+    assert compute_resize_dims(380) == 256
+    assert compute_resize_dims(385) == 256
+    assert compute_resize_dims(512) == 384
+    assert compute_resize_dims(1025) == 384
+    assert compute_resize_dims(2049) == 384
+
+
+def test_compute_batch_sizes():
+
+    from lightning_pose_app.utilities import compute_batch_sizes
+
+    train, dali_base, dali_cxt = compute_batch_sizes(400, 400)
+    assert train == 16
+    assert dali_base == 16
+    assert dali_cxt == 16
+
+    train, dali_base, dali_cxt = compute_batch_sizes(512, 512)
+    assert train == 8
+    assert dali_base == 8
+    assert dali_cxt == 8
+
+    train, dali_base, dali_cxt = compute_batch_sizes(1024, 1024)
+    assert train == 6
+    assert dali_base == 8
+    assert dali_cxt == 8
+
+
+def test_update_config():
+
+    from lightning_pose_app.utilities import update_config
+
+    # two fields deep
+    cfg = {"data": {"csv_file": "path0", "data_dir": "path1"}}
+    new = {"data": {"csv_file": "path2"}}
+    cfg_new = update_config(cfg, new)
+    assert cfg_new["data"]["csv_file"] == new["data"]["csv_file"]
+    assert cfg_new["data"]["data_dir"] == cfg["data"]["data_dir"]
+
+    # three fields deep
+    cfg = {
+        "eval": {
+            "conf_thresh": 0.9,
+            "fiftyone": {"port": 5151},
+        },
+    }
+    new = {
+        "eval": {
+            "fiftyone": {"port": 1000},
+        },
+    }
+    cfg_new = update_config(cfg, new)
+    assert cfg_new["eval"]["fiftyone"]["port"] == new["eval"]["fiftyone"]["port"]
+    assert cfg_new["eval"]["conf_thresh"] == cfg["eval"]["conf_thresh"]
+
+    # four fields deep
+    cfg = {
+        "dali": {
+            "general": {"seed": 123},
+            "base": {"train": {"seq_len": 10}},
+        },
+    }
+    new = {
+        "dali": {
+            "base": {"train": {"seq_len": 20}},
+        },
+    }
+    cfg_new = update_config(cfg, new)
+    assert cfg_new["dali"]["base"]["train"]["seq_len"] == new["dali"]["base"]["train"]["seq_len"]
+    assert cfg_new["dali"]["general"]["seed"] == cfg_new["dali"]["general"]["seed"]
 
 
 def test_abspath():

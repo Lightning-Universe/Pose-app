@@ -1,7 +1,7 @@
 import cv2
-import glob
 from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 import logging
+import math
 import numpy as np
 import os
 import pandas as pd
@@ -176,11 +176,11 @@ def get_frames_from_idxs(cap, idxs) -> np.ndarray:
 
 
 def make_video_snippet(
-        video_file: str,
-        preds_file: str,
-        clip_length: int = 30,
-        likelihood_thresh: float = 0.9
-) -> str:
+    video_file: str,
+    preds_file: str,
+    clip_length: int = 30,
+    likelihood_thresh: float = 0.9
+) -> tuple:
 
     # save videos with csv file
     save_dir = os.path.dirname(preds_file)
@@ -199,6 +199,8 @@ def make_video_snippet(
     if win_len >= df.shape[0]:
         # short video, no need to shorten further. just copy existing video
         shutil.copyfile(src, dst)
+        clip_start_idx = 0
+        clip_start_sec = 0.0
     else:
         # compute motion energy (averaged over keypoints)
         me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
@@ -217,7 +219,7 @@ def make_video_snippet(
         ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
         subprocess.run(ffmpeg_cmd, shell=True)
 
-    return dst
+    return dst, int(clip_start_idx), float(clip_start_sec)
 
 
 def compute_motion_energy_from_predection_df(df, likelihood_thresh):
@@ -268,12 +270,10 @@ def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> 
             if not os.path.exists(frames_in_dir_file):
                 continue
             frames_in_dir = np.genfromtxt(frames_in_dir_file, delimiter=",", dtype=str)
-            print(frames_in_dir)
             for frame in frames_in_dir:
                 idx_img, prefix, ext = get_frame_number(frame.split("/")[-1])
                 # get the frames -> t-2, t-1, t, t+1, t + 2
                 list_idx = [idx_img - 2, idx_img - 1, idx_img, idx_img + 1, idx_img + 2]
-                print(list_idx)
                 for fr_num in list_idx:
                     # replace frame number with 0 if we're at the beginning of the video
                     fr_num = max(0, fr_num)
@@ -295,50 +295,47 @@ def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> 
     return is_context
 
 
-def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
-    """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
+def compute_resize_dims(pixels: int):
+    """Return value in {128, 256, 384} that is closest but not greater than pixel size."""
+    return min(max(2 ** (math.floor(math.log(pixels, 2))), 128), 384)
 
-    dirs = os.listdir(os.path.join(dlc_dir, "labeled-data"))
-    dirs.sort()
-    dfs = []
-    for d in dirs:
-        try:
-            csv_file = glob.glob(os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.csv"))[0]
-            df_tmp = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
-            if len(df_tmp.index.unique()) != df_tmp.shape[0]:
-                # new DLC labeling scheme that splits video/image in different cells
-                levels1 = ("Unnamed: 1_level_0", "Unnamed: 1_level_1", "Unnamed: 1_level_2")
-                vids = df_tmp.loc[:, levels1]
-                levels2 = ("Unnamed: 2_level_0", "Unnamed: 2_level_1", "Unnamed: 2_level_2")
-                imgs = df_tmp.loc[:, levels2]
-                new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                df_tmp1 = df_tmp.drop(levels1, axis=1)
-                df_tmp2 = df_tmp1.drop(levels2, axis=1)
-                df_tmp2.index = new_col
-                df_tmp = df_tmp2
-        except IndexError:
-            try:
-                h5_file = glob.glob(
-                    os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
-                )[0]
-                df_tmp = pd.read_hdf(h5_file)
-                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):
-                    # new DLC labeling scheme that splits video/image in different cells
-                    imgs = [i[2] for i in df_tmp.index]
-                    vids = [df_tmp.index[0][1] for _ in imgs]
-                    new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                    df_tmp1 = df_tmp.reset_index().drop(
-                        columns="level_0").drop(columns="level_1").drop(columns="level_2")
-                    df_tmp1.index = new_col
-                    df_tmp = df_tmp1
-            except IndexError:
-                _logger.error(f"Could not find labels for {d}; skipping")
-                continue
 
-        dfs.append(df_tmp)
-    df_all = pd.concat(dfs)
+def compute_batch_sizes(height: int, width: int):
+    """These are hard-coded for values that max out a 16GB GPU (T4) with the example datasets."""
+    if height * width >= 1024 * 1024:
+        # resize dims likely 384 x 384
+        train_batch_size = 6
+        dali_base_seq_len = 8
+        dali_cxt_seq_len = 8
+    elif height * width >= 512 * 512:
+        # resize dims likely 384 x 384
+        train_batch_size = 8
+        dali_base_seq_len = 8
+        dali_cxt_seq_len = 8
+    else:
+        # resize dims likely 256 x 256 or smaller
+        train_batch_size = 16
+        dali_base_seq_len = 16
+        dali_cxt_seq_len = 16
+    return train_batch_size, dali_base_seq_len, dali_cxt_seq_len
 
-    return df_all
+
+def update_config(config_dict: dict, new_vals_dict: dict):
+    # update config using new_vals_dict; assume this is a dict of dicts
+    # new_vals_dict = {
+    #     "data": new_data_dict,
+    #     "eval": new_eval_dict,
+    #     ...
+    # }
+    for sconfig_name, sconfig_dict in new_vals_dict.items():
+        for key1, val1 in sconfig_dict.items():
+            if isinstance(val1, dict):
+                # update config file up to depth 2
+                for key2, val2 in val1.items():
+                    config_dict[sconfig_name][key1][key2] = val2
+            else:
+                config_dict[sconfig_name][key1] = val1
+    return config_dict
 
 
 def abspath(path):
