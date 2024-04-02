@@ -155,7 +155,6 @@ class LitPoseApp(LightningFlow):
             self.extract_ui.run(
                 action="extract_frames_using_model",
                 video_files=self.extract_ui.st_video_files,  # add arg for run caching purposes
-                model_dir=self.extract_ui.model_dir,
             )
             # wait until frame extraction is complete, then update label studio tasks
             if self.extract_ui.work_is_done_extract_frames:

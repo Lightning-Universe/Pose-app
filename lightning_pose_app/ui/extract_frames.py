@@ -86,11 +86,7 @@ def select_frames_using_metrics(preds,
     idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
 
     # Store likelihood scores in metrics dictionary
-    kps_and_conf = preds.to_numpy().reshape(preds.shape[0], -1, 3)
-    conf = kps_and_conf[:, :, -1]
     mask = preds.columns.get_level_values('coords').isin(['likelihood'])
-    metrics["likelihood"] = pd.DataFrame(conf)
-    # Store likelihood scores in metrics dictionary
     metrics["likelihood"] = preds.loc[:, mask]
     for metric, val in metrics.items():
         metrics[metric] = val.loc[idxs_high_me]
@@ -252,20 +248,10 @@ class ExtractFramesWork(LightningWork):
         thresh_metric_z: float = 3.0,
     ):
 
-        likelihood_thresh = likelihood_thresh
-        thresh_metric_z = thresh_metric_z
-
         video_name = os.path.splitext(os.path.basename(video_file))[0]
-        pred_file_dir = os.path.join(model_dir, video_name + ".csv")
-        pca_singleview_file_dir = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
-        pca_multiview_file_dir = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
-        temp_norm_file_dir = os.path.join(model_dir, video_name + "_temporal_norm.csv")
-
-        preds = pd.read_csv(pred_file_dir, header=[0, 1, 2], index_col=0)
-        pca_singleview = pd.read_csv(pca_singleview_file_dir, index_col=0)
-        pca_multiview = pd.read_csv(pca_multiview_file_dir, index_col=0)
-        temp_norm = pd.read_csv(temp_norm_file_dir, index_col=0)
-
+        pred_file = os.path.join(model_dir, video_name + ".csv")
+        preds = pd.read_csv(pred_file, header=[0, 1, 2], index_col=0)
+        
         metrics = {
             'likelihood': None,
             'pca_singleview': None,
@@ -273,9 +259,17 @@ class ExtractFramesWork(LightningWork):
             'temporal_norm': None,
         }
 
-        metrics['pca_singleview'] = pca_singleview
-        metrics['pca_multiview'] = pca_multiview
-        metrics['temporal_norm'] = temp_norm
+        for key in metrics.keys():
+            if key == "pca_singleview":
+                file = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
+            elif key == "pca_multiview":
+                file = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
+            elif key == "temporal_norm":
+                file = os.path.join(model_dir, video_name + "_temporal_norm.csv")
+            
+            if os.path.exists(file):
+                metrics[key] = pd.read_csv(file)
+
 
         idxs_selected = select_frames_using_metrics(preds,
                                                     metrics,
@@ -647,6 +641,21 @@ class ExtractFramesUI(LightningFlow):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
+@st.cache_resource
+def find_models(model_dir):
+    trained_models = []
+    # this returns a list of model training days
+    dirs_day = os.listdir(model_dir)
+    # loop over days and find HH-MM-SS
+    for dir_day in dirs_day:
+        fullpath1 = os.path.join(model_dir, dir_day)
+        dirs_time = os.listdir(fullpath1)
+        for dir_time in dirs_time:
+            fullpath2 = os.path.join(fullpath1, dir_time)
+            trained_models.append('/'.join(fullpath2.split('/')[-2:]))
+    return trained_models
+
+
 def _render_streamlit_fn(state: AppState):
 
     st.markdown(
@@ -664,24 +673,9 @@ def _render_streamlit_fn(state: AppState):
     ZIPPED_FRAMES_STR = "Upload zipped files of frames"
     VIDEO_MODEL_STR = "Automatically extract frames using a given model"
 
-    @st.cache_resource
-    def find_models(model_dir):
-        trained_models = []
-        # this returns a list of model training days
-        dirs_day = os.listdir(model_dir)
-        # loop over days and find HH-MM-SS
-        for dir_day in dirs_day:
-            fullpath1 = os.path.join(model_dir, dir_day)
-            dirs_time = os.listdir(fullpath1)
-            for dir_time in dirs_time:
-                fullpath2 = os.path.join(fullpath1, dir_time)
-                trained_models.append('/'.join(fullpath2.split('/')[-2:]))
-        return trained_models
-
     model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
 
     if os.path.exists(model_dir):
-
         models_list = find_models(os.path.join(state.proj_dir[1:], MODELS_DIR))
     else:
         models_list = []

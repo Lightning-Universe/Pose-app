@@ -256,7 +256,6 @@ def get_frame_number(basename: str) -> tuple:
     # remove file extension
     idx = idx.replace(f".{ext}", "")
     return int(idx), prefix, ext
-    print(idx)
 
 
 def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> bool:
