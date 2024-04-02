@@ -294,6 +294,8 @@ class ProjectUI(LightningFlow):
                 elif contains_videos(src):
                     # copy videos over, make sure they are in proper format
                     dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
+                    print(src)
+                    print(dst_dir)
                     copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
                 else:
                     # copy other files
