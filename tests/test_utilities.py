@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import os
-import pandas as pd
 
 from lightning_pose_app.utilities import check_codec_format
 
@@ -65,26 +64,15 @@ def test_get_frames_from_idxs(video_file):
     assert frames.dtype == np.uint8
 
 
-def test_make_video_snippet(video_file, tmpdir):
+def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
 
     from lightning_pose_app.utilities import make_video_snippet
 
-    # get video info
-    cap = cv2.VideoCapture(video_file)
-    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    cap.release()
+    n_frames = video_file_pred_df.shape[0]
 
-    # make fake predictions and save to tmpdir
-    keypoints = ['paw1', 'paw2']
-    n_keypoints = len(keypoints)
-    xyl_labels = ["x", "y", "likelihood"]
-    pdindex = pd.MultiIndex.from_product(
-        [["tracker"], keypoints, xyl_labels], names=["scorer", "bodyparts", "coords"],
-    )
-    preds = np.random.rand(n_frames, n_keypoints * 3)  # x, y, likelihood
-    df = pd.DataFrame(preds, columns=pdindex)
+    # save out dummy video prediction dataframe to csv file
     preds_file = os.path.join(str(tmpdir), 'preds.csv')
-    df.to_csv(preds_file)
+    video_file_pred_df.to_csv(preds_file)
 
     # CHECK 1: requested clip is shorter than actual video
     clip_length = 1
@@ -110,8 +98,27 @@ def test_make_video_snippet(video_file, tmpdir):
     assert n_frames_2 == n_frames
 
 
-def test_get_frame_number():
+def test_compute_motion_energy_from_predection_df(video_file_pred_df):
+    from lightning_pose_app.utilities import compute_motion_energy_from_predection_df
 
+    likelihood_thresh = 0
+    me = compute_motion_energy_from_predection_df(video_file_pred_df, likelihood_thresh)
+    assert video_file_pred_df.shape[0] == len(me)
+    assert np.isnan(me).sum() == 0
+
+    df = video_file_pred_df.copy()
+    mask = df.columns.get_level_values('coords').isin(['likelihood'])
+    loc_until_row = 3
+    sum_of_nan = loc_until_row + 1  # dataframe indexing includes this row
+    df.loc[:, mask] = 1
+    df.loc[:loc_until_row, mask] = 0
+    likelihood_thresh = 0.5
+    me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
+    assert df.shape[0] == len(me)
+    assert np.isnan(me).sum() == sum_of_nan
+
+
+def test_get_frame_number():
     from lightning_pose_app.utilities import get_frame_number
 
     file = "img000346.png"
