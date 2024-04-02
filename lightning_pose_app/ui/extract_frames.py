@@ -251,7 +251,7 @@ class ExtractFramesWork(LightningWork):
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         pred_file = os.path.join(model_dir, video_name + ".csv")
         preds = pd.read_csv(pred_file, header=[0, 1, 2], index_col=0)
-        
+
         metrics = {
             'likelihood': None,
             'pca_singleview': None,
@@ -266,10 +266,9 @@ class ExtractFramesWork(LightningWork):
                 file = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
             elif key == "temporal_norm":
                 file = os.path.join(model_dir, video_name + "_temporal_norm.csv")
-            
+
             if os.path.exists(file):
                 metrics[key] = pd.read_csv(file)
-
 
         idxs_selected = select_frames_using_metrics(preds,
                                                     metrics,

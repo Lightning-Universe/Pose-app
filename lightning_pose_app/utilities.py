@@ -220,7 +220,6 @@ def make_video_snippet(
     return dst
 
 
-
 def compute_motion_energy_from_predection_df(df, likelihood_thresh):
 
     # Convert predictions to numpy array and reshape
