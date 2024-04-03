@@ -35,6 +35,7 @@ extras_require = {
         "sphinx-rtd-dark-mode",
         "sphinx-automodapi",
         "sphinx-copybutton",
+        "sphinx-design",
     },
 }
 
