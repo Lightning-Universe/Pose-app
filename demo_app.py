@@ -220,7 +220,7 @@ class LitPoseApp(LightningFlow):
     def configure_layout(self):
 
         # training tabs
-        train_tab = {"name": "Train Infer", "content": self.train_ui}
+        train_tab = {"name": "Train/Infer", "content": self.train_ui}
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs

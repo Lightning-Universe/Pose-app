@@ -25,7 +25,6 @@ class StreamlitVideoViewer(LightningFlow):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
-@st.cache_resource
 def get_models(model_dir):
 
     trained_models = []
@@ -41,7 +40,6 @@ def get_models(model_dir):
     return trained_models
 
 
-@st.cache_resource
 def list_labeled_mp4_files(model_dir, selected_model):
     """List labeled MP4 files in a directory."""
     labeled_mp4_files = []

@@ -781,6 +781,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_submit_button = st.button(
             "Extract frames",
+            key="extract_frames_random",
             disabled=(
                 (st_n_frames_per_video == 0)
                 or len(st_videos) == 0
@@ -818,25 +819,32 @@ def _render_streamlit_fn(state: AppState):
 
             state.st_submits += 1
 
+            state.st_video_files_ = st_videos
+            state.st_extract_status = {s: 'initialized' for s in st_videos}
+            state.st_n_frames_per_video = st_n_frames_per_video
+            state.st_frame_range = st_frame_range
+            st.text("Request submitted!")
+            state.run_script_video_random = True  # must the last to prevent race condition
+
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-        elif st_mode == ZIPPED_FRAMES_STR:
-            # upload zipped files to temporary directory
-            frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
-            os.makedirs(frames_dir, exist_ok=True)
+    elif st_mode == ZIPPED_FRAMES_STR:
+        # upload zipped files to temporary directory
+        frames_dir = os.path.join(state.proj_dir[1:], ZIPPED_TMP_DIR)
+        os.makedirs(frames_dir, exist_ok=True)
 
-            # initialize the file uploader
-            uploaded_files = st.file_uploader(
-                "Select zipped folders",
-                type="zip",
-                accept_multiple_files=True,
-                help="Upload one zip file per video. The file name should be the"
-                     " name of the video. The frames should be in the format 'img%08i.png',"
-                     " i.e. a png file with a name that starts with 'img' and contains the"
-                     " frame number with leading zeros such that there are 8 total digits"
-                     " (e.g. 'img00003453.png')."
-            )
+        # initialize the file uploader
+        uploaded_files = st.file_uploader(
+            "Select zipped folders",
+            type="zip",
+            accept_multiple_files=True,
+            help="Upload one zip file per video. The file name should be the"
+                 " name of the video. The frames should be in the format 'img%08i.png',"
+                 " i.e. a png file with a name that starts with 'img' and contains the"
+                 " frame number with leading zeros such that there are 8 total digits"
+                 " (e.g. 'img00003453.png')."
+        )
 
         # for each of the uploaded files
         st_videos = []
@@ -857,6 +865,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_submit_button_frames = st.button(
             "Extract frames",
+            key="extract_frames_uploaded",
             disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
         )
 
@@ -891,9 +900,10 @@ def _render_streamlit_fn(state: AppState):
         ))
 
         if not os.path.exists(base_model_dir):
-            st.text("No video predictions avalibale for this model. "
-                    "Go to TRAIN/INFER tab to run infrence"
-                    )
+            st.text(
+                "No video predictions avalibale for this model. "
+                "Go to TRAIN/INFER tab to run infrence"
+            )
             files = []
         else:
             files = os.listdir(base_model_dir)
@@ -925,8 +935,8 @@ def _render_streamlit_fn(state: AppState):
                 n_frames_per_video = st.text_input(
                     "Frames to label per video", 20,
                     help="Specify the desired number of frames for labeling per video. "
-                    "The app will select frames to maximize the diversity of animal poses "
-                    "captured within each video."
+                         "The app will select frames to maximize the diversity of animal poses "
+                         "captured within each video."
                 )
                 st_n_frames_per_video = int(n_frames_per_video)
             with col1:
@@ -942,6 +952,7 @@ def _render_streamlit_fn(state: AppState):
 
             st_submit_button_model_frames = st.button(
                 "Extract frames",
+                key="extract_frames_model",
                 disabled=(
                     (st_n_frames_per_video == 0)
                     or len(st_videos) == 0
