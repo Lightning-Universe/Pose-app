@@ -108,10 +108,10 @@ def video_file_pca_singleview_df(video_file) -> pd.DataFrame:
 
     keypoints = ['paw1', 'paw2']
     n_keypoints = len(keypoints)
-    preds = np.random.rand(n_frames, n_keypoints) 
+    preds = np.random.rand(n_frames, n_keypoints)
 
     df = pd.DataFrame(preds, columns=keypoints)
-    
+
     return df
 
 
@@ -124,7 +124,7 @@ def video_file_pca_multiview_df(video_file) -> pd.DataFrame:
 
     keypoints = ['paw1', 'paw2']
     n_keypoints = len(keypoints)
-    preds = np.random.rand(n_frames, n_keypoints) 
+    preds = np.random.rand(n_frames, n_keypoints)
 
     df = pd.DataFrame(preds, columns=keypoints)
 
@@ -147,7 +147,7 @@ def video_file_temporal_norm_df(video_file) -> pd.DataFrame:
         data[1:, i] = np.random.rand(n_frames - 1) * 10 + np.random.randint(0, 5)
 
     columns = ['Frame Index'] + keypoints
-    
+
     df = pd.DataFrame(data, columns=columns)
 
     return df

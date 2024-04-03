@@ -4,13 +4,15 @@ import argparse
 import datetime
 import logging
 import os
+
 import yaml
 
 from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME
-from lightning_pose_app.label_studio.utils import connect_to_label_studio
-from lightning_pose_app.label_studio.utils import start_project
-from lightning_pose_app.label_studio.utils import create_data_source
-
+from lightning_pose_app.label_studio.utils import (
+    connect_to_label_studio,
+    create_data_source,
+    start_project,
+)
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 

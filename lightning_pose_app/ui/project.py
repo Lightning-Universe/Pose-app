@@ -1,26 +1,27 @@
 import copy
 import glob
-from lightning.app import LightningFlow
-from lightning.app.utilities.state import AppState
 import logging
-import numpy as np
 import os
-import pandas as pd
 import shutil
-from streamlit_autorefresh import st_autorefresh
 import time
-import streamlit as st
-import yaml
 import zipfile
 
+import numpy as np
+import pandas as pd
+import streamlit as st
+import yaml
+from lightning.app import LightningFlow
+from lightning.app.utilities.state import AppState
+from streamlit_autorefresh import st_autorefresh
+
 from lightning_pose_app import (
-    LABELSTUDIO_DB_DIR,
-    LABELED_DATA_DIR,
-    VIDEOS_DIR,
-    MODELS_DIR,
     COLLECTED_DATA_FILENAME,
+    LABELED_DATA_DIR,
+    LABELSTUDIO_DB_DIR,
     LABELSTUDIO_METADATA_FILENAME,
+    MODELS_DIR,
     SELECTED_FRAMES_FILENAME,
+    VIDEOS_DIR,
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
@@ -30,7 +31,6 @@ from lightning_pose_app.utilities import (
     copy_and_reformat_video_directory,
     update_config,
 )
-
 
 _logger = logging.getLogger('APP.PROJECT')
 

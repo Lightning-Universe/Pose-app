@@ -1,16 +1,18 @@
 """Update tasks after new video frames have been extracted."""
 
 import argparse
-import os
 import logging
+import os
+
 import pandas as pd
 import yaml
 
-from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, COLLECTED_DATA_FILENAME
-from lightning_pose_app.label_studio.utils import connect_to_label_studio
-from lightning_pose_app.label_studio.utils import get_project
-from lightning_pose_app.label_studio.utils import get_rel_image_paths_from_idx_files
-
+from lightning_pose_app import COLLECTED_DATA_FILENAME, LABELSTUDIO_METADATA_FILENAME
+from lightning_pose_app.label_studio.utils import (
+    connect_to_label_studio,
+    get_project,
+    get_rel_image_paths_from_idx_files,
+)
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 

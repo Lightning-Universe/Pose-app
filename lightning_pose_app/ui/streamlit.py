@@ -1,7 +1,8 @@
-from lightning.app import CloudCompute, LightningFlow
 import os
 
-from lightning_pose_app import MODELS_DIR, LIGHTNING_POSE_DIR
+from lightning.app import CloudCompute, LightningFlow
+
+from lightning_pose_app import LIGHTNING_POSE_DIR, MODELS_DIR
 from lightning_pose_app.bashwork import LitBashWork
 
 

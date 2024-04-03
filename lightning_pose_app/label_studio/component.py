@@ -1,17 +1,17 @@
-from lightning.app import CloudCompute, LightningFlow
 import logging
 import os
 
+from lightning.app import CloudCompute, LightningFlow
+
 from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
     LABELED_DATA_DIR,
     LABELSTUDIO_CONFIG_FILENAME,
     LABELSTUDIO_METADATA_FILENAME,
     LABELSTUDIO_TASKS_FILENAME,
-    COLLECTED_DATA_FILENAME,
 )
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.utilities import abspath
-
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 log_level = "ERROR"  # log level sent to label studio sdk

@@ -4,14 +4,19 @@ import argparse
 import logging
 import os
 import pickle
+
 import yaml
 
-from lightning_pose_app import LABELSTUDIO_METADATA_FILENAME, LABELSTUDIO_TASKS_FILENAME
-from lightning_pose_app import COLLECTED_DATA_FILENAME
-from lightning_pose_app.label_studio.utils import connect_to_label_studio
-from lightning_pose_app.label_studio.utils import get_project
-from lightning_pose_app.label_studio.utils import LabelStudioJSONProcessor
-
+from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
+    LABELSTUDIO_METADATA_FILENAME,
+    LABELSTUDIO_TASKS_FILENAME,
+)
+from lightning_pose_app.label_studio.utils import (
+    LabelStudioJSONProcessor,
+    connect_to_label_studio,
+    get_project,
+)
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 

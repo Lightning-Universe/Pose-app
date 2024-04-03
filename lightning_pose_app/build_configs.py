@@ -1,5 +1,6 @@
-from lightning.app import BuildConfig
 from typing import List
+
+from lightning.app import BuildConfig
 
 from lightning_pose_app import LIGHTNING_POSE_DIR
 

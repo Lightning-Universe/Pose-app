@@ -1,14 +1,15 @@
-import cv2
-from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
 import logging
 import math
-import numpy as np
 import os
-import pandas as pd
 import shlex
 import shutil
 import subprocess
 
+import cv2
+import numpy as np
+import pandas as pd
+from lightning.app.frontend import StreamlitFrontend as LitStreamlitFrontend
+from sklearn.cluster import KMeans
 
 _logger = logging.getLogger('APP.UTILS')
 
@@ -75,7 +76,7 @@ def reencode_video(input_file: str, output_file: str) -> None:
     subprocess.run(ffmpeg_cmd, shell=True)
 
 
-def copy_and_reformat_video(video_file: str, dst_dir: str, remove_old=True) -> str:
+def copy_and_reformat_video(video_file: str, dst_dir: str, remove_old: bool = True) -> str:
     """Copy a single video, reformatting if necessary, and delete the original."""
 
     src = video_file
@@ -140,7 +141,7 @@ def copy_and_reformat_video_directory(src_dir: str, dst_dir: str) -> None:
                 shutil.copyfile(src, dst)
 
 
-def get_frames_from_idxs(cap, idxs) -> np.ndarray:
+def get_frames_from_idxs(cap: cv2.VideoCapture, idxs: np.ndarray) -> np.ndarray:
     """Helper function to load video segments.
 
     Parameters
@@ -222,7 +223,7 @@ def make_video_snippet(
     return dst, int(clip_start_idx), float(clip_start_sec)
 
 
-def compute_motion_energy_from_predection_df(df, likelihood_thresh):
+def compute_motion_energy_from_predection_df(df, likelihood_thresh) -> np.ndarray:
 
     # Convert predictions to numpy array and reshape
     kps_and_conf = df.to_numpy().reshape(df.shape[0], -1, 3)
@@ -295,12 +296,12 @@ def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> 
     return is_context
 
 
-def compute_resize_dims(pixels: int):
+def compute_resize_dims(pixels: int) -> int:
     """Return value in {128, 256, 384} that is closest but not greater than pixel size."""
     return min(max(2 ** (math.floor(math.log(pixels, 2))), 128), 384)
 
 
-def compute_batch_sizes(height: int, width: int):
+def compute_batch_sizes(height: int, width: int) -> tuple:
     """These are hard-coded for values that max out a 16GB GPU (T4) with the example datasets."""
     if height * width >= 1024 * 1024:
         # resize dims likely 384 x 384
@@ -320,7 +321,7 @@ def compute_batch_sizes(height: int, width: int):
     return train_batch_size, dali_base_seq_len, dali_cxt_seq_len
 
 
-def update_config(config_dict: dict, new_vals_dict: dict):
+def update_config(config_dict: dict, new_vals_dict: dict) -> dict:
     # update config using new_vals_dict; assume this is a dict of dicts
     # new_vals_dict = {
     #     "data": new_data_dict,
@@ -338,7 +339,15 @@ def update_config(config_dict: dict, new_vals_dict: dict):
     return config_dict
 
 
-def abspath(path):
+def run_kmeans(X: np.ndarray, n_clusters: int) -> tuple:
+    kmeans_obj = KMeans(n_clusters, n_init="auto")
+    kmeans_obj.fit(X)
+    cluster_labels = kmeans_obj.labels_
+    cluster_centers = kmeans_obj.cluster_centers_
+    return cluster_labels, cluster_centers
+
+
+def abspath(path: str) -> str:
     if path[0] == "/":
         path_ = path[1:]
     else:

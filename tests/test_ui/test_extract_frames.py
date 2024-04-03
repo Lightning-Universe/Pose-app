@@ -41,26 +41,27 @@ def test_extract_frames_work(
     # -----------------
     # select indices w/ model
     # -----------------
-    # TODO: make sure to update test by making dummy prediction/metric files
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
-
     video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
+    # save predictions
+    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + ".csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    video_file_pred_df.to_csv(path)
+    # save metrics
     path = os.path.join(
         model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + "_pca_singleview_error.csv"
     )
-    os.makedirs(os.path.dirname(path), exist_ok=True)
     video_file_pca_singleview_df.to_csv(path)
-    # save predictions
-    # should be saved in os.path.join(model_dir, <video_name>.csv)
-    # save metrics
+    # select frames
     n_frames_per_video = 7
     idxs = work._select_frame_idxs_using_model(
         video_file=video_file,
         proj_dir=proj_dir,
-        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),  # TO FIX
+        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),
         n_frames_per_video=n_frames_per_video,
         frame_range=[0, 1],
+        thresh_metric_z=0.5,  # important! otherwise this setup doesn't pick up any outliers
     )
     assert len(idxs) == n_frames_per_video
 
@@ -118,17 +119,17 @@ def test_extract_frames_work(
     assert work.work_is_done_extract_frames
 
     # use "active" method
-    # TODO: make sure to update test by making dummy prediction/metric files in model dir
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-2')
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
-
-    video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
+    # save predictions
+    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + ".csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    video_file_pred_df.to_csv(path)
+    # save metrics
     path = os.path.join(
         model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + "_pca_singleview_error.csv"
     )
-    os.makedirs(os.path.dirname(path), exist_ok=True)
     video_file_pca_singleview_df.to_csv(path)
-
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, video_name)
     os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
     n_frames_per_video = 10
@@ -139,6 +140,7 @@ def test_extract_frames_work(
         n_frames_per_video=n_frames_per_video,
         frame_range=[0, 1],
         model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),
+        thresh_metric_z=0.5,  # important! otherwise this setup doesn't pick up any outliers
     )
     assert os.path.exists(video_dir)
     assert len(os.listdir(video_dir)) > n_frames_per_video
@@ -248,6 +250,7 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
 
 
 def test_identify_outliers():
+
     from lightning_pose_app.ui.extract_frames import identify_outliers
 
     likelihood_data = {
@@ -285,20 +288,6 @@ def test_identify_outliers():
     assert np.argmax(outlier_total) == 3
     # check that outlier score sums up to n_keypoints(=3) X (n_metrics iteams - 1)
     assert outlier_total[3] == likelihood_mock.shape[1] * (len(mock_metrics) - 1)
-
-
-def test_run_kmeans():
-    from lightning_pose_app.ui.extract_frames import run_kmeans
-
-    n_samples = int(50)
-    n_features = int(5)
-    n_clusters = 10
-
-    data_to_cluster = np.random.rand(n_samples, n_features)
-    cluster = run_kmeans(data_to_cluster, n_clusters)
-
-    assert len(cluster) == n_samples
-    assert len(np.unique(cluster)) == n_clusters
 
 
 def test_select_max_frame_per_cluster():
@@ -356,6 +345,7 @@ def mock_error_metrix_df(n_frames, keypoints):
 
 # Should return array of [1,11,21,31,41]
 def test_select_frames_using_metrics():
+
     from lightning_pose_app.ui.extract_frames import select_frames_using_metrics
 
     keypoints = ['paw1', 'paw2', 'paw3']

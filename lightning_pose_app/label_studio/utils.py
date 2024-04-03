@@ -1,15 +1,15 @@
 """Utility functions for label studio"""
 
-from label_studio_sdk import Client
 import logging
-import numpy as np
 import os
-import pandas as pd
 import time
-from typing import Any, Tuple, List, Dict
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
+import pandas as pd
+from label_studio_sdk import Client
 
 from lightning_pose_app import LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME
-
 
 _logger = logging.getLogger('APP.LABELSTUDIO')
 

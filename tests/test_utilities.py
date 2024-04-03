@@ -248,6 +248,22 @@ def test_update_config():
     assert cfg_new["dali"]["general"]["seed"] == cfg_new["dali"]["general"]["seed"]
 
 
+def test_run_kmeans():
+
+    from lightning_pose_app.ui.extract_frames import run_kmeans
+
+    n_samples = int(50)
+    n_features = int(5)
+    n_clusters = 10
+
+    data_to_cluster = np.random.rand(n_samples, n_features)
+    cluster, centers = run_kmeans(data_to_cluster, n_clusters)
+
+    assert len(cluster) == n_samples
+    assert len(np.unique(cluster)) == n_clusters
+    assert centers.shape == (n_clusters, n_features)
+
+
 def test_abspath():
 
     from lightning_pose_app.utilities import abspath

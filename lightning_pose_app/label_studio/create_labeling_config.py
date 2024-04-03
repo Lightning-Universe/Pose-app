@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 
-
 _logger = logging.getLogger('APP.LABELSTUDIO')
 
 

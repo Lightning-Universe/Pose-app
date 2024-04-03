@@ -1,19 +1,19 @@
 import errno
-from functools import partial
-from lightning.app import LightningWork
-from lightning.app.utilities.app_helpers import _collect_child_process_pids
 import logging
 import os
 import shlex
 import signal
 import socket
-from string import Template
 import subprocess
 import threading
 import time
+from functools import partial
+from string import Template
+
+from lightning.app import LightningWork
+from lightning.app.utilities.app_helpers import _collect_child_process_pids
 
 from lightning_pose_app.utilities import args_to_dict
-
 
 _logger = logging.getLogger('APP.BASHWORK')
 

@@ -1,38 +1,46 @@
+import logging
+import os
+import shutil
+import zipfile
+
 import cv2
+import numpy as np
+import pandas as pd
+import streamlit as st
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.state import AppState
-import logging
-import numpy as np
-import os
-import shutil
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
-import streamlit as st
-from streamlit_autorefresh import st_autorefresh
-import zipfile
-import pandas as pd
 from scipy.stats import zscore
+from sklearn.decomposition import PCA
+from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
-    MODELS_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
+    MODELS_DIR,
     SELECTED_FRAMES_FILENAME,
     VIDEOS_DIR,
     VIDEOS_INFER_DIR,
     VIDEOS_TMP_DIR,
     ZIPPED_TMP_DIR,
 )
-from lightning_pose_app.utilities import StreamlitFrontend, abspath
-from lightning_pose_app.utilities import copy_and_reformat_video, get_frames_from_idxs
-from lightning_pose_app.utilities import compute_motion_energy_from_predection_df
+from lightning_pose_app.utilities import (
+    StreamlitFrontend,
+    abspath,
+    compute_motion_energy_from_predection_df,
+    copy_and_reformat_video,
+    get_frames_from_idxs,
+    run_kmeans,
+)
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
 
-def identify_outliers(metrics, likelihood_thresh, thresh_metric_z):
-
+def identify_outliers(
+    metrics: dict,
+    likelihood_thresh: float,
+    thresh_metric_z: float,
+) -> np.ndarray:
     # Initialize dictionary to store outlier flags for each metric
     outliers = {m: None for m in metrics.keys()}
     # Determine outliers for each metric
@@ -45,58 +53,53 @@ def identify_outliers(metrics, likelihood_thresh, thresh_metric_z):
     # Combine outlier flags from all metrics into a single 3D array
     outliers_all = np.concatenate(
         [d.to_numpy()[:, :, None] for _, d in outliers.items()],
-        axis=-1
+        axis=-1,
     )  # Shape: (n_frames, n_keypoints, n_metrics)
     # Sum outlier flags to identify total outliers for each frame
     outliers_total = np.sum(outliers_all, axis=(1, 2))
     return outliers_total
 
 
-def run_kmeans(X, n_clusters):
-
-    kmeans_obj = KMeans(n_clusters, n_init="auto")
-    kmeans_obj.fit(X)
-    cluster_labels = kmeans_obj.labels_
-
-    return cluster_labels
-
-
-def select_max_frame_per_cluster(df):
+def select_max_frame_per_cluster(df: pd.DataFrame) -> list:
     # Copy the DataFrame to avoid modifying the original
     df_copy = df.copy()
     # Group by 'cluster_labels' and find the index of the max 'error score' in each group
     idxs_max_error = df_copy.groupby('cluster_labels')['error score'].idxmax()
     # Select the rows that correspond to the max 'error score' in each cluster
     final_selection = df_copy.loc[idxs_max_error].sort_values(
-        by="frames index")["frames index"].tolist()
-
+        by="frames index"
+    )["frames index"].tolist()
     return final_selection
 
 
-def select_frames_using_metrics(preds,
-                                metrics,
-                                n_frames_per_video,
-                                likelihood_thresh,
-                                thresh_metric_z
-                                ):
-
-    me = compute_motion_energy_from_predection_df(preds, likelihood_thresh)
-    me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
-    # Select index of high ME frames
-    idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
+def select_frames_using_metrics(
+    preds: pd.DataFrame,
+    metrics: dict,
+    n_frames_per_video: int,
+    likelihood_thresh: float,
+    thresh_metric_z: float,
+) -> list:
 
     # Store likelihood scores in metrics dictionary
     mask = preds.columns.get_level_values('coords').isin(['likelihood'])
     metrics["likelihood"] = preds.loc[:, mask]
+
+    # only look at frames with high motion energy
+    me = compute_motion_energy_from_predection_df(preds, likelihood_thresh)
+    me_prctile = 50 if preds.shape[0] < 1e5 else 75  # take fewer frames if there are many
+    # Select index of high ME frames
+    idxs_high_me = np.where(me > np.percentile(me, me_prctile))[0]
     for metric, val in metrics.items():
         metrics[metric] = val.loc[idxs_high_me]
+    # identify outliers using various metrics
     outliers_total = identify_outliers(metrics, likelihood_thresh, thresh_metric_z)
+    # grab the frames with the largest number of outliers
     frames_sample_multiplier = 10 if preds.shape[0] < 1e5 else 40
     frames_to_grab = min(n_frames_per_video * frames_sample_multiplier, preds.shape[0])
-    outlier_frames = pd.DataFrame(
-        {"frames index": idxs_high_me,
-         "error score": outliers_total
-         }).sort_values(by="error score", ascending=False).head(frames_to_grab)
+    outlier_frames = pd.DataFrame({
+        "frames index": idxs_high_me,
+        "error score": outliers_total,
+    }).sort_values(by="error score", ascending=False).head(frames_to_grab)
     # Select frames with an error score greater than 0
     outlier_frames_nozero = outlier_frames[outlier_frames["error score"] > 0]
     # Prepare data for clustering
@@ -106,10 +109,10 @@ def select_frames_using_metrics(preds,
     # drop all columns with NA in all cells and rows with NA in any cell
     data_to_cluster = data_to_cluster.dropna(axis=1, how='all').dropna(axis=0, how='any')
     # Run KMeans clustering
-    cluster_labels = run_kmeans(data_to_cluster.to_numpy(), n_frames_per_video)
+    cluster_labels, _ = run_kmeans(data_to_cluster.to_numpy(), n_frames_per_video)
     clustered_data = pd.DataFrame({
         "frames index": data_to_cluster.index,
-        "cluster_labels": cluster_labels
+        "cluster_labels": cluster_labels,
     })
     clustered_data_errors = clustered_data.merge(outlier_frames_nozero, on="frames index")
     # Select the frame with the maximum error score in each cluster for the final selection
@@ -222,13 +225,13 @@ class ExtractFramesWork(LightningWork):
 
         # cluster low-d pca embeddings
         _logger.info('performing kmeans clustering...')
-        kmeans_obj = KMeans(n_clusters=n_clusters, n_init="auto")
-        kmeans_obj.fit(X=embedding)
+        _, centers = run_kmeans(X=embedding, n_clusters=n_clusters)
+        # centers is initially of shape (n_clusters, n_pcs); reformat
+        centers = centers.T[None, :]
 
         # find high me frame that is closest to each cluster center
-        # kmeans_obj.cluster_centers_ is shape (n_clusters, n_pcs)
-        centers = kmeans_obj.cluster_centers_.T[None, ...]
         # embedding is shape (n_frames, n_pcs)
+        # centers is shape (1, n_pcs, n_clusters)
         dists = np.linalg.norm(embedding[:, :, None] - centers, axis=1)
         # dists is shape (n_frames, n_clusters)
         idxs_prototypes_ = np.argmin(dists, axis=0)
@@ -246,7 +249,7 @@ class ExtractFramesWork(LightningWork):
         frame_range: list = [0, 1],
         likelihood_thresh: float = 0.0,
         thresh_metric_z: float = 3.0,
-    ):
+    ) -> np.ndarray:
 
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         pred_file = os.path.join(model_dir, video_name + ".csv")
@@ -259,23 +262,35 @@ class ExtractFramesWork(LightningWork):
             'temporal_norm': None,
         }
 
+        keys_to_remove = []
         for key in metrics.keys():
             if key == "pca_singleview":
-                file = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
+                filename = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
             elif key == "pca_multiview":
-                file = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
+                filename = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
             elif key == "temporal_norm":
-                file = os.path.join(model_dir, video_name + "_temporal_norm.csv")
+                filename = os.path.join(model_dir, video_name + "_temporal_norm.csv")
+            else:
+                filename = 'None'
 
-            if os.path.exists(file):
-                metrics[key] = pd.read_csv(file)
+            if os.path.exists(filename):
+                # update dict with dataframe
+                metrics[key] = pd.read_csv(filename, index_col=0)
+            else:
+                # make sure we remove this key later
+                keys_to_remove.append(key)
 
-        idxs_selected = select_frames_using_metrics(preds,
-                                                    metrics,
-                                                    n_frames_per_video,
-                                                    likelihood_thresh,
-                                                    thresh_metric_z
-                                                    )
+        # remove unused keys from metrics
+        for key in keys_to_remove:
+            metrics.pop(key)
+
+        idxs_selected = select_frames_using_metrics(
+            preds=preds,
+            metrics=metrics,
+            n_frames_per_video=n_frames_per_video,
+            likelihood_thresh=likelihood_thresh,
+            thresh_metric_z=thresh_metric_z,
+        )
 
         return np.array(idxs_selected)
 
@@ -330,7 +345,9 @@ class ExtractFramesWork(LightningWork):
         proj_dir: str,
         n_frames_per_video: int,
         frame_range: list = [0, 1],
-        model_dir: str = "None",
+        model_dir: str = "None",         # for "active" strategy
+        likelihood_thresh: float = 0.0,  # for "active" strategy
+        thresh_metric_z: float = 3.0,    # for "active" strategy
     ) -> None:
 
         _logger.info(f"============== extracting frames from {video_file} ================")
@@ -386,6 +403,8 @@ class ExtractFramesWork(LightningWork):
                 model_dir=model_dir,
                 n_frames_per_video=n_frames_per_video,
                 frame_range=frame_range,
+                likelihood_thresh=likelihood_thresh,
+                thresh_metric_z=thresh_metric_z,
             )
 
         # save csv file inside same output directory
@@ -813,10 +832,10 @@ def _render_streamlit_fn(state: AppState):
                 type="zip",
                 accept_multiple_files=True,
                 help="Upload one zip file per video. The file name should be the"
-                        " name of the video. The frames should be in the format 'img%08i.png',"
-                        " i.e. a png file with a name that starts with 'img' and contains the"
-                        " frame number with leading zeros such that there are 8 total digits"
-                        " (e.g. 'img00003453.png')."
+                     " name of the video. The frames should be in the format 'img%08i.png',"
+                     " i.e. a png file with a name that starts with 'img' and contains the"
+                     " frame number with leading zeros such that there are 8 total digits"
+                     " (e.g. 'img00003453.png')."
             )
 
         # for each of the uploaded files

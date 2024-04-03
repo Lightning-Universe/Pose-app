@@ -1,6 +1,16 @@
 """UI for training models."""
 
+import logging
+import os
+import shutil
 from datetime import datetime
+from typing import Optional
+
+import lightning.pytorch as pl
+import numpy as np
+import pandas as pd
+import streamlit as st
+import yaml
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
@@ -9,19 +19,17 @@ from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig
 from streamlit_autorefresh import st_autorefresh
-from typing import Optional
-import lightning.pytorch as pl
-import logging
-import numpy as np
-import os
-import pandas as pd
-import shutil
-import streamlit as st
-import yaml
 
-from lightning_pose_app import VIDEOS_DIR, VIDEOS_TMP_DIR, VIDEOS_INFER_DIR
-from lightning_pose_app import LABELED_DATA_DIR, MODELS_DIR, SELECTED_FRAMES_FILENAME
-from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR, MODEL_VIDEO_PREDS_INFER_DIR
+from lightning_pose_app import (
+    LABELED_DATA_DIR,
+    MODEL_VIDEO_PREDS_INFER_DIR,
+    MODEL_VIDEO_PREDS_TRAIN_DIR,
+    MODELS_DIR,
+    SELECTED_FRAMES_FILENAME,
+    VIDEOS_DIR,
+    VIDEOS_INFER_DIR,
+    VIDEOS_TMP_DIR,
+)
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
@@ -31,7 +39,6 @@ from lightning_pose_app.utilities import (
     make_video_snippet,
     update_config,
 )
-
 
 _logger = logging.getLogger('APP.TRAIN_INFER')
 
@@ -99,8 +106,9 @@ class LitPose(LightningWork):
     ) -> None:
 
         import gc
-        from omegaconf import DictConfig, OmegaConf
-        from lightning_pose.utils import pretty_print_str, pretty_print_cfg
+
+        import torch
+        from lightning_pose.utils import pretty_print_cfg, pretty_print_str
         from lightning_pose.utils.io import (
             check_video_paths,
             return_absolute_data_paths,
@@ -108,16 +116,16 @@ class LitPose(LightningWork):
         )
         from lightning_pose.utils.predictions import predict_dataset
         from lightning_pose.utils.scripts import (
+            calculate_train_batches,
+            compute_metrics,
+            get_callbacks,
             get_data_module,
             get_dataset,
             get_imgaug_transform,
             get_loss_factories,
             get_model,
-            get_callbacks,
-            calculate_train_batches,
-            compute_metrics,
         )
-        import torch
+        from omegaconf import DictConfig, OmegaConf
 
         self.work_is_done_training = False
 
@@ -313,11 +321,7 @@ class LitPose(LightningWork):
     ):
 
         from lightning_pose.utils.io import ckpt_path_from_base_path
-        from lightning_pose.utils.scripts import (
-            get_data_module,
-            get_dataset,
-            get_imgaug_transform,
-        )
+        from lightning_pose.utils.scripts import get_data_module, get_dataset, get_imgaug_transform
 
         print(f"========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n=========")
 
