@@ -292,10 +292,28 @@ class ProjectUI(LightningFlow):
                     return True
                 else:
                     return False
+        
+        #search_criteria = [COLLECTED_DATA_FILENAME,VIDEOS_DIR]
+        def find_top_level_dir(unzipped_dir, search_criteria: str) -> list:
+               deepest_items = []
+               max_depth = -1
+               for file in z.namelist():
+                depth = file.count('/')
+                # Update max_depth if a deeper item is found
+                if depth > max_depth:
+                    max_depth = depth
+                    deepest_items = [file]  # Reset the list with the current deepest item
+                elif depth == max_depth:
+                        deepest_items.append(file)  # Add item to the list if it shares the current max depth
 
+                return deepest_items
+
+        #TODO: change to search for the files and grub them  
         # copy files over; not great that this is in a Flow, might take time
         if self.st_existing_project_format == "Lightning Pose":
-            files_and_dirs = os.listdir(unzipped_dir)
+            ## add a function to unzip unzipped_dir until finds COLLECTED_DATA_FILENAME
+            top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME, VIDEOS_DIR)
+            files_and_dirs = os.listdir(top_level_dir)
             for file_or_dir in files_and_dirs:
                 src = os.path.join(unzipped_dir, file_or_dir)
                 if file_or_dir.endswith(".csv"):
