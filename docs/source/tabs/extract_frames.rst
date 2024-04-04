@@ -12,6 +12,7 @@ The Extract Frames tab allows you to select frames for labeling using various me
 
 * :ref:`Upload videos and automatically extract random frames <upload_video_random>`
 * :ref:`Upload zipped files of frames <upload_zipped_frames>`
+* :ref:`Automatically extract frames using a given model <active_learning>`
 
 .. _upload_video_random:
 
@@ -115,3 +116,38 @@ Click "Extract frames" once the zip file upload is complete.
 Once all frames have been extracted you will see "Proceed to the next tab to label frames" in green.
 
 .. image:: https://imgur.com/F9y1aPv.png
+
+
+.. _active_learning:
+
+Automatically extract frames using a given model
+================================================
+
+.. note::
+
+    This option will not appear until at least one model has been trained.
+
+This option allows you to choose frames to label that are "difficult" for a given model.
+Since there is no ground truth, frames are selected based on likelihood values and other metrics
+that are correlated with pixel error (large temporal jumps and PCA reprojection errors;
+see the original Lightning Pose paper for technical details).
+
+First you will need to determine which videos you would like to extract frames from.
+Next, you will need to run inference on those videos with a given model in the "Train/Infer" tab;
+see the :ref:`inference documentation <tab_train_infer__infer>`.
+
+After you have completed inference you can return to the "Extract Frames" tab and select the
+appropriate option from the list:
+
+.. image:: https://imgur.com/WdXELrk.png
+
+You will then be able to select which model you would like to use (which should be the same model
+you used to run inference in the "Train/Infer" tab).
+Once the model is selected you will see a list of all videos where inference has already been
+performed.
+Select one or more videos, and as before you may also enter the number of frames per video you
+would like to label, as well as use the slider to exclude frames from the beginning and/or end
+of the video.
+
+Click "Extract frames", and you will quickly see the green message informing you that your frames
+are ready for labeling.

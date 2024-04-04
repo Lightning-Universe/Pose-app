@@ -74,6 +74,7 @@ remember that ``demo_app.py`` and ``labeleing_app.py`` only utilize a subset of 
    tabs/train_status
    tabs/labeled_diagnostics
    tabs/video_diagnostics
+   tabs/video_player
    tabs/fiftyone
 
 **Close the app**
