@@ -6,7 +6,7 @@ Train/Infer
 
 This tab is the interface for training models and running inference on new videos.
 
-.. image:: https://imgur.com/GXhvqXI.png
+.. image:: https://imgur.com/uU6LbBZ.png
 
 The left side-bar displays your current labeling progress, and contains a drop-down menu showing
 all previously trained models.
@@ -81,6 +81,8 @@ The progress bar will reset and display inference progress for each video.
 Once training is complete for all models you will see
 "Training complete; see diagnostics in the following tabs" in green.
 
+.. _tab_train_infer__infer:
+
 Predict on New Videos
 =====================
 
@@ -91,11 +93,24 @@ You will see an upload progress bar.
 .. image:: https://imgur.com/MXHq8hx.png
     :width: 400
 
+You may also choose to create videos overlaid with predictions from the model.
+
+.. image:: https://imgur.com/RBqSZTF.png
+    :width: 300
+
+The option "Save labeled video (30 second clip)" will find the 30 second portion of the video
+with the highest motion energy in the model predictions.
+This is a good option if you want to quickly get a sense of how well the model is performing.
+
+The option "Save labeled video (full video)" will plot predictions for the duration of the entire
+video.
+This is a good option if you want to search over longer or more diverse periods of the video.
+
+If you check one or both boxes, you will be able to view the resulting videos directly in the app
+in the :ref:`"Video Player" tab <tab_video_player>`.
+
 Click "Run inference" once the video uploads are complete,
 and another set of progress bars will appear.
-After inference is complete for each video a small snippet is extracted
-(during the period of highest motion energy)
-and a video of raw frames overlaid with model predictions is created for diagnostic purposes.
 
 .. image:: https://imgur.com/rK2d7ph.png
     :width: 400

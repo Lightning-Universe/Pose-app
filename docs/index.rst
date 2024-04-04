@@ -6,7 +6,8 @@
 Lightning Pose App documentation
 ================================
 
-The **Lightning Pose App** is a browser-based GUI that facilitates the deveopment of pose estimation projects.
+The **Lightning Pose App** is a browser-based GUI that facilitates the deveopment of pose
+estimation projects.
 
 The app runs in the cloud using `Lightning.ai <https://lightning.ai>`_.
 
