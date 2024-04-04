@@ -5,6 +5,7 @@ import os
 import shutil
 import time
 import zipfile
+import re
 
 import numpy as np
 import pandas as pd
@@ -283,6 +284,7 @@ class ProjectUI(LightningFlow):
             unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
             z.extractall(path=os.path.dirname(self.st_upload_existing_project_zippath))
 
+
         def contains_videos(file_or_dir):
             if os.path.isfile(file_or_dir):
                 return False
@@ -297,20 +299,9 @@ class ProjectUI(LightningFlow):
             for root, dirs, files in os.walk(initial_path, topdown=True):
                 if target_file_name in files:
                     return root
-        return None
-            # # Check if the target file exists in the current directory
-            # if target_file_name in os.listdir(initial_path):
-            #     return initial_path
-            # else:
-            #     # Attempt to find the target file by navigating the directory tree
-            #     for root, dirs, files in os.walk(initial_path):
-            #         if target_file_name in files:
-            #             return root
+    
 
-        #TODO: change to search for the files and grub them  
-        # copy files over; not great that this is in a Flow, might take time
         if self.st_existing_project_format == "Lightning Pose":
-            ## add a function to unzip unzipped_dir until finds COLLECTED_DATA_FILENAME
             top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
             files_and_dirs = os.listdir(top_level_dir)
             for file_or_dir in files_and_dirs:
@@ -318,12 +309,12 @@ class ProjectUI(LightningFlow):
                 if file_or_dir.endswith(".csv"):
                     # copy labels csv file
                     dst = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
+                    print('dst',dst)
                     shutil.copyfile(src, dst)
                 elif contains_videos(src):
                     # copy videos over, make sure they are in proper format
                     dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
-                    print(src)
-                    print(dst_dir)
+                    print('dst_dir',dst_dir)
                     copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
                 else:
                     # copy other files
@@ -332,6 +323,7 @@ class ProjectUI(LightningFlow):
                         shutil.copytree(src, dst)
                     else:
                         shutil.copyfile(src, dst)
+            
 
         elif self.st_existing_project_format == "DLC":
 
@@ -353,6 +345,7 @@ class ProjectUI(LightningFlow):
 
         else:
             raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
+        
 
         # create 'selected_frames.csv' file for each video subdirectory
         # this is required to import frames into label studio, so that we don't confuse context
@@ -374,9 +367,15 @@ class ProjectUI(LightningFlow):
 
         # update config file with frame shapes
         self._update_frame_shapes()
-
+    
         # update counter
         self.count_upload_existing += 1
+    
+    # clean redundent files
+
+
+    
+
 
     def _delete_project(self, **kwargs):
 
@@ -438,6 +437,7 @@ def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pos
             if len(keypoints) > 0:
                 break
     return keypoints
+
 
 
 # def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
@@ -707,6 +707,9 @@ def _render_streamlit_fn(state: AppState):
             bytes_data = uploaded_file.read()
             # name it
             filename = uploaded_file.name
+            # filename = re.sub(r'[\s\-]+', '_', filename_zipped)
+            # filename_parts = filename.rsplit('.', 1) # split name to parts for adding the _temp
+            # filename = filename_parts[0] + "_temp." + filename_parts[1]
             filepath = os.path.join(os.getcwd(), "data", filename)
             # write the content of the file to the path if it doesn't already exist
             if not os.path.exists(filepath):
@@ -721,6 +724,9 @@ def _render_streamlit_fn(state: AppState):
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
+            
+            #os.remove(filepath)
+            
         st.caption(
             "If your zip file is larger than the 200MB limit, see the [FAQ]"
             "(https://pose-app.readthedocs.io/en/latest/source/faqs.html#faq-upload-limit)",
@@ -730,6 +736,9 @@ def _render_streamlit_fn(state: AppState):
     if state.st_error_flag:
         st.markdown(state.st_error_msg, unsafe_allow_html=True)
         enter_data = False
+
+        
+
 
     # ----------------------------------------------------
     # user input for data config
