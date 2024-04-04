@@ -293,26 +293,25 @@ class ProjectUI(LightningFlow):
                 else:
                     return False
         
-        #search_criteria = [COLLECTED_DATA_FILENAME,VIDEOS_DIR]
-        def find_top_level_dir(unzipped_dir, search_criteria: str) -> list:
-               deepest_items = []
-               max_depth = -1
-               for file in z.namelist():
-                depth = file.count('/')
-                # Update max_depth if a deeper item is found
-                if depth > max_depth:
-                    max_depth = depth
-                    deepest_items = [file]  # Reset the list with the current deepest item
-                elif depth == max_depth:
-                        deepest_items.append(file)  # Add item to the list if it shares the current max depth
-
-                return deepest_items
+        def find_top_level_dir(initial_path, target_file_name):
+            for root, dirs, files in os.walk(initial_path, topdown=True):
+                if target_file_name in files:
+                    return root
+        return None
+            # # Check if the target file exists in the current directory
+            # if target_file_name in os.listdir(initial_path):
+            #     return initial_path
+            # else:
+            #     # Attempt to find the target file by navigating the directory tree
+            #     for root, dirs, files in os.walk(initial_path):
+            #         if target_file_name in files:
+            #             return root
 
         #TODO: change to search for the files and grub them  
         # copy files over; not great that this is in a Flow, might take time
         if self.st_existing_project_format == "Lightning Pose":
             ## add a function to unzip unzipped_dir until finds COLLECTED_DATA_FILENAME
-            top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME, VIDEOS_DIR)
+            top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
             files_and_dirs = os.listdir(top_level_dir)
             for file_or_dir in files_and_dirs:
                 src = os.path.join(unzipped_dir, file_or_dir)
@@ -441,37 +440,67 @@ def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pos
     return keypoints
 
 
+# def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
+#     if project_type not in ["DLC", "Lightning Pose"]:
+#         raise NotImplementedError
+
+#     expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR]
+
+#     error_flag = False
+#     error_msg = ""
+#     with zipfile.ZipFile(filepath) as z:
+#         zipname = os.path.basename(filepath).replace(".zip", "")
+#         files = z.namelist()
+#         if project_type == "Lightning Pose" or project_type == "DLC":
+#             for expected_dir in expected_dirs:
+#                 if not any(f"{zipname}/{expected_dir}/" in file for file in files):
+#             #if os.path.join(zipname, LABELED_DATA_DIR, "") not in files:
+#                     error_flag = True
+#                     error_msg += f"""
+#                         ERROR: Your directory of labeled frames must be named "{LABELED_DATA_DIR}"
+#                         If you change this directory name, make sure to update the filepaths in the
+#                         labeled data csv file as well!
+#                         <br /><br />
+#                     """
+#                 if os.path.join(zipname, VIDEOS_DIR, "") not in files:
+#                     error_flag = True
+#                     error_msg += f"""
+#                         ERROR: Your directory of videos must be named "{VIDEOS_DIR}" (can be empty)
+#                         <br /><br />
+#                     """
+#         else:
+#             raise NotImplementedError
+
+#     proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
+
+#     return error_flag, proceed_fmt % error_msg
+
 def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
     if project_type not in ["DLC", "Lightning Pose"]:
         raise NotImplementedError
 
+    expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR]
+
     error_flag = False
-    error_msg = ""
+    error_msgs = []  # Collect error messages in a list
+
     with zipfile.ZipFile(filepath) as z:
-        zipname = os.path.basename(filepath).replace(".zip", "")
         files = z.namelist()
-        if project_type == "Lightning Pose" or project_type == "DLC":
-            if os.path.join(zipname, LABELED_DATA_DIR, "") not in files:
+        
+        # Iterate over each expected directory and check if it's present
+        for expected_dir in expected_dirs:
+            # Adjusting the logic to check the presence of directories correctly
+            if not any(f"{expected_dir}/" in file for file in files):
                 error_flag = True
-                error_msg += f"""
-                    ERROR: Your directory of labeled frames must be named "{LABELED_DATA_DIR}"
-                    If you change this directory name, make sure to update the filepaths in the
-                    labeled data csv file as well!
-                    <br /><br />
-                """
-            if os.path.join(zipname, VIDEOS_DIR, "") not in files:
-                error_flag = True
-                error_msg += f"""
-                    ERROR: Your directory of videos must be named "{VIDEOS_DIR}" (can be empty)
-                    <br /><br />
-                """
-        else:
-            raise NotImplementedError
+                # Append specific error message for the missing directory
+                error_msgs.append(f"ERROR: Your directory of {expected_dir} must be named \"{expected_dir}\" (can be empty).")
+
+    # Joining all error messages with breaks for HTML formatting, if you're displaying this in a web context
+    error_msg = "<br /><br />".join(error_msgs)
 
     proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
 
     return error_flag, proceed_fmt % error_msg
-
 
 def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
     """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
@@ -576,6 +605,8 @@ def _render_streamlit_fn(state: AppState):
     # ----------------------------------------------------
     # we'll only allow config updates once the user has defined an allowable project name
     if st_project_name:
+        # Check no other keys but letters, numbers
+        st_project_name = st_project_name.replace(' ', '_')
         if st_mode == LOAD_STR:
             if st_project_name not in state.initialized_projects:
                 # catch user error
