@@ -282,7 +282,9 @@ class ProjectUI(LightningFlow):
             return
         with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
             unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
-            z.extractall(path=os.path.dirname(self.st_upload_existing_project_zippath))
+            z.extractall(path=unzipped_dir)
+            #z.extractall(path=os.path.dirname(self.st_upload_existing_project_zippath))
+            
 
 
         def contains_videos(file_or_dir):
@@ -300,52 +302,72 @@ class ProjectUI(LightningFlow):
                 if target_file_name in files:
                     return root
     
+        finished_copy_files = False
+        try:
+            if self.st_existing_project_format == "Lightning Pose":
+                print('unzipped_dir',unzipped_dir)
+                print("self.st_upload_existing_project_zippath", self.st_upload_existing_project_zippath)
+                top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
+                print('top level dir',top_level_dir)
+                files_and_dirs = os.listdir(top_level_dir)
+                print("files_and_dirs", files_and_dirs)
+                for file_or_dir in files_and_dirs:
+                    src = os.path.join(top_level_dir, file_or_dir)
+                    print('src',src)
+                    if file_or_dir.endswith(".csv"):
+                        # copy labels csv file
+                        dst = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
+                        print('dst',dst)
+                        #print('dst',dst)
+                        shutil.copyfile(src, dst)
+                    elif contains_videos(src):
+                        # copy videos over, make sure they are in proper format
+                        dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
+                        print('dst_dir',dst_dir)
+                        copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
+                    else:
+                        # copy other files
+                        dst = os.path.join(self.proj_dir_abs, file_or_dir)
+                        if os.path.isdir(src):
+                            shutil.copytree(src, dst)
+                        else:
+                            shutil.copyfile(src, dst)
+                
+                # flag finish coping all files            
+                finished_copy_files = True
 
-        if self.st_existing_project_format == "Lightning Pose":
-            top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
-            files_and_dirs = os.listdir(top_level_dir)
-            for file_or_dir in files_and_dirs:
-                src = os.path.join(unzipped_dir, file_or_dir)
-                if file_or_dir.endswith(".csv"):
-                    # copy labels csv file
-                    dst = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
-                    print('dst',dst)
-                    shutil.copyfile(src, dst)
-                elif contains_videos(src):
-                    # copy videos over, make sure they are in proper format
-                    dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
-                    print('dst_dir',dst_dir)
-                    copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
-                else:
-                    # copy other files
-                    dst = os.path.join(self.proj_dir_abs, file_or_dir)
-                    if os.path.isdir(src):
+            elif self.st_existing_project_format == "DLC":
+
+                # copy files
+                files_and_dirs = os.listdir(unzipped_dir)
+                req_dlc_dirs = ["labeled-data", "videos"]
+                for d in req_dlc_dirs:
+                    assert d in files_and_dirs, f"zipped DLC directory must include folder named {d}"
+                    src = os.path.join(unzipped_dir, d)
+                    dst = os.path.join(self.proj_dir_abs, d)
+                    if d == "labeled-data":
                         shutil.copytree(src, dst)
                     else:
-                        shutil.copyfile(src, dst)
-            
+                        copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
 
-        elif self.st_existing_project_format == "DLC":
-
-            # copy files
-            files_and_dirs = os.listdir(unzipped_dir)
-            req_dlc_dirs = ["labeled-data", "videos"]
-            for d in req_dlc_dirs:
-                assert d in files_and_dirs, f"zipped DLC directory must include folder named {d}"
-                src = os.path.join(unzipped_dir, d)
-                dst = os.path.join(self.proj_dir_abs, d)
-                if d == "labeled-data":
-                    shutil.copytree(src, dst)
-                else:
-                    copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
-
-            # create single csv file of labels out of video-specific label files
-            df_all = collect_dlc_labels(self.proj_dir_abs)
-            df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
-
-        else:
-            raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
+                # create single csv file of labels out of video-specific label files
+                df_all = collect_dlc_labels(self.proj_dir_abs)
+                df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
+                
+                # flag finish coping all files
+                finished_copy_files = True
+            else:
+                raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
         
+            # remove zipped file from project folder
+            if finished_copy_files:
+                if os.path.exists(self.st_upload_existing_project_zippath):
+                    os.remove(self.st_upload_existing_project_zippath)
+                if os.path.isdir(unzipped_dir):
+                    shutil.rmtree(unzipped_dir)
+        
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
         # create 'selected_frames.csv' file for each video subdirectory
         # this is required to import frames into label studio, so that we don't confuse context
@@ -371,7 +393,7 @@ class ProjectUI(LightningFlow):
         # update counter
         self.count_upload_existing += 1
     
-    # clean redundent files
+    
 
 
     
@@ -439,47 +461,11 @@ def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pos
     return keypoints
 
 
-
-# def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
-#     if project_type not in ["DLC", "Lightning Pose"]:
-#         raise NotImplementedError
-
-#     expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR]
-
-#     error_flag = False
-#     error_msg = ""
-#     with zipfile.ZipFile(filepath) as z:
-#         zipname = os.path.basename(filepath).replace(".zip", "")
-#         files = z.namelist()
-#         if project_type == "Lightning Pose" or project_type == "DLC":
-#             for expected_dir in expected_dirs:
-#                 if not any(f"{zipname}/{expected_dir}/" in file for file in files):
-#             #if os.path.join(zipname, LABELED_DATA_DIR, "") not in files:
-#                     error_flag = True
-#                     error_msg += f"""
-#                         ERROR: Your directory of labeled frames must be named "{LABELED_DATA_DIR}"
-#                         If you change this directory name, make sure to update the filepaths in the
-#                         labeled data csv file as well!
-#                         <br /><br />
-#                     """
-#                 if os.path.join(zipname, VIDEOS_DIR, "") not in files:
-#                     error_flag = True
-#                     error_msg += f"""
-#                         ERROR: Your directory of videos must be named "{VIDEOS_DIR}" (can be empty)
-#                         <br /><br />
-#                     """
-#         else:
-#             raise NotImplementedError
-
-#     proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
-
-#     return error_flag, proceed_fmt % error_msg
-
 def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
     if project_type not in ["DLC", "Lightning Pose"]:
         raise NotImplementedError
 
-    expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR]
+    expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR, COLLECTED_DATA_FILENAME]
 
     error_flag = False
     error_msgs = []  # Collect error messages in a list
@@ -490,7 +476,7 @@ def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") 
         # Iterate over each expected directory and check if it's present
         for expected_dir in expected_dirs:
             # Adjusting the logic to check the presence of directories correctly
-            if not any(f"{expected_dir}/" in file for file in files):
+            if not any(f"{expected_dir}" in file for file in files):
                 error_flag = True
                 # Append specific error message for the missing directory
                 error_msgs.append(f"ERROR: Your directory of {expected_dir} must be named \"{expected_dir}\" (can be empty).")
@@ -501,6 +487,7 @@ def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") 
     proceed_fmt = "<p style='font-family:sans-serif; color:Red;'>%s</p>"
 
     return error_flag, proceed_fmt % error_msg
+
 
 def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
     """Collect video-specific labels from DLC project and save in a single pandas dataframe."""
@@ -707,10 +694,9 @@ def _render_streamlit_fn(state: AppState):
             bytes_data = uploaded_file.read()
             # name it
             filename = uploaded_file.name
-            # filename = re.sub(r'[\s\-]+', '_', filename_zipped)
-            # filename_parts = filename.rsplit('.', 1) # split name to parts for adding the _temp
-            # filename = filename_parts[0] + "_temp." + filename_parts[1]
-            filepath = os.path.join(os.getcwd(), "data", filename)
+            #filename = re.sub(r'[\s\-]+', '_', filename)
+            filename_temp = filename.replace(".zip", '_temp.zip')
+            filepath = os.path.join(os.getcwd(), "data", filename_temp)
             # write the content of the file to the path if it doesn't already exist
             if not os.path.exists(filepath):
                 with open(filepath, "wb") as f:
@@ -721,11 +707,11 @@ def _render_streamlit_fn(state: AppState):
             # grab keypoint names
             st_keypoints = get_keypoints_from_zipfile(filepath, project_type=st_prev_format)
             # update relevant vars
+            
             state.st_upload_existing_project_zippath = filepath
             enter_data = True
             st_mode = CREATE_STR
             
-            #os.remove(filepath)
             
         st.caption(
             "If your zip file is larger than the 200MB limit, see the [FAQ]"
