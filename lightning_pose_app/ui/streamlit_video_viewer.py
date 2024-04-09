@@ -90,6 +90,16 @@ def _render_streamlit_fn(state: AppState):
         # read and show the predictions labeled video
         video_file = open(selected_video, "rb")
         video_bytes = video_file.read()
+        custom_css = """
+        <style>
+        video {
+            width: 100% !important;
+            height: 50% !important;
+        }
+        </style>
+        """
+        st.markdown(custom_css, unsafe_allow_html=True)
+
         st.video(video_bytes)
     else:
         st.write("No video to preview")
