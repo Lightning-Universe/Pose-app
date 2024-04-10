@@ -533,7 +533,7 @@ class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
     def __init__(self, *args, allow_context=True, max_epochs_default=300,
-     rng_seed_data_pt_default=0, **kwargs):
+                 rng_seed_data_pt_default=0, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -762,9 +762,14 @@ def _render_streamlit_fn(state: AppState):
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
-        
+
         st_rng_seed_data_pt = expander.text_input(
-            "Set the seeds (all models)", value=state.rng_seed_data_pt_default)
+            "Set the seed/s (all models)", value=state.rng_seed_data_pt_default,
+            help="By setting a seed or a list of seeds, you enable reproducible model training, "
+            "ensuring consistent results across different runs. Users can specify a single "
+            "integer for individual models or a list to train multiple networks (e.g. 1,5,6,7) "
+            "thereby enhancing flexibility and control over the training process."
+        )
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
