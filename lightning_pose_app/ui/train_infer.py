@@ -532,7 +532,8 @@ class LitPose(LightningWork):
 class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
-    def __init__(self, *args, allow_context=True, max_epochs_default=300, **kwargs):
+    def __init__(self, *args, allow_context=True, max_epochs_default=300,
+                 rng_seed_data_pt_default=0, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -553,7 +554,7 @@ class TrainUI(LightningFlow):
         )
         self.allow_context = allow_context  # this will be updated if/when project is loaded
         self.max_epochs_default = max_epochs_default
-
+        self.rng_seed_data_pt_default = rng_seed_data_pt_default
         # flag; used internally and externally
         self.run_script_train = False
         # track number of times user hits buttons; used internally and externally
@@ -565,6 +566,7 @@ class TrainUI(LightningFlow):
         self.st_datetimes = {}
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
+        self.st_rng_seed_data_pt = None
 
         # ------------------------
         # Inference
@@ -620,6 +622,7 @@ class TrainUI(LightningFlow):
             "training": {
                 "imgaug": "dlc",
                 "max_epochs": self.st_max_epochs,
+                "rng_seed_data_pt": self.st_rng_seed_data_pt,
             }
         }
 
@@ -760,6 +763,14 @@ def _render_streamlit_fn(state: AppState):
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
 
+        st_rng_seed_data_pt = expander.text_input(
+            "Set the seed/s (all models)", value=state.rng_seed_data_pt_default,
+            help="By setting a seed or a list of seeds, you enable reproducible model training, "
+            "ensuring consistent results across different runs. Users can specify a single "
+            "integer for individual models or a list to train multiple networks (e.g. 1,5,6,7) "
+            "thereby enhancing flexibility and control over the training process."
+        )
+
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
         pcamv = state.config_dict["data"].get("mirrored_column_matches", [])
@@ -840,6 +851,7 @@ def _render_streamlit_fn(state: AppState):
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
+            state.st_rng_seed_data_pt = int(st_rng_seed_data_pt)
             state.st_train_label_opt = st_train_label_opt
             state.st_train_status = {
                 "super": "initialized" if st_train_super else "none",
