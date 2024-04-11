@@ -711,9 +711,7 @@ class TrainUI(LightningFlow):
 
 def _render_streamlit_fn(state: AppState):
 
-    # make a train tab and an inference tab
-    train_tab, infer_tab = st.columns(2, gap="large")
-
+    train_tab, right_column = st.columns([1,1])
     # add shadows around each column
     # box-shadow args: h-offset v-offset blur spread color
     st.markdown("""
@@ -896,98 +894,141 @@ def _render_streamlit_fn(state: AppState):
             # force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
 
-    with infer_tab:
+    with right_column:
+         with st.container():
+            st.header(
+                body="Predict on New Videos",
+                help="Select your preferred inference model, then drag and drop your video "
+                     "file(s). Monitor the upload progress bar and click **Run inference** "
+                     "once uploads are complete. "
+                     "After completion, labeled videos are created if requested "
+                     "(see 'Video handling options' section below). "
+                     "Once inference concludes for all videos, the "
+                     "waiting for existing inference to finish' warning will disappear."
+            )
 
-        st.header(
-            body="Predict on New Videos",
-            help="Select your preferred inference model, then drag and drop your video file(s). "
-                 "Monitor the upload progress bar and click **Run inference** once uploads are "
-                 "complete. "
-                 "After completion, labeled videos are created if requested "
-                 "(see 'Video handling options' section below). "
-                 "Once inference concludes for all videos, the "
-                 "'waiting for existing inference to finish' warning will disappear."
-        )
+            model_dir = st.selectbox(
+                "Choose model to run inference", sorted(state.trained_models, reverse=True))
 
-        model_dir = st.selectbox(
-            "Choose model to run inference", sorted(state.trained_models, reverse=True))
+            # upload video files
+            video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
+            os.makedirs(video_dir, exist_ok=True)
 
-        # upload video files
-        video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
-        os.makedirs(video_dir, exist_ok=True)
+            # initialize the file uploader
+            uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
 
-        # initialize the file uploader
-        uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+            # for each of the uploaded files
+            st_videos = []
+            for uploaded_file in uploaded_files:
+                # read it
+                bytes_data = uploaded_file.read()
+                # name it
+                filename = uploaded_file.name.replace(" ", "_")
+                filepath = os.path.join(video_dir, filename)
+                st_videos.append(filepath)
+                if not state.run_script_infer:
+                    # write the content of the file to the path, but not while processing
+                    with open(filepath, "wb") as f:
+                        f.write(bytes_data)
 
-        # for each of the uploaded files
-        st_videos = []
-        for uploaded_file in uploaded_files:
-            # read it
-            bytes_data = uploaded_file.read()
-            # name it
-            filename = uploaded_file.name.replace(" ", "_")
-            filepath = os.path.join(video_dir, filename)
-            st_videos.append(filepath)
-            if not state.run_script_infer:
-                # write the content of the file to the path, but not while processing
-                with open(filepath, "wb") as f:
-                    f.write(bytes_data)
+            # allow user to select labeled video option
+            st.markdown(
+                """
+                #### Video handling options""",
+                help="Select checkboxes to automatically save a labeled video (short clip or full "
+                "video or both) after inference is complete. The short clip contains the 30 "
+                "second period of highest motion energy in the predictions."
+            )
+            st_label_short = st.checkbox(
+                "Save labeled video (30 second clip)", value=state.st_label_short,
+            )
+            st_label_full = st.checkbox(
+                "Save labeled video (full video)", value=state.st_label_full,
+            )
 
-        # allow user to select labeled video option
-        st.markdown(
-            """
-            #### Video handling options""",
-            help="Select checkboxes to automatically save a labeled video (short clip or full "
-                 "video or both) after inference is complete. The short clip contains the 30 "
-                 "second period of highest motion energy in the predictions."
-        )
-        st_label_short = st.checkbox(
-            "Save labeled video (30 second clip)", value=state.st_label_short,
-        )
-        st_label_full = st.checkbox(
-            "Save labeled video (full video)", value=state.st_label_full,
-        )
-
-        st_submit_button_infer = st.button(
-            "Run inference",
-            disabled=len(st_videos) == 0 or state.run_script_infer,
-        )
-        if state.run_script_infer:
-            keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
-            for vid, status in state.st_infer_status.items():
-                status_ = None  # more detailed status provided by work
-                if status == "initialized":
-                    p = 0.0
-                elif status == "active":
-                    vid_ = vid.replace(".", "_")
-                    if vid_ in keys:
-                        try:
-                            p = state.works_dict[vid_].progress
-                            status_ = state.works_dict[vid_].status_
-                        except:
-                            p = 100.0  # if work is deleted while accessing
-                    else:
+            st_submit_button_infer = st.button(
+                "Run inference",
+                disabled=len(st_videos) == 0 or state.run_script_infer,
+            )
+            if state.run_script_infer:
+                keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
+                for vid, status in state.st_infer_status.items():
+                    status_ = None  # more detailed status provided by work
+                    if status == "initialized":
+                        p = 0.0
+                    elif status == "active":
+                        vid_ = vid.replace(".", "_")
+                        if vid_ in keys:
+                            try:
+                                p = state.works_dict[vid_].progress
+                                status_ = state.works_dict[vid_].status_
+                            except:
+                                p = 100.0  # if work is deleted while accessing
+                        else:
+                            p = 100.0
+                    elif status == "complete":
                         p = 100.0
-                elif status == "complete":
-                    p = 100.0
-                else:
-                    st.text(status)
-                st.progress(
-                    p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
-            st.warning("waiting for existing inference to finish")
+                    else:
+                        st.text(status)
+                    st.progress(
+                        p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
+                st.warning("waiting for existing inference to finish")
 
-        # Lightning way of returning the parameters
-        if st_submit_button_infer:
+            # Lightning way of returning the parameters
+            if st_submit_button_infer:
 
-            state.submit_count_infer += 1
+                state.submit_count_infer += 1
 
-            state.st_inference_model = model_dir
-            state.st_inference_videos = st_videos
-            state.st_infer_status = {s: "initialized" for s in st_videos}
-            state.st_label_short = st_label_short
-            state.st_label_full = st_label_full
-            st.text("Request submitted!")
-            state.run_script_infer = True  # must the last to prevent race condition
+                state.st_inference_model = model_dir
+                state.st_inference_videos = st_videos
+                state.st_infer_status = {s: "initialized" for s in st_videos}
+                state.st_label_short = st_label_short
+                state.st_label_full = st_label_full
+                st.text("Request submitted!")
+                state.run_script_infer = True  # must the last to prevent race condition
 
-            # force rerun to show "waiting for existing..." message
-            st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
+                # force rerun to show "waiting for existing..." message
+                st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
+
+         st.markdown("----")
+
+         eks_tab = st.container()
+         with eks_tab:
+            st.header("Ensemble Selected Models")
+            selected_models = st.multiselect(
+                "Select models for ensembling",
+                sorted(state.trained_models, reverse=True),
+                help="Select which models you want to create an new ensemble model"
+            )
+
+            st_submit_button_eks = st.button(
+                "Create ensemble",
+                key="eks_unique_key_button",
+                disabled=(
+                    len(selected_models) < 2
+                    or state.run_script_train
+                    or state.run_script_infer
+                )
+            )
+
+            if st_submit_button_eks:
+
+                model_abs_paths = [
+                    os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
+                    for model_name in selected_models
+                ]
+
+                dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+                eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
+                # create a folder for the eks in the models project folder
+                os.makedirs(eks_folder_path, exist_ok=True)
+
+                text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
+
+                with open(text_file_path, 'w') as file:
+                    file.writelines(f"{path}\n" for path in model_abs_paths)
+
+                if os.path.exists(text_file_path):
+                    st.text(f"Ensemble {eks_folder_path} created!")
+
+                st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
