@@ -130,6 +130,16 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_2
 
     # ----------------------------
+    # run eks, output full labeled
+    # ----------------------------
+    # make 2 model folders, save mock pred csv files there
+    # make ensemble folder
+    # work._run_eks()  # TODO
+    # check that prediction csv file is saved in ensemble folder
+    # check that temporal norm metric file is saved
+    # check that labeled video file is saved
+
+    # ----------------------------
     # fiftyone
     # ----------------------------
     # just run and make sure it doesn't fail

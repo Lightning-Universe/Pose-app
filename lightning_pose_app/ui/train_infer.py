@@ -317,8 +317,8 @@ class LitPose(LightningWork):
         self,
         model_dir: str,
         video_file: str,
-        make_labeled_video_full: bool,
-        make_labeled_video_clip: bool,
+        make_labeled_video_full: Optional[bool] = False,
+        make_labeled_video_clip: Optional[bool] = False,
     ) -> None:
 
         from lightning_pose.utils.io import ckpt_path_from_base_path
@@ -423,11 +423,11 @@ class LitPose(LightningWork):
     def _inference_with_metrics_and_labeled_video(
         self,
         video_file: str,
-        ckpt_file: str,
+        ckpt_file: Optional[str, None],
         cfg: DictConfig,
         preds_file: str,
         data_module: callable,
-        trainer: pl.Trainer,
+        trainer: Optional[pl.Trainer, None],
         make_labeled_video: bool = False,
         labeled_video_file: Optional[str] = None,
         video_start_time: float = 0.0,
@@ -483,6 +483,57 @@ class LitPose(LightningWork):
                 start_time=video_start_time,
             )
 
+    def _run_eks(
+        ensemble_dir: str,
+        model_dirs: list,
+        video_file: str,
+        make_labeled_video_full: Optional[bool] = False,
+        make_labeled_video_clip: Optional[bool] = False,
+    ) -> None:
+
+        video_name = os.path.basename(video_file)
+
+        # load predictions from each model
+        csv_files = []
+        for model_dir in model_dirs:
+            pred_file = os.path.join(
+                model_dir, VIDEOS_INFER_DIR, video_name.replace(".mp4", ".csv")
+            )
+            csv_files.append(pred_file)
+        
+        # run eks
+        # this will output a dataframe
+        # for now, let's just copy one of our model outputs
+        df = pd.read_csv(csv_files[0], index_col=0, header=[0, 1])
+
+        # save eks outputs
+        save_file = os.path.join(
+            ensemble_dir, VIDEOS_INFER_DIR, video_name.replace(".mp4", ".csv"))
+        os.makedirs(os.path.dirname(save_file), exist_ok=True)
+        df.to_csv(save_file)
+
+        # TODO: compute metrics and/or create labeled video
+        if make_labeled_video_full or make_labeled_video_clip:
+            data_module = None  # None for now; this means PCA metrics are not computed
+            cfg = None  # TODO: load config from one of the models in the ensemble
+
+        if make_labeled_video_full:
+            self._inference_with_metrics_and_labeled_video(
+                video_file=video_file,
+                ckpt_file=None,
+                cfg=cfg,
+                preds_file=save_file,
+                data_module=data_module,
+                trainer=None,
+                make_labeled_video=make_labeled_video_full,
+                labeled_video_file=None,  # defaults to saving in the same place as the csv file
+                status_str="create labeled video",
+            )
+
+        if make_labeled_video_clip:
+            # TODO: come back to this later once everything else is working
+            pass
+
     @staticmethod
     def _make_fiftyone_dataset(
         config_file: str, 
@@ -533,6 +584,9 @@ class LitPose(LightningWork):
             # save relative rather than absolute path
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._run_inference(**kwargs)
+        elif action == "run_eks":
+            kwargs["video_file"] = abspath(kwargs["video_file"])
+            self._run_eks(**kwargs)
 
 
 class TrainUI(LightningFlow):
@@ -543,7 +597,7 @@ class TrainUI(LightningFlow):
         *args, 
         allow_context: bool = True, 
         max_epochs_default: int = 300,
-        rng_seed_data_pt_default: int =0 , 
+        rng_seed_data_pt_default: int = 0, 
         **kwargs
     ) -> None:
 
@@ -578,7 +632,7 @@ class TrainUI(LightningFlow):
         self.st_datetimes = {}
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
-        self.st_rng_seed_data_pt = None
+        self.st_rng_seed_data_pt = rng_seed_data_pt_default
 
         # ------------------------
         # Inference
@@ -586,6 +640,7 @@ class TrainUI(LightningFlow):
         # works will be allocated once videos are uploaded
         self.works_dict = Dict()
         self.work_is_done_inference = False
+        self.work_is_done_eks = False
 
         # flag; used internally and externally
         self.run_script_infer = False
@@ -663,19 +718,13 @@ class TrainUI(LightningFlow):
 
         self.submit_count_train += 1
 
-    def _run_inference(
+    def _launch_works(
         self, 
-        model_dir: Optional[str] = None, 
-        video_files: Optional[list] = None, 
-        testing: bool =False
+        action: str, 
+        video_files: list, 
+        work_kwargs: dict, 
+        testing: bool = False,
     ) -> None:
-
-        self.work_is_done_inference = False
-
-        if not model_dir:
-            model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
-        if not video_files:
-            video_files = self.st_inference_videos
 
         # launch works (sequentially for now)
         for video_file in video_files:
@@ -690,12 +739,9 @@ class TrainUI(LightningFlow):
                 self.st_infer_status[video_file] = "active"
                 # run inference (automatically reformats video for DALI)
                 self.works_dict[video_key].run(
-                    action="run_inference",
-                    model_dir=model_dir,
+                    action=action,
                     video_file="/" + video_file,
-                    make_labeled_video_full=self.st_label_full,
-                    make_labeled_video_clip=self.st_label_short,
-                    remove_old=not testing,  # remove bad format file by default
+                    **work_kwargs,
                 )
                 self.st_infer_status[video_file] = "complete"
 
@@ -710,6 +756,34 @@ class TrainUI(LightningFlow):
                         self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
+    def _run_inference(
+        self, 
+        model_dir: Optional[str] = None, 
+        video_files: Optional[list] = None, 
+        testing: bool = False,
+    ) -> None:
+
+        self.work_is_done_inference = False
+
+        if not model_dir:
+            model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+        if not video_files:
+            video_files = self.st_inference_videos
+
+        work_kwargs = {
+            "model_dir": model_dir,
+            "make_labeled_video_full": self.st_label_full,
+            "make_labeled_video_clip": self.st_label_short,
+            "remove_old": not testing,  # remove bad format file by default
+        }
+
+        self._launch_works(
+            action="run_inference",
+            video_files=video_files,
+            testing=testing,
+            work_kwargs=work_kwargs,
+        )
+
         # set flag for parent app
         self.work_is_done_inference = True
 
@@ -717,33 +791,30 @@ class TrainUI(LightningFlow):
         self, 
         ensemble_dir: str,
         model_dirs: list, 
-        video_files: list
+        video_files: Optional[list],
+        testing: bool = False,
     ) -> None:
+
+        self.work_is_done_eks = False
         
         if not video_files:
             video_files = self.st_inference_videos
 
-        # launch eks (sequentially for now)
-        for video_file in video_files:
+        work_kwargs = {
+            "ensemble_dir": ensemble_dir,
+            "model_dirs": model_dirs,
+            "make_labeled_video_full": self.st_label_full,
+            "make_labeled_video_clip": self.st_label_short,
+        }
 
-            # load predictions from each model
-            csv_files = []
-            for model_dir in model_dirs:
-                pred_file = os.path.join(
-                    model_dir, VIDEOS_INFER_DIR, video_file.replace(".mp4", ".csv")  # TODO: is this correct?
-                )
-                csv_files.append(pred_file)
-            
-            # run eks
-            # this will output a dataframe
-            # for now, let's just copy one of our model outputs
-            df = pd.read_csv(csv_files[0], index_col=0, header=[0, 1])
+        self._launch_works(
+            action="run_eks",
+            video_files=video_files,
+            testing=testing,
+            work_kwargs=work_kwargs,
+        )
 
-            # save eks outputs
-            save_file = os.path.join(
-                ensemble_dir, VIDEOS_INFER_DIR, video_file.replace(".mp4", ".csv"))
-            os.makedirs(os.path.dirname(save_file), exist_ok=True)
-            df.to_csv(save_file)
+        self.work_is_done_eks = True
 
     def _determine_dataset_type(self, **kwargs) -> None:
         """Check if labeled data directory contains context frames."""
@@ -759,7 +830,7 @@ class TrainUI(LightningFlow):
             # check to see if we have a single model or an ensemble
             default_model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
             model_dir = kwargs.get("model_dir", default_model_dir)
-            if ENSEMBLE_MEMBER_FILENAME not in os.listdir(model_dir):
+            if ENSEMBLE_MEMBER_FILENAME not in os.listdir(abspath(model_dir)):
                 # single model
                 self._run_inference(model_dir=model_dir, **kwargs)
             else:
@@ -773,9 +844,6 @@ class TrainUI(LightningFlow):
                     self.st_ensemble_number += 1
                 # run eks on ensemble output
                 self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
-                # compute metrics and make labeled video on eks outputs
-                # TODO: matt will think about this
-                # self._run_inference(model_dir=model_dir, **kwargs)
         elif action == "determine_dataset_type":
             self._determine_dataset_type(**kwargs)
 
