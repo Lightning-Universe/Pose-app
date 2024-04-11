@@ -904,12 +904,12 @@ def _render_streamlit_fn(state: AppState):
             st.header(
                 body="Predict on New Videos",
                 help="Select your preferred inference model, then drag and drop your video file(s). "
-                    "Monitor the upload progress bar and click **Run inference** once uploads are "
-                    "complete. "
-                    "After completion, labeled videos are created if requested "
-                    "(see 'Video handling options' section below). "
-                    "Once inference concludes for all videos, the "
-                    "'waiting for existing inference to finish' warning will disappear."
+                "Monitor the upload progress bar and click **Run inference** once uploads are "
+                "complete. "
+                "After completion, labeled videos are created if requested "
+                "(see 'Video handling options' section below). "
+                "Once inference concludes for all videos, the "
+                "'waiting for existing inference to finish' warning will disappear."
             )
 
             model_dir = st.selectbox(
@@ -941,8 +941,8 @@ def _render_streamlit_fn(state: AppState):
                 """
                 #### Video handling options""",
                 help="Select checkboxes to automatically save a labeled video (short clip or full "
-                    "video or both) after inference is complete. The short clip contains the 30 "
-                    "second period of highest motion energy in the predictions."
+                "video or both) after inference is complete. The short clip contains the 30 "
+                "second period of highest motion energy in the predictions."
             )
             st_label_short = st.checkbox(
                 "Save labeled video (30 second clip)", value=state.st_label_short,
@@ -995,37 +995,35 @@ def _render_streamlit_fn(state: AppState):
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-
          st.markdown("---")
          eks_tab = st.container()
-         with eks_tab: 
+         with eks_tab:
             st.header("Ensemble Selected Models")
             selected_models = st.multiselect(
                 "Select models for ensembling",
                 sorted(state.trained_models, reverse=True),
                 help="Select which models you want to create an new ensemble model"
             )
-            #TODO add a saftey to check if user selected atlist two models or model has multipale networks
-            # if len(selected_models) >1 or.. : enable eks submite button
-            st_submit_button_eks = st.button("Create ensemble",key="eks_unique_key_button",
+
+            st_submit_button_eks = st.button(
+                "Create ensemble",
+                key="eks_unique_key_button",
                 disabled=len(selected_models) < 2 or state.run_script_infer
             )
 
             if st_submit_button_eks:
-                
+
                 model_abs_paths = [
-                    os.path.join(state.proj_dir[1:], MODELS_DIR, model_name) for model_name in selected_models
+                    os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
+                    for model_name in selected_models
                 ]
-            
+
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
                 eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
+                # create a folder for the eks in the models project folder
                 os.makedirs(eks_folder_path, exist_ok=True)
 
-                #if os.path.exists(eks_folder_path):
                 text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
 
                 with open(text_file_path, 'w') as file:
                     file.writelines(f"{path}\n" for path in model_abs_paths)
-
-
-
