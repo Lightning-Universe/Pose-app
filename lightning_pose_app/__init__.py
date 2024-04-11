@@ -19,6 +19,7 @@ COLLECTED_DATA_FILENAME = "CollectedData.csv"
 LABELSTUDIO_METADATA_FILENAME = "label_studio_metadata.yaml"
 LABELSTUDIO_TASKS_FILENAME = "label_studio_tasks.pkl"
 LABELSTUDIO_CONFIG_FILENAME = "label_studio_config.xml"
+ENSEMBLE_MEMBER_FILENAME = "models_for_ensemble.txt"
 
 # file name constants; relative to project_dir/<LABELED_DATA_DIR>/<video_name>
 SELECTED_FRAMES_FILENAME = "selected_frames.csv"

@@ -21,6 +21,7 @@ from omegaconf import DictConfig
 from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app import (
+    ENSEMBLE_MEMBER_FILENAME,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODEL_VIDEO_PREDS_TRAIN_DIR,
@@ -318,7 +319,7 @@ class LitPose(LightningWork):
         video_file: str,
         make_labeled_video_full: bool,
         make_labeled_video_clip: bool,
-    ):
+    ) -> None:
 
         from lightning_pose.utils.io import ckpt_path_from_base_path
         from lightning_pose.utils.scripts import get_data_module, get_dataset, get_imgaug_transform
@@ -483,7 +484,12 @@ class LitPose(LightningWork):
             )
 
     @staticmethod
-    def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
+    def _make_fiftyone_dataset(
+        config_file: str, 
+        results_dir: str, 
+        config_overrides: Optional[dict]=None, 
+        **kwargs
+    ) -> None:
 
         from lightning_pose.utils.fiftyone import FiftyOneImagePlotter, check_dataset
         from omegaconf import DictConfig
@@ -513,7 +519,7 @@ class LitPose(LightningWork):
         # print the name of the dataset
         fo_plotting_instance.dataset_info_print()
 
-    def run(self, action=None, **kwargs):
+    def run(self, action: str = 'none', **kwargs) -> None:
         if action == "train":
             self._train(**kwargs)
             self._make_fiftyone_dataset(**kwargs)
@@ -532,8 +538,14 @@ class LitPose(LightningWork):
 class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
-    def __init__(self, *args, allow_context=True, max_epochs_default=300,
-                 rng_seed_data_pt_default=0, **kwargs):
+    def __init__(
+        self, 
+        *args, 
+        allow_context: bool = True, 
+        max_epochs_default: int = 300,
+        rng_seed_data_pt_default: int =0 , 
+        **kwargs
+    ) -> None:
 
         super().__init__(*args, **kwargs)
 
@@ -582,13 +594,19 @@ class TrainUI(LightningFlow):
 
         # output from the UI
         self.st_infer_status = {}  # 'initialized' | 'active' | 'complete'
+        self.st_ensemble_members = []
+        self.st_ensemble_number = 0
         self.st_inference_model = None
         self.st_infer_label_opt = None  # what to do with video evaluation
         self.st_inference_videos = []
         self.st_label_short = True
         self.st_label_full = False
 
-    def _train(self, config_filename=None, video_dirname=VIDEOS_DIR):
+    def _train(
+        self, 
+        config_filename: Optional[str] = None, 
+        video_dirname: str = VIDEOS_DIR
+    ) -> None:
 
         if config_filename is None:
             _logger.error("config_filename must be specified for training models")
@@ -645,7 +663,12 @@ class TrainUI(LightningFlow):
 
         self.submit_count_train += 1
 
-    def _run_inference(self, model_dir=None, video_files=None, testing=False):
+    def _run_inference(
+        self, 
+        model_dir: Optional[str] = None, 
+        video_files: Optional[list] = None, 
+        testing: bool =False
+    ) -> None:
 
         self.work_is_done_inference = False
 
@@ -690,18 +713,69 @@ class TrainUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_inference = True
 
-    def _determine_dataset_type(self, **kwargs):
+    def _run_eks(
+        self, 
+        ensemble_dir: str,
+        model_dirs: list, 
+        video_files: list
+    ) -> None:
+        
+        if not video_files:
+            video_files = self.st_inference_videos
+
+        # launch eks (sequentially for now)
+        for video_file in video_files:
+
+            # load predictions from each model
+            csv_files = []
+            for model_dir in model_dirs:
+                pred_file = os.path.join(
+                    model_dir, VIDEOS_INFER_DIR, video_file.replace(".mp4", ".csv")  # TODO: is this correct?
+                )
+                csv_files.append(pred_file)
+            
+            # run eks
+            # this will output a dataframe
+            # for now, let's just copy one of our model outputs
+            df = pd.read_csv(csv_files[0], index_col=0, header=[0, 1])
+
+            # save eks outputs
+            save_file = os.path.join(
+                ensemble_dir, VIDEOS_INFER_DIR, video_file.replace(".mp4", ".csv"))
+            os.makedirs(os.path.dirname(save_file), exist_ok=True)
+            df.to_csv(save_file)
+
+    def _determine_dataset_type(self, **kwargs) -> None:
         """Check if labeled data directory contains context frames."""
         self.allow_context = is_context_dataset(
             labeled_data_dir=os.path.join(abspath(self.proj_dir), LABELED_DATA_DIR),
             selected_frames_filename=SELECTED_FRAMES_FILENAME,
         )
 
-    def run(self, action, **kwargs):
+    def run(self, action: str, **kwargs) -> None:
         if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
-            self._run_inference(**kwargs)
+            # check to see if we have a single model or an ensemble
+            default_model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+            model_dir = kwargs.get("model_dir", default_model_dir)
+            if ENSEMBLE_MEMBER_FILENAME not in os.listdir(model_dir):
+                # single model
+                self._run_inference(model_dir=model_dir, **kwargs)
+            else:
+                # this is an ensemble; load model directories of each ensemble member
+                model_dirs = 4  # TODO: load directory names from ENSEMBLE_MEMBER_FILENAME
+                self.st_ensemble_members = model_dirs
+                # run inference with each member of ensemble
+                for model_dir in model_dirs:
+                    self._run_inference(model_dir=model_dir, **kwargs)
+                    self.st_infer_status = {s: "initialized" for s in self.st_inference_videos}
+                    self.st_ensemble_number += 1
+                # run eks on ensemble output
+                self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
+                # compute metrics and make labeled video on eks outputs
+                # TODO: matt will think about this
+                # self._run_inference(model_dir=model_dir, **kwargs)
         elif action == "determine_dataset_type":
             self._determine_dataset_type(**kwargs)
 
@@ -895,7 +969,9 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
 
     with right_column:
-         with st.container():
+         
+         inference_tab = st.container()
+         with inference_tab:
             st.header(
                 body="Predict on New Videos",
                 help="Select your preferred inference model, then drag and drop your video "
@@ -951,6 +1027,11 @@ def _render_streamlit_fn(state: AppState):
                 disabled=len(st_videos) == 0 or state.run_script_infer,
             )
             if state.run_script_infer:
+                if len(state.st_ensemble_members) > 0:
+                    # print ensemble member progess
+                    a = state.st_ensemble_number
+                    b = len(state.st_ensemble_members)
+                    st.progress((a + 1) / b, f"running inference on model {a} of {b}")
                 keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
                 for vid, status in state.st_infer_status.items():
                     status_ = None  # more detailed status provided by work
@@ -981,6 +1062,7 @@ def _render_streamlit_fn(state: AppState):
 
                 state.st_inference_model = model_dir
                 state.st_inference_videos = st_videos
+                state.st_ensemble_number = 0
                 state.st_infer_status = {s: "initialized" for s in st_videos}
                 state.st_label_short = st_label_short
                 state.st_label_full = st_label_full
@@ -1023,7 +1105,7 @@ def _render_streamlit_fn(state: AppState):
                 # create a folder for the eks in the models project folder
                 os.makedirs(eks_folder_path, exist_ok=True)
 
-                text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
+                text_file_path = os.path.join(eks_folder_path, )
 
                 with open(text_file_path, 'w') as file:
                     file.writelines(f"{path}\n" for path in model_abs_paths)
