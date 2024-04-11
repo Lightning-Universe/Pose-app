@@ -10,7 +10,6 @@ import lightning.pytorch as pl
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 import yaml
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
@@ -712,8 +711,6 @@ class TrainUI(LightningFlow):
 
 def _render_streamlit_fn(state: AppState):
 
-    # make a train tab and an inference tab
-    #train_tab, infer_tab = st.columns(2, gap="large")
     train_tab, right_column = st.columns([1,1])
     # add shadows around each column
     # box-shadow args: h-offset v-offset blur spread color
@@ -898,18 +895,16 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
 
     with right_column:
-         #infer_tab, _ = st.columns([1,0.000001])
          with st.container():
-            
             st.header(
                 body="Predict on New Videos",
-                help="Select your preferred inference model, then drag and drop your video file(s). "
-                "Monitor the upload progress bar and click **Run inference** once uploads are "
-                "complete. "
-                "After completion, labeled videos are created if requested "
-                "(see 'Video handling options' section below). "
-                "Once inference concludes for all videos, the "
-                "'waiting for existing inference to finish' warning will disappear."
+                help="Select your preferred inference model, then drag and drop your video "
+                     "file(s). Monitor the upload progress bar and click **Run inference** "
+                     "once uploads are complete. "
+                     "After completion, labeled videos are created if requested "
+                     "(see 'Video handling options' section below). "
+                     "Once inference concludes for all videos, the "
+                     "waiting for existing inference to finish' warning will disappear."
             )
 
             model_dir = st.selectbox(
@@ -995,7 +990,8 @@ def _render_streamlit_fn(state: AppState):
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-         st.markdown("---")
+         st.markdown("----")
+
          eks_tab = st.container()
          with eks_tab:
             st.header("Ensemble Selected Models")
@@ -1008,7 +1004,11 @@ def _render_streamlit_fn(state: AppState):
             st_submit_button_eks = st.button(
                 "Create ensemble",
                 key="eks_unique_key_button",
-                disabled=len(selected_models) < 2 or state.run_script_infer
+                disabled=(
+                    len(selected_models) < 2
+                    or state.run_script_train
+                    or state.run_script_infer
+                )
             )
 
             if st_submit_button_eks:
@@ -1027,3 +1027,8 @@ def _render_streamlit_fn(state: AppState):
 
                 with open(text_file_path, 'w') as file:
                     file.writelines(f"{path}\n" for path in model_abs_paths)
+
+                if os.path.exists(text_file_path):
+                    st.text(f"Ensemble {eks_folder_path} created!")
+
+                st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
