@@ -639,6 +639,7 @@ class ExtractFramesUI(LightningFlow):
             'proj_dir': self.proj_dir,
         }
         self._launch_works(
+            action="unzip_frames",
             video_files=video_files,
             work_kwargs=work_kwargs,
             testing=testing,
