@@ -628,7 +628,7 @@ class ExtractFramesUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def _unzip_frames(self, video_files=None):
+    def _unzip_frames(self, video_files=None, testing=False):
 
         self.work_is_done_extract_frames = False
 
