@@ -468,6 +468,16 @@ class ExtractFramesWork(LightningWork):
 
         # save all contents to data directory
         # don't use copytree as the destination dir may already exist
+        while SELECTED_FRAMES_FILENAME not in os.listdir(unzipped_dir):
+            contents = os.listdir(unzipped_dir)
+            if len(contents) != 1:
+                print(
+                    "Error unzipping frames, "
+                    "the zip file may only contain frames from a single video"
+                )
+                return
+            else:
+                unzipped_dir = os.path.join(unzipped_dir, contents[0])
         files = os.listdir(unzipped_dir)
         for file in files:
             src = os.path.join(unzipped_dir, file)
