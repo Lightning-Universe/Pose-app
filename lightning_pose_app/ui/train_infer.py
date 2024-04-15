@@ -423,11 +423,11 @@ class LitPose(LightningWork):
     def _inference_with_metrics_and_labeled_video(
         self,
         video_file: str,
-        ckpt_file: Optional[str, None],
         cfg: DictConfig,
         preds_file: str,
         data_module: callable,
-        trainer: Optional[pl.Trainer, None],
+        ckpt_file: Optional[str] = None,
+        trainer: Optional[pl.Trainer] = None,
         make_labeled_video: bool = False,
         labeled_video_file: Optional[str] = None,
         video_start_time: float = 0.0,
@@ -500,7 +500,7 @@ class LitPose(LightningWork):
                 model_dir, VIDEOS_INFER_DIR, video_name.replace(".mp4", ".csv")
             )
             csv_files.append(pred_file)
-        # test for adding changes
+
         # run eks
         # this will output a dataframe
         # for now, let's just copy one of our model outputs
@@ -515,7 +515,16 @@ class LitPose(LightningWork):
         # TODO: compute metrics and/or create labeled video
         if make_labeled_video_full or make_labeled_video_clip:
             data_module = None  # None for now; this means PCA metrics are not computed
-            cfg = None  # TODO: load config from one of the models in the ensemble
+            
+            with open(text_file_path, 'r') as file:
+                first_model_path = file.readline().strip()
+            first_model_cfg_path = os.path.join(first_model_path, 'config.yaml')
+            
+            # with open(cfg_file_path, 'r') as file:
+            #     cfg = yaml.safe_load(file)
+            cfg = DictConfig(yaml.safe_load(open(abspath(first_model_cfg_path), "r")))
+            
+            # TODO: load config from one of the models in the ensemble
 
         if make_labeled_video_full:
             self._inference_with_metrics_and_labeled_video(
@@ -834,8 +843,12 @@ class TrainUI(LightningFlow):
                 # single model
                 self._run_inference(model_dir=model_dir, **kwargs)
             else:
-                # this is an ensemble; load model directories of each ensemble member
-                model_dirs = 4  # TODO: load directory names from ENSEMBLE_MEMBER_FILENAME
+                model_dir_txt_path = os.path.join(default_model_dir, ENSEMBLE_MEMBER_FILENAME)
+                with open(abspath(model_dir_txt_path), 'r') as file:
+                # Read all lines and strip newline characters from each line
+                    model_dirs = [line.strip() for line in file.readlines()]
+                
+                #model_dirs = 4  # TODO: load directory names from ENSEMBLE_MEMBER_FILENAME
                 self.st_ensemble_members = model_dirs
                 # run inference with each member of ensemble
                 for model_dir in model_dirs:
@@ -1150,6 +1163,8 @@ def _render_streamlit_fn(state: AppState):
                 sorted(state.trained_models, reverse=True),
                 help="Select which models you want to create an new ensemble model"
             )
+            eks_model_name = st.text_input(label="Add model name", value="eks")
+            eks_model_name = eks_model_name.replace(" ","_")
 
             st_submit_button_eks = st.button(
                 "Create ensemble",
@@ -1169,11 +1184,13 @@ def _render_streamlit_fn(state: AppState):
                 ]
 
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-                eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
+                
+                 
+                eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}")
                 # create a folder for the eks in the models project folder
                 os.makedirs(eks_folder_path, exist_ok=True)
 
-                text_file_path = os.path.join(eks_folder_path, )
+                text_file_path = os.path.join(eks_folder_path, ENSEMBLE_MEMBER_FILENAME)
 
                 with open(text_file_path, 'w') as file:
                     file.writelines(f"{path}\n" for path in model_abs_paths)
