@@ -1,12 +1,28 @@
 #!/usr/bin/env python
 
+from pathlib import Path
 from setuptools import find_packages, setup
 
-VERSION = "1.1.0"
+
+def read(rel_path):
+    here = Path(__file__).parent.absolute()
+    with open(here.joinpath(rel_path), "r") as fp:
+        return fp.read()
+
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith("__version__"):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 
 # add the README.md file to the long_description
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
 
 install_requires = [
     "lightning[app]==2.1.3",
@@ -41,7 +57,7 @@ extras_require = {
 
 setup(
     name="lightning-pose-app",
-    version=VERSION,
+    version=get_version(Path("lightning_pose_app").joinpath("__init__.py")),
     description="lightning app for lightning pose repo",
     long_description=long_description,
     author="Dan Biderman and Matt Whiteway and Robert Lee",

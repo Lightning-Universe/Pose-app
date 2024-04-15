@@ -21,6 +21,7 @@ from omegaconf import DictConfig
 from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app import (
+    __version__,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODEL_VIDEO_PREDS_TRAIN_DIR,
@@ -174,7 +175,7 @@ class LitPose(LightningWork):
         logger = pl.loggers.TensorBoardLogger("tb_logs", name=cfg.model.model_name)
 
         # early stopping, learning rate monitoring, model checkpointing, backbone unfreezing
-        callbacks = get_callbacks(cfg)
+        callbacks = get_callbacks(cfg, early_stopping=False)
         # add callback to log progress
         callbacks.append(TrainerProgress(self))
 
@@ -197,6 +198,11 @@ class LitPose(LightningWork):
 
         # train model!
         trainer.fit(model=model, datamodule=data_module)
+
+        # save config file
+        cfg_file_local = os.path.join(results_dir, "config.yaml")
+        with open(cfg_file_local, "w") as fp:
+            OmegaConf.save(config=cfg, f=fp.name)
 
         # ----------------------------------------------------------------------------------
         # post-training analysis: labeled frames
@@ -289,11 +295,6 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
         # clean up
         # ----------------------------------------------------------------------------------
-        # save config file
-        cfg_file_local = os.path.join(results_dir, "config.yaml")
-        with open(cfg_file_local, "w") as fp:
-            OmegaConf.save(config=cfg, f=fp.name)
-
         # remove lightning logs
         shutil.rmtree(os.path.join(results_dir, "lightning_logs"), ignore_errors=True)
 
@@ -483,7 +484,12 @@ class LitPose(LightningWork):
             )
 
     @staticmethod
-    def _make_fiftyone_dataset(config_file, results_dir, config_overrides=None, **kwargs):
+    def _make_fiftyone_dataset(
+        config_file: str,
+        results_dir: str,
+        config_overrides: Optional[dict] = None,
+        **kwargs,
+    ) -> None:
 
         from lightning_pose.utils.fiftyone import FiftyOneImagePlotter, check_dataset
         from omegaconf import DictConfig
@@ -513,7 +519,7 @@ class LitPose(LightningWork):
         # print the name of the dataset
         fo_plotting_instance.dataset_info_print()
 
-    def run(self, action=None, **kwargs):
+    def run(self, action: str = None, **kwargs) -> None:
         if action == "train":
             self._train(**kwargs)
             self._make_fiftyone_dataset(**kwargs)
@@ -532,8 +538,14 @@ class LitPose(LightningWork):
 class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
-    def __init__(self, *args, allow_context=True, max_epochs_default=300,
-                 rng_seed_data_pt_default=0, **kwargs):
+    def __init__(
+        self,
+        *args,
+        allow_context: bool = True,
+        max_epochs_default: int = 300,
+        rng_seed_data_pt_default: int = 0,
+        **kwargs,
+    ) -> None:
 
         super().__init__(*args, **kwargs)
 
@@ -588,7 +600,11 @@ class TrainUI(LightningFlow):
         self.st_label_short = True
         self.st_label_full = False
 
-    def _train(self, config_filename=None, video_dirname=VIDEOS_DIR):
+    def _train(
+        self,
+        config_filename: Optional[str] = None,
+        video_dirname: str = VIDEOS_DIR
+    ) -> None:
 
         if config_filename is None:
             _logger.error("config_filename must be specified for training models")
@@ -606,6 +622,11 @@ class TrainUI(LightningFlow):
             predict_vids = True
             save_vids = True
 
+        try:
+            from lightning_pose import __version__ as lightning_pose_version
+        except ImportError:
+            lightning_pose_version = "1.2.3"
+
         config_overrides = {
             "data": {
                 "data_dir": base_dir,
@@ -618,13 +639,21 @@ class TrainUI(LightningFlow):
             },
             "model": {  # update these below if necessary
                 "model_type": "heatmap",
+                "lightning_pose_version": lightning_pose_version,
+                "lightning_pose_app_version": __version__,
             },
             "training": {
                 "imgaug": "dlc",
+                "log_every_n_steps": 5,
                 "max_epochs": self.st_max_epochs,
                 "rng_seed_data_pt": self.st_rng_seed_data_pt,
             }
         }
+
+        # update logging for edge cases where we want to train with very little data
+        if self.n_labeled_frames <= 20:
+            config_overrides["training"]["log_every_n_steps"] = 1
+            config_overrides["training"]["train_batch_size"] = 1
 
         # train models
         for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
