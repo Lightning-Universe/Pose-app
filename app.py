@@ -28,7 +28,6 @@ _logger = logging.getLogger('APP')
 
 # TODO: HIGH PRIORITY
 # - `abort` button next to training/inference progress bars so user doesn't have to kill app
-# - active learning
 
 # TODO: LOW PRIORITY
 # - launch training in parallel (get this working with `extract_frames` standalone app first)

@@ -18,6 +18,56 @@ FAQs
     please `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
 
 
+.. _faq_ls_login:
+
+.. dropdown:: What LabelStudio username and password should I use?
+
+    The app uses generic login info:
+
+    * email: user@localhost
+    * password: pw
+
+
+.. _faq_how_many_frames:
+
+.. dropdown:: How many frames do I need to label?
+
+    The typical workflow we recommend is to start with ~100 labeled frames from 2-4 different
+    videos
+    (this is preferred to labeling 100 frames from a single video, which will not generalize as
+    well).
+    With this you should be able to train models that provide somewhat reasonable predictions that
+    you can then do some preliminary analyses with.
+    This is a good regime if you think you might later change the experimental setup, or the
+    specific keypoints you're labeling, etc.
+
+    Once you are happy with your experimental setup and plan to acquire a lot of data, then it is
+    time to reassess how good the pose tracking is, and how good it actually needs to be for your
+    scientific question of interest.
+    If all you end up analyzing with the pose estimates is where an animal is located in an open
+    field, then maybe super precise tracking of the keypoints isn't necessary.
+    But if you care about very subtle changes in pose then precision is much more important.
+
+    If you decide you need better predictions, we recommend labeling another 100-200 frames across
+    multiple videos (~20-50 frames per video), training another model, and reassessing the output
+    (we recommend looking at snippets of labeled video).
+    Repeat this process until you are happy with the results.
+
+
+.. _faq_change_machine:
+
+.. dropdown:: How can I switch the cloud machine type (CPU to/from GPU)?
+
+    In the upper right corner of the Lightning Studio, click on the compute icon
+    (which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
+    connected to a CPU-only machine).
+    Select the GPU or CPU box to see available options.
+    We recommend a default CPU machine (not data prep) for labeling tasks.
+
+    .. image:: https://imgur.com/HGtYm0g.png
+        :width: 400
+
+
 .. _faq_upload_limit:
 
 .. dropdown:: How do I increase the file upload size limit?
@@ -44,25 +94,3 @@ FAQs
     We also recommend restarting the app after config updates.
     You can find the relevant parameters to adjust
     `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html>`_.
-
-.. _faq_ls_login:
-
-.. dropdown:: What LabelStudio username and password should I use?
-
-    The app uses generic login info:
-
-    * email: user@localhost
-    * password: pw
-
-.. _faq_change_machine:
-
-.. dropdown:: How can I switch the cloud machine type (CPU to/from GPU)?
-
-    In the upper right corner of the Lightning Studio, click on the compute icon
-    (which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
-    connected to a CPU-only machine).
-    Select the GPU or CPU box to see available options.
-    We recommend a default CPU machine (not data prep) for labeling tasks.
-
-    .. image:: https://imgur.com/HGtYm0g.png
-        :width: 400
