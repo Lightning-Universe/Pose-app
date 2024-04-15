@@ -578,7 +578,7 @@ class TrainUI(LightningFlow):
         self.st_datetimes = {}
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
-        self.st_rng_seed_data_pt = None
+        self.st_rng_seed_data_pt = rng_seed_data_pt_default
 
         # ------------------------
         # Inference

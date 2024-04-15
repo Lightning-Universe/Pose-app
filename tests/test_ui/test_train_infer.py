@@ -158,6 +158,8 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
 
     # set attributes
     flow.proj_dir = "/" + str(tmp_proj_dir)
+    flow.n_labeled_frames = 90
+    flow.n_total_frames = 90
     flow.st_train_status = {
         "super": "initialized",
         "semisuper": None,
