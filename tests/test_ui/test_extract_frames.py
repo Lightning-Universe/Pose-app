@@ -12,7 +12,7 @@ from lightning_pose_app import MODELS_DIR, VIDEOS_TMP_DIR, VIDEOS_DIR
 
 
 def test_extract_frames_work(
-    video_file, video_file_pred_df, video_file_pca_singleview_df , tmpdir
+    video_file, video_file_pred_df, video_file_pca_singleview_df, tmpdir,
 ):
     """Test private methods here; test run method externally from the UI object."""
 
@@ -148,7 +148,7 @@ def test_extract_frames_work(
     assert work.work_is_done_extract_frames
 
     # -----------------
-    # unzip frames
+    # unzip frames 0
     # -----------------
     # zip up a subset of the frames extracted from the previous test
     n_frames_to_zip = 5
@@ -169,10 +169,40 @@ def test_extract_frames_work(
         fmt="%s",
     )
     # zip it all up
-    new_video_name = new_vid_name + "_NEW"
+    new_video_name = new_vid_name + "_NEW0"
     new_video_path = os.path.join(tmpdir, new_video_name)
     zipped_file = new_video_path + ".zip"
     shutil.make_archive(new_video_path, "zip", dst)
+
+    # test unzip frames
+    proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
+    video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, new_video_name)
+    os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
+    work.work_is_done_extract_frames = False
+    work._unzip_frames(
+        video_file=zipped_file,
+        proj_dir=proj_dir,
+    )
+    assert os.path.exists(video_dir)
+    assert len(os.listdir(video_dir)) == (n_frames_to_zip + 1)
+    idx_file_abs = os.path.join(video_dir, SELECTED_FRAMES_FILENAME)
+    assert os.path.exists(idx_file_abs)
+    df = pd.read_csv(idx_file_abs, header=None)
+    assert df.shape[0] == n_frames_to_zip
+    assert work.work_is_done_extract_frames
+
+    # -----------------
+    # unzip frames 1
+    # -----------------
+    # make sure unzipping handles intermediate folder
+    new_video_name = new_vid_name + "_NEW1"
+    src = new_video_path
+    dst = os.path.join(tmpdir, new_video_name, "intermediate_subdir")
+    # os.makedirs(os.path.dirname(dst), exist_ok=True)  # need to create for path purposes
+    shutil.copytree(src, dst)
+    new_video_path = os.path.join(tmpdir, new_video_name)
+    zipped_file = new_video_path + ".zip"
+    shutil.make_archive(new_video_path, "zip", new_video_path)
 
     # test unzip frames
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
