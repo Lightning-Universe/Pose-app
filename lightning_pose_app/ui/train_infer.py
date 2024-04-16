@@ -504,6 +504,7 @@ class LitPose(LightningWork):
         # run eks
         # this will output a dataframe
         # for now, let's just copy one of our model outputs
+
         df = pd.read_csv(csv_files[0], index_col=0, header=[0, 1])
 
         # save eks outputs
@@ -519,9 +520,6 @@ class LitPose(LightningWork):
             with open(text_file_path, 'r') as file:
                 first_model_path = file.readline().strip()
             first_model_cfg_path = os.path.join(first_model_path, 'config.yaml')
-            
-            # with open(cfg_file_path, 'r') as file:
-            #     cfg = yaml.safe_load(file)
             cfg = DictConfig(yaml.safe_load(open(abspath(first_model_cfg_path), "r")))
             
             # TODO: load config from one of the models in the ensemble
@@ -842,13 +840,15 @@ class TrainUI(LightningFlow):
             if ENSEMBLE_MEMBER_FILENAME not in os.listdir(abspath(model_dir)):
                 # single model
                 self._run_inference(model_dir=model_dir, **kwargs)
+
             else:
+
+                # TODO: load directory names from ENSEMBLE_MEMBER_FILENAME  -- DONE
                 model_dir_txt_path = os.path.join(default_model_dir, ENSEMBLE_MEMBER_FILENAME)
                 with open(abspath(model_dir_txt_path), 'r') as file:
                 # Read all lines and strip newline characters from each line
                     model_dirs = [line.strip() for line in file.readlines()]
-                
-                #model_dirs = 4  # TODO: load directory names from ENSEMBLE_MEMBER_FILENAME
+
                 self.st_ensemble_members = model_dirs
                 # run inference with each member of ensemble
                 for model_dir in model_dirs:
