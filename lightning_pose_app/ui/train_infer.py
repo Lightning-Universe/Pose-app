@@ -463,7 +463,7 @@ class LitPose(LightningWork):
             compute_metrics(cfg=cfg, preds_file=preds_file, data_module=data_module)
         except Exception as e:
             _logger.error(f"Error predicting on {video_file}:\n{e}")
-
+        # comment
         # export labeled video
         if make_labeled_video:
             self.status_ = "creating labeled video"
