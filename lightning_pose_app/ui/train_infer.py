@@ -1077,7 +1077,6 @@ def _render_streamlit_fn(state: AppState):
             # upload video files
             video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
             os.makedirs(video_dir, exist_ok=True)
-
             # initialize the file uploader
             uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
 
@@ -1094,7 +1093,6 @@ def _render_streamlit_fn(state: AppState):
                     # write the content of the file to the path, but not while processing
                     with open(filepath, "wb") as f:
                         f.write(bytes_data)
-
             # allow user to select labeled video option
             st.markdown(
                 """
@@ -1119,7 +1117,9 @@ def _render_streamlit_fn(state: AppState):
                     # print ensemble member progess
                     a = state.st_ensemble_number
                     b = len(state.st_ensemble_members)
-                    st.progress((a + 1) / b, f"running inference on model {a} of {b}")
+                    progress_value = min(1.0, (a + 1) / b)
+                    st.progress(progress_value, f"running inference on model {a} of {b}")
+                    #st.progress((a + 1) / b, f"running inference on model {a} of {b}")
                 keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
                 for vid, status in state.st_infer_status.items():
                     status_ = None  # more detailed status provided by work
@@ -1170,7 +1170,7 @@ def _render_streamlit_fn(state: AppState):
                 sorted(state.trained_models, reverse=True),
                 help="Select which models you want to create an new ensemble model"
             )
-            eks_model_name = st.text_input(label="Add model name", value="eks")
+            eks_model_name = st.text_input(label="Add ensemble name", value="eks")
             eks_model_name = eks_model_name.replace(" ","_")
 
             st_submit_button_eks = st.button(
@@ -1186,7 +1186,7 @@ def _render_streamlit_fn(state: AppState):
             if st_submit_button_eks:
 
                 model_abs_paths = [
-                    os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
+                    os.path.join(state.proj_dir, MODELS_DIR, model_name)
                     for model_name in selected_models
                 ]
 
