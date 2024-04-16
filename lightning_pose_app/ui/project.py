@@ -24,12 +24,12 @@ from lightning_pose_app import (
     SELECTED_FRAMES_FILENAME,
     VIDEOS_DIR,
 )
+from lightning_pose_app.backend.video import copy_and_reformat_video_directory
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
     compute_batch_sizes,
     compute_resize_dims,
-    copy_and_reformat_video_directory,
     update_config,
 )
 

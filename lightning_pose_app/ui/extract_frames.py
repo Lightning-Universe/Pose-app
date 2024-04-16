@@ -24,12 +24,14 @@ from lightning_pose_app import (
     VIDEOS_TMP_DIR,
     ZIPPED_TMP_DIR,
 )
+from lightning_pose_app.backend.video import (
+    copy_and_reformat_video,
+    get_frames_from_idxs,
+    compute_motion_energy_from_predection_df,
+)
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
-    compute_motion_energy_from_predection_df,
-    copy_and_reformat_video,
-    get_frames_from_idxs,
     run_kmeans,
 )
 

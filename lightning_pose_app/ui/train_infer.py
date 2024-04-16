@@ -31,13 +31,12 @@ from lightning_pose_app import (
     VIDEOS_INFER_DIR,
     VIDEOS_TMP_DIR,
 )
+from lightning_pose_app.backend.video import copy_and_reformat_video, make_video_snippet
 from lightning_pose_app.build_configs import LitPoseBuildConfig
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
-    copy_and_reformat_video,
     is_context_dataset,
-    make_video_snippet,
     update_config,
 )
 
