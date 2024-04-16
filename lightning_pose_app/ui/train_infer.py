@@ -496,16 +496,24 @@ class LitPose(LightningWork):
         # load predictions from each model
         csv_files = []
         for model_dir in model_dirs:
-            pred_file = os.path.join(
-                model_dir, VIDEOS_INFER_DIR, video_name.replace(".mp4", ".csv")
-            )
+            pred_file = os.path.join(abspath(
+                model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name.replace(".mp4", ".csv")
+            ))
             csv_files.append(pred_file)
 
         # run eks
         # this will output a dataframe
         # for now, let's just copy one of our model outputs
-
-        df = pd.read_csv(csv_files[0], index_col=0, header=[0, 1])
+        # TODO: what if no preds file for a model? need to adjust to run infrence if preds dosent exisct  
+        df = None
+        for file_path in csv_files:
+            try:
+                df = pd.read_csv(file_path, index_col=0, header=[0, 1])
+                print(f"Successfully loaded DataFrame from {file_path}")
+                break  # Exit the loop if the DataFrame is loaded successfully
+            except Exception as e:
+                print(f"Failed to load DataFrame from {file_path}: {e}")
+        df = pd.read_csv(csv_files, index_col=0, header=[0, 1])
 
         # save eks outputs
         save_file = os.path.join(
