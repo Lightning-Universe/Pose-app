@@ -23,22 +23,6 @@ def test_extract_frames_work(
     )
 
     # -----------------
-    # read frame function
-    # -----------------
-    resize_dims = 8
-    frames = work._read_nth_frames(video_file, n=10, resize_dims=resize_dims)
-    assert frames.shape == (100, resize_dims, resize_dims)
-
-    # -----------------
-    # select indices
-    # -----------------
-    n_clusters = 5
-    idxs = work._select_frame_idxs(
-        video_file, resize_dims=resize_dims, n_clusters=n_clusters, frame_skip=1,
-    )
-    assert len(idxs) == n_clusters
-
-    # -----------------
     # select indices w/ model
     # -----------------
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')

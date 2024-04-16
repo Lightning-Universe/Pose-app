@@ -1,13 +1,129 @@
 import logging
 
+import cv2
 import numpy as np
 import pandas as pd
+from lightning.app import LightningWork
 from scipy.stats import zscore
+from sklearn.decomposition import PCA
+from tqdm import tqdm
+from typing import Optional
 
 from lightning_pose_app.backend.video import compute_motion_energy_from_predection_df
 from lightning_pose_app.utilities import run_kmeans
 
 _logger = logging.getLogger('APP.BACKEND.EXTRACT_FRAMES')
+
+
+def read_nth_frames(
+    video_file: str,
+    n: int = 1,
+    resize_dims: int = 64,
+    work: Optional[LightningWork] = None,  # for online progress updates
+) -> np.ndarray:
+
+    # Open the video file
+    cap = cv2.VideoCapture(video_file)
+
+    if not cap.isOpened():
+        _logger.error(f"Error opening video file {video_file}")
+
+    frames = []
+    frame_counter = 0
+    frame_total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    with tqdm(total=int(frame_total)) as pbar:
+        while cap.isOpened():
+            # Read the next frame
+            ret, frame = cap.read()
+            if ret:
+                # If the frame was successfully read, then process it
+                if frame_counter % n == 0:
+                    frame_resize = cv2.resize(frame, (resize_dims, resize_dims))
+                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2GRAY)
+                    frames.append(frame_gray.astype(np.float16))
+                frame_counter += 1
+                progress = frame_counter / frame_total * 100.0
+                # periodically update progress of worker if available
+                if work is not None:
+                    if round(progress, 4) - work.progress >= work.progress_delta:
+                        if progress > 100:
+                            work.progress = 100.0
+                        else:
+                            work.progress = round(progress, 4)
+                pbar.update(1)
+            else:
+                # If we couldn't read a frame, we've probably reached the end
+                break
+
+    # When everything is done, release the video capture object
+    cap.release()
+
+    return np.array(frames)
+
+
+def select_frame_idxs_kmeans(
+    video_file: str,
+    resize_dims: int = 64,
+    n_clusters: int = 20,
+    frame_skip: int = 1,
+    frame_range: list = [0, 1],
+    work: Optional[LightningWork] = None,  # for online progress updates
+) -> np.ndarray:
+
+    # check inputs
+    if frame_skip != 1:
+        raise NotImplementedError
+    assert frame_range[0] >= 0
+    assert frame_range[1] <= 1
+
+    # read all frames, reshape, chop off unwanted portions of beginning/end
+    frames = read_nth_frames(
+        video_file=video_file,
+        n=frame_skip,
+        resize_dims=resize_dims,
+        work=work,
+    )
+    frame_count = frames.shape[0]
+    beg_frame = int(float(frame_range[0]) * frame_count)
+    end_frame = int(float(frame_range[1]) * frame_count) - 2  # leave room for context
+    assert (end_frame - beg_frame) >= n_clusters, "valid video segment too short!"
+    batches = np.reshape(frames, (frames.shape[0], -1))[beg_frame:end_frame]
+
+    # take temporal diffs
+    _logger.info('computing motion energy...')
+    me = np.concatenate([
+        np.zeros((1, batches.shape[1])),
+        np.diff(batches, axis=0)
+    ])
+    # take absolute values and sum over all pixels to get motion energy
+    me = np.sum(np.abs(me), axis=1)
+
+    # find high me frames, defined as those with me larger than nth percentile me
+    prctile = 50 if frame_count < 1e5 else 75  # take fewer frames if there are many
+    idxs_high_me = np.where(me > np.percentile(me, prctile))[0]
+
+    # compute pca over high me frames
+    _logger.info('performing pca over high motion energy frames...')
+    pca_obj = PCA(n_components=np.min([batches[idxs_high_me].shape[0], 32]))
+    embedding = pca_obj.fit_transform(X=batches[idxs_high_me])
+    del batches  # free up memory
+
+    # cluster low-d pca embeddings
+    _logger.info('performing kmeans clustering...')
+    _, centers = run_kmeans(X=embedding, n_clusters=n_clusters)
+    # centers is initially of shape (n_clusters, n_pcs); reformat
+    centers = centers.T[None, :]
+
+    # find high me frame that is closest to each cluster center
+    # embedding is shape (n_frames, n_pcs)
+    # centers is shape (1, n_pcs, n_clusters)
+    dists = np.linalg.norm(embedding[:, :, None] - centers, axis=1)
+    # dists is shape (n_frames, n_clusters)
+    idxs_prototypes_ = np.argmin(dists, axis=0)
+    # now index into high me frames to get overall indices, add offset
+    idxs_prototypes = idxs_high_me[idxs_prototypes_] + beg_frame
+
+    return idxs_prototypes
 
 
 def identify_outliers(

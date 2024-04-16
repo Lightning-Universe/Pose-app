@@ -2,6 +2,27 @@ import numpy as np
 import pandas as pd
 
 
+def test_read_nth_frames(video_file):
+
+    from lightning_pose_app.backend.extract_frames import read_nth_frames
+
+    resize_dims = 8
+    frames = read_nth_frames(video_file=video_file, n=10, resize_dims=resize_dims)
+    assert frames.shape == (100, resize_dims, resize_dims)
+
+
+def test_select_idxs_kmeans(video_file):
+
+    from lightning_pose_app.backend.extract_frames import select_frame_idxs_kmeans
+
+    resize_dims = 8
+    n_clusters = 5
+    idxs = select_frame_idxs_kmeans(
+        video_file=video_file, resize_dims=resize_dims, n_clusters=n_clusters, frame_skip=1,
+    )
+    assert len(idxs) == n_clusters
+
+
 def test_identify_outliers():
 
     from lightning_pose_app.backend.extract_frames import identify_outliers
