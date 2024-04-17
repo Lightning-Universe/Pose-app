@@ -489,9 +489,8 @@ class LitPose(LightningWork):
         make_labeled_video_full: Optional[bool] = False,
         make_labeled_video_clip: Optional[bool] = False,
     ) -> None:
-
+        print("RUNNING EKS")
         video_name = os.path.basename(video_file)
-
         # load predictions from each model
         csv_files = []
         for model_dir in model_dirs:
@@ -503,7 +502,6 @@ class LitPose(LightningWork):
         # run eks
         # this will output a dataframe
         # for now, let's just copy one of our model outputs
-        # TODO: what if no preds file for a model? need to adjust to run infrence if preds dosent exisct  
         df = None
         for file_path in csv_files:
             try:
@@ -523,12 +521,11 @@ class LitPose(LightningWork):
         # TODO: compute metrics and/or create labeled video
         if make_labeled_video_full or make_labeled_video_clip:
             data_module = None  # None for now; this means PCA metrics are not computed
-            
             with open(text_file_path, 'r') as file:
                 first_model_path = file.readline().strip()
             first_model_cfg_path = os.path.join(first_model_path, 'config.yaml')
             cfg = DictConfig(yaml.safe_load(open(abspath(first_model_cfg_path), "r")))
-            
+
             # TODO: load config from one of the models in the ensemble
 
         if make_labeled_video_full:
@@ -550,9 +547,9 @@ class LitPose(LightningWork):
 
     @staticmethod
     def _make_fiftyone_dataset(
-        config_file: str, 
-        results_dir: str, 
-        config_overrides: Optional[dict]=None, 
+        config_file: str,
+        results_dir: str,
+        config_overrides: Optional[dict] = None,
         **kwargs
     ) -> None:
 
@@ -607,11 +604,11 @@ class TrainUI(LightningFlow):
     """UI to interact with training and inference."""
 
     def __init__(
-        self, 
-        *args, 
-        allow_context: bool = True, 
+        self,
+        *args,
+        allow_context: bool = True,
         max_epochs_default: int = 300,
-        rng_seed_data_pt_default: int = 0, 
+        rng_seed_data_pt_default: int = 0,
         **kwargs
     ) -> None:
 
@@ -672,8 +669,8 @@ class TrainUI(LightningFlow):
         self.st_label_full = False
 
     def _train(
-        self, 
-        config_filename: Optional[str] = None, 
+        self,
+        config_filename: Optional[str] = None,
         video_dirname: str = VIDEOS_DIR
     ) -> None:
 
@@ -733,10 +730,10 @@ class TrainUI(LightningFlow):
         self.submit_count_train += 1
 
     def _launch_works(
-        self, 
-        action: str, 
-        video_files: list, 
-        work_kwargs: dict, 
+        self,
+        action: str,
+        video_files: list,
+        work_kwargs: dict,
         testing: bool = False,
     ) -> None:
 
@@ -771,9 +768,9 @@ class TrainUI(LightningFlow):
                     del self.works_dict[video_key]
 
     def _run_inference(
-        self, 
-        model_dir: Optional[str] = None, 
-        video_files: Optional[list] = None, 
+        self,
+        model_dir: Optional[str] = None,
+        video_files: Optional[list] = None,
         testing: bool = False,
     ) -> None:
 
@@ -802,15 +799,15 @@ class TrainUI(LightningFlow):
         self.work_is_done_inference = True
 
     def _run_eks(
-        self, 
+        self,
         ensemble_dir: str,
-        model_dirs: list, 
+        model_dirs: list,
         video_files: Optional[list],
         testing: bool = False,
     ) -> None:
 
         self.work_is_done_eks = False
-        
+
         if not video_files:
             video_files = self.st_inference_videos
 
@@ -820,7 +817,6 @@ class TrainUI(LightningFlow):
             "make_labeled_video_full": self.st_label_full,
             "make_labeled_video_clip": self.st_label_short,
         }
-
         self._launch_works(
             action="run_eks",
             video_files=video_files,
@@ -843,17 +839,18 @@ class TrainUI(LightningFlow):
         elif action == "run_inference":
             # check to see if we have a single model or an ensemble
             default_model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+            st.write(default_model_dir)
             model_dir = kwargs.get("model_dir", default_model_dir)
+            st.write(model_dir)
             if ENSEMBLE_MEMBER_FILENAME not in os.listdir(abspath(model_dir)):
                 # single model
                 self._run_inference(model_dir=model_dir, **kwargs)
 
             else:
-
+                print("Found EKS file")
                 # TODO: load directory names from ENSEMBLE_MEMBER_FILENAME  -- DONE
                 model_dir_txt_path = os.path.join(default_model_dir, ENSEMBLE_MEMBER_FILENAME)
                 with open(abspath(model_dir_txt_path), 'r') as file:
-                # Read all lines and strip newline characters from each line
                     model_dirs = [line.strip() for line in file.readlines()]
 
                 self.st_ensemble_members = model_dirs
@@ -873,7 +870,7 @@ class TrainUI(LightningFlow):
 
 def _render_streamlit_fn(state: AppState):
 
-    train_tab, right_column = st.columns([1,1])
+    train_tab, right_column = st.columns([1, 1])
     # add shadows around each column
     # box-shadow args: h-offset v-offset blur spread color
     st.markdown("""
@@ -1112,19 +1109,68 @@ def _render_streamlit_fn(state: AppState):
                 "Run inference",
                 disabled=len(st_videos) == 0 or state.run_script_infer,
             )
+            # if state.run_script_infer:
+            #     if len(state.st_ensemble_members) > 0:
+            #         # print ensemble member progess
+            #         a = state.st_ensemble_number
+            #         b = len(state.st_ensemble_members)
+            #         #progress_value = min(1.0, (a + 1) / b)
+            #         #st.progress(progress_value, f"running inference on model {a} of {b}")
+            #         st.progress(a, f"running inference on model {a} of {b}")
+            #     keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
+            #     for vid, status in state.st_infer_status.items():
+            #         status_ = None  # more detailed status provided by work
+            #         if status == "initialized":
+            #             p = 0.0
+            #         elif status == "active":
+            #             vid_ = vid.replace(".", "_")
+            #             if vid_ in keys:
+            #                 try:
+            #                     p = state.works_dict[vid_].progress
+            #                     status_ = state.works_dict[vid_].status_
+            #                 except:
+            #                     p = 100.0  # if work is deleted while accessing
+            #             else:
+            #                 p = 100.0
+            #         elif status == "complete":
+            #             p = 100.0
+            #         else:
+            #             st.text(status)
+            #         st.progress(
+            #             p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
+            #     st.warning("waiting for existing inference to finish")
+
+            # # Lightning way of returning the parameters
+            # if st_submit_button_infer:
+
+            #     state.submit_count_infer += 1
+
+            #     state.st_inference_model = model_dir
+            #     state.st_inference_videos = st_videos
+            #     state.st_ensemble_number = 0
+            #     state.st_infer_status = {s: "initialized" for s in st_videos}
+            #     state.st_label_short = st_label_short
+            #     state.st_label_full = st_label_full
+            #     st.text("Request submitted!")
+            #     state.run_script_infer = True  # must the last to prevent race condition
+
+            #     # force rerun to show "waiting for existing..." message
+            #     st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
             if state.run_script_infer:
+                all_completed = True  # Assume all are completed, and check to confirm
                 if len(state.st_ensemble_members) > 0:
-                    # print ensemble member progess
+                    # print ensemble member progress
                     a = state.st_ensemble_number
                     b = len(state.st_ensemble_members)
-                    progress_value = min(1.0, (a + 1) / b)
-                    st.progress(progress_value, f"running inference on model {a} of {b}")
-                    #st.progress((a + 1) / b, f"running inference on model {a} of {b}")
+                    progress_value = (a + 1) / b  # Correcting the progress calculation
+                    st.progress(progress_value, f"Running inference on model {a + 1} of {b}")
+
                 keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
                 for vid, status in state.st_infer_status.items():
                     status_ = None  # more detailed status provided by work
                     if status == "initialized":
                         p = 0.0
+                        all_completed = False  # Still in progress
                     elif status == "active":
                         vid_ = vid.replace(".", "_")
                         if vid_ in keys:
@@ -1139,15 +1185,20 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
+                        all_completed = False  # Something unexpected
                     st.progress(
-                        p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
-                st.warning("waiting for existing inference to finish")
+                        p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}% complete)")
 
-            # Lightning way of returning the parameters
+                if all_completed and a == b - 1:
+                    st.success("Inference on all models and videos completed successfully!")
+                    state.run_script_infer = False  # Stop the script since all work is done
+
+                if not all_completed:
+                    st.warning("Waiting for existing inference to finish")
+
+            # This button logic should ideally be outside of the continuous running loop
             if st_submit_button_infer:
-
                 state.submit_count_infer += 1
-
                 state.st_inference_model = model_dir
                 state.st_inference_videos = st_videos
                 state.st_ensemble_number = 0
@@ -1157,7 +1208,7 @@ def _render_streamlit_fn(state: AppState):
                 st.text("Request submitted!")
                 state.run_script_infer = True  # must the last to prevent race condition
 
-                # force rerun to show "waiting for existing..." message
+                # Force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
          st.markdown("----")
@@ -1171,7 +1222,7 @@ def _render_streamlit_fn(state: AppState):
                 help="Select which models you want to create an new ensemble model"
             )
             eks_model_name = st.text_input(label="Add ensemble name", value="eks")
-            eks_model_name = eks_model_name.replace(" ","_")
+            eks_model_name = eks_model_name.replace(" ", "_")
 
             st_submit_button_eks = st.button(
                 "Create ensemble",
@@ -1191,9 +1242,9 @@ def _render_streamlit_fn(state: AppState):
                 ]
 
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-                
-                 
-                eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}")
+                eks_folder_path = os.path.join(
+                    state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}"
+                )
                 # create a folder for the eks in the models project folder
                 os.makedirs(eks_folder_path, exist_ok=True)
 
