@@ -12,10 +12,10 @@ FAQs
     First, make sure that all videos in your DLC project are actual files, not symbolic links.
     Symlinked videos in the DLC project will not be uploaded.
     Next, compress your DLC project into a zip file - you will upload this into the app later.
-    Finally, when you run the labeling app or full app select "Create new project from source" and
-    upload your zip file. As of 07/2023 context datasets are not automatically created upon import;
-    if this is a feature you would like to see,
-    please `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
+    Finally, when you run the app select "Create new project from source" and upload your zip file.
+    As of 07/2023 context datasets are not automatically created upon import; if this is a feature
+    you would like to see, please
+    `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
 
 
 .. _faq_ls_login:

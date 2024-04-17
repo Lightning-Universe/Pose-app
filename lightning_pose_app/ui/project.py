@@ -570,11 +570,15 @@ def _render_streamlit_fn(state: AppState):
     )
     st.text(f"Available projects: {state.initialized_projects}")
 
-    st_project_name = st.text_input(
-        "Enter project name (must be at least 3 characters)",
-        value="" if (not state.st_project_loaded or state.st_reset_project_name)
-        else state.st_project_name
-    )
+    if st_mode == LOAD_STR:
+        st_project_name = st.selectbox("Select existing project", state.initialized_projects)
+    else:
+        st_project_name = st.text_input(
+            "Enter project name (must be at least 3 characters)",
+            value="" if (not state.st_project_loaded or state.st_reset_project_name)
+            else state.st_project_name
+        )
+
     # ----------------------------------------------------
     # determine project status - load existing, create new
     # ----------------------------------------------------

@@ -4,12 +4,16 @@
 ![GitHub](https://img.shields.io/github/license/Lightning-Universe/Pose-app)
 [![Documentation Status](https://readthedocs.org/projects/pose-app/badge/?version=latest)](https://pose-app.readthedocs.io/en/latest/?badge=latest)
 
-This repo contains browser-based GUIs that facilitate the deveopment of a pose estimation project.
+This repo contains a browser-based GUI that facilitate the deveopment of a pose estimation project.
 
-We provide three different apps:
-* `demo_app.py`: using provided example data, train and evaluate pose estimation models
-* `labeling_app.py`: stand-alone labeling app where you can upload videos, extract frames, and annotate keypoints on extracted frames using LabelStudio
-* `app.py`: full app that includes labeling, training, and evaluation
+The app allows you to
+
+* label data (upload videos, extract frames, annotate keypoints)
+* train and evaluate models
+* run inference on new videos
+
+Additionally, the app comes with an example dataset if you want to explore, without needing to
+label your own data.
 
 Preprint: [Lightning Pose: improved animal pose estimation via semi-supervised learning, Bayesian ensembling, and cloud-native open-source tools](https://www.biorxiv.org/content/10.1101/2023.04.28.538703v1)
 

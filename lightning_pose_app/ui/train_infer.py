@@ -752,45 +752,45 @@ def _render_streamlit_fn(state: AppState):
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-         st.markdown("----")
+         # st.markdown("----")
 
-         eks_tab = st.container()
-         with eks_tab:
-            st.header("Ensemble Selected Models")
-            selected_models = st.multiselect(
-                "Select models for ensembling",
-                sorted(state.trained_models, reverse=True),
-                help="Select which models you want to create an new ensemble model"
-            )
-
-            st_submit_button_eks = st.button(
-                "Create ensemble",
-                key="eks_unique_key_button",
-                disabled=(
-                    len(selected_models) < 2
-                    or state.run_script_train
-                    or state.run_script_infer
-                )
-            )
-
-            if st_submit_button_eks:
-
-                model_abs_paths = [
-                    os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
-                    for model_name in selected_models
-                ]
-
-                dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-                eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
-                # create a folder for the eks in the models project folder
-                os.makedirs(eks_folder_path, exist_ok=True)
-
-                text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
-
-                with open(text_file_path, 'w') as file:
-                    file.writelines(f"{path}\n" for path in model_abs_paths)
-
-                if os.path.exists(text_file_path):
-                    st.text(f"Ensemble {eks_folder_path} created!")
-
-                st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+         # eks_tab = st.container()
+         # with eks_tab:
+         #    st.header("Ensemble Selected Models")
+         #    selected_models = st.multiselect(
+         #        "Select models for ensembling",
+         #        sorted(state.trained_models, reverse=True),
+         #        help="Select which models you want to create an new ensemble model"
+         #    )
+         #
+         #    st_submit_button_eks = st.button(
+         #        "Create ensemble",
+         #        key="eks_unique_key_button",
+         #        disabled=(
+         #            len(selected_models) < 2
+         #            or state.run_script_train
+         #            or state.run_script_infer
+         #        )
+         #    )
+         #
+         #    if st_submit_button_eks:
+         #
+         #        model_abs_paths = [
+         #            os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
+         #            for model_name in selected_models
+         #        ]
+         #
+         #        dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+         #        eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
+         #        # create a folder for the eks in the models project folder
+         #        os.makedirs(eks_folder_path, exist_ok=True)
+         #
+         #        text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
+         #
+         #        with open(text_file_path, 'w') as file:
+         #            file.writelines(f"{path}\n" for path in model_abs_paths)
+         #
+         #        if os.path.exists(text_file_path):
+         #            st.text(f"Ensemble {eks_folder_path} created!")
+         #
+         #        st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")

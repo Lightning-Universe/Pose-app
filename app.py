@@ -168,12 +168,13 @@ class LitPoseApp(LightningFlow):
             "nose_bot",
         ]
         config_dict["data"]["columns_for_singleview_pca"] = [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
         ]
         config_dict["data"]["mirrored_column_matches"] = [
             [0, 1, 2, 3, 4, 5, 6],
             [7, 8, 9, 10, 11, 12, 13],
         ]
+        config_dict["losses"]["temporal"]["epsilon"] = 10
         yaml.dump(config_dict, open(config_file_dst, "w"))
 
         csv_file = os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME)

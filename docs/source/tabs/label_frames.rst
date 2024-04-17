@@ -8,10 +8,6 @@ This tab provides access to LabelStudio, an industry-grade annotation tool.
 
 .. note::
 
-    This tab does not appear in the demo app.
-
-.. note::
-
     Labeling frames does not require a GPU, so you can
     :ref:`change your machine type <faq_change_machine>`
     to a CPU while labeling to conserve cloud credits.
