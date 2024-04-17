@@ -5,12 +5,11 @@ import logging
 import os
 import shutil
 
+import lightning.pytorch as pl
 import numpy as np
 import pandas as pd
 import torch
 from lightning.app import LightningWork
-from lightning.pytorch.callbacks import Callback
-from lightning.pytorch.utilities import rank_zero_only
 from lightning_pose.utils import pretty_print_cfg, pretty_print_str
 from lightning_pose.utils.io import (
     check_video_paths,
@@ -43,7 +42,7 @@ from lightning_pose_app import (
 _logger = logging.getLogger('APP.BACKEND.TRAIN_INFER')
 
 
-class TrainerProgress(Callback):
+class TrainerProgress(pl.callbacks.Callback):
 
     def __init__(self, work, update_train=True, update_inference=False):
         self.work = work
@@ -61,13 +60,13 @@ class TrainerProgress(Callback):
             else:
                 self.work.progress = round(progress, 4)
 
-    @rank_zero_only
+    @pl.utilities.rank_zero_only
     def on_train_epoch_end(self, trainer, *args, **kwargs) -> None:
         if self.update_train:
             progress = 100 * (trainer.current_epoch + 1) / float(trainer.max_epochs)
             self._update_progress(progress)
 
-    @rank_zero_only
+    @pl.utilities.rank_zero_only
     def on_predict_batch_end(
             self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0,
     ):
@@ -222,22 +221,30 @@ def train(
             # get save name labeled video csv
             if cfg.eval.save_vids_after_training:
                 labeled_vid_dir = os.path.join(video_pred_dir, "labeled_videos")
-                labeled_mp4_file = os.path.join(
-                    labeled_vid_dir, video_pred_name + "_labeled.mp4")
+                labeled_mp4_file = os.path.join(labeled_vid_dir, video_pred_name + ".labeled.mp4")
             else:
                 labeled_mp4_file = None
             # predict on video
-            self._inference_with_metrics_and_labeled_video(
+            if work:
+                work.status_ = f"inference on video {v + 1} / {len(filenames)}"
+            preds_df = inference_with_metrics(
                 video_file=video_file,
                 ckpt_file=best_ckpt,
                 cfg=cfg,
                 preds_file=prediction_csv_file,
                 data_module=data_module_pred,
                 trainer=trainer,
-                make_labeled_video=True if labeled_mp4_file is not None else False,
-                labeled_video_file=labeled_mp4_file,
-                status_str=f"inference on video {v + 1} / {len(filenames)}",
             )
+            # create labeled video
+            if labeled_mp4_file:
+                if work:
+                    work.status_ = "creating labeled video"
+                make_labeled_video(
+                    video_file=video_file,
+                    preds_df=preds_df,
+                    save_file=labeled_mp4_file,
+                    confidence_thresh=cfg.eval.confidence_thresh_for_vid,
+                )
 
     # ----------------------------------------------------------------------------------
     # clean up
@@ -302,7 +309,7 @@ def make_labeled_video(
     save_file: str,
     video_start_time: float = 0.0,
     confidence_thresh: float = 0.9,
-):
+) -> None:
 
     video_clip = VideoFileClip(video_file)
 

@@ -203,7 +203,7 @@ class LitPose(LightningWork):
             make_labeled_video(
                 video_file=video_file_abs_short,
                 preds_df=preds_df,
-                save_file=preds_file_short.replace(".csv", ".labeled.csv"),
+                save_file=preds_file_short.replace(".csv", ".labeled.mp4"),
                 video_start_time=clip_start_sec,
                 confidence_thresh=cfg.eval.confidence_thresh_for_vid,
             )

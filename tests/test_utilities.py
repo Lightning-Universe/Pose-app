@@ -146,7 +146,7 @@ def test_update_config():
 
 def test_run_kmeans():
 
-    from lightning_pose_app.ui.extract_frames import run_kmeans
+    from lightning_pose_app.utilities import run_kmeans
 
     n_samples = int(50)
     n_features = int(5)

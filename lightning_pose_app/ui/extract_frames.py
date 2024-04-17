@@ -35,6 +35,11 @@ from lightning_pose_app.utilities import (
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
+# options for handling frame extraction
+VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
+ZIPPED_FRAMES_STR = "Upload zipped files of frames"
+VIDEO_MODEL_STR = "Automatically extract frames using a given model"
+
 
 class ExtractFramesWork(LightningWork):
 
@@ -91,6 +96,7 @@ class ExtractFramesWork(LightningWork):
         # create folder to save images
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         save_dir = os.path.join(data_dir, video_name)
+        os.makedirs(save_dir, exist_ok=True)  # need this for the np.savetxt below
 
         # select indices for labeling
         if method == "random":
@@ -436,10 +442,6 @@ def _render_streamlit_fn(state: AppState):
             or state.run_script_video_model:
         # don't autorefresh during large file uploads, only during processing
         st_autorefresh(interval=5000, key="refresh_extract_frames_ui")
-
-    VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
-    ZIPPED_FRAMES_STR = "Upload zipped files of frames"
-    VIDEO_MODEL_STR = "Automatically extract frames using a given model"
 
     model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
 

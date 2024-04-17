@@ -1,6 +1,6 @@
-from datetime import datetime
 import os
 import yaml
+from datetime import datetime
 
 from omegaconf import DictConfig
 
@@ -95,6 +95,7 @@ def test_train(root_dir, tmp_proj_dir, video_file):
 
 
 def test_inference_with_metrics():
+
     pass
 
 
