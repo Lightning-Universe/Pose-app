@@ -1,5 +1,11 @@
 import numpy as np
+import os
 import pandas as pd
+
+from lightning_pose_app import (
+    MODEL_VIDEO_PREDS_INFER_DIR,
+    MODELS_DIR,
+)
 
 
 def test_read_nth_frames(video_file):
@@ -18,7 +24,7 @@ def test_select_idxs_kmeans(video_file):
     resize_dims = 8
     n_clusters = 5
     idxs = select_frame_idxs_kmeans(
-        video_file=video_file, resize_dims=resize_dims, n_clusters=n_clusters, frame_skip=1,
+        video_file=video_file, resize_dims=resize_dims, n_frames_to_select=n_clusters, frame_skip=1,
     )
     assert len(idxs) == n_clusters
 
@@ -75,7 +81,7 @@ def test_select_max_frame_per_cluster():
     assert list_of_frames[1] == 4
 
 
-def generate_mock_preds_for_AL_testing(n_frames, keypoints, high_motion_frames=None):
+def generate_mock_preds_for_al_testing(n_frames, keypoints, high_motion_frames=None):
     n_frames_per_group = 10
     # Initialize the DataFrame to hold the data
     columns = pd.MultiIndex.from_product(
@@ -125,7 +131,7 @@ def test_select_frames_using_metrics():
     pca_singleview_mock = mock_error_metrix_df(n_frames, keypoints)
     pca_multiview_mock = mock_error_metrix_df(n_frames, keypoints)
     temp_norm_mock = mock_error_metrix_df(n_frames, keypoints)
-    preds_mock = generate_mock_preds_for_AL_testing(n_frames, keypoints, high_motion_frames=None)
+    preds_mock = generate_mock_preds_for_al_testing(n_frames, keypoints, high_motion_frames=None)
 
     metrics = {
         'likelihood': None,
@@ -145,3 +151,71 @@ def test_select_frames_using_metrics():
 
     assert len(idxs_selected) == n_frames_per_video
     assert idxs_selected[0] == 1
+
+
+def test_select_frames_model(
+    video_file, video_file_pred_df, video_file_pca_singleview_df, tmpdir,
+):
+
+    from lightning_pose_app.backend.extract_frames import select_frame_idxs_model
+
+    proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')
+    model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
+    video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
+    # save predictions
+    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + ".csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    video_file_pred_df.to_csv(path)
+    # save metrics
+    path = os.path.join(
+        model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + "_pca_singleview_error.csv"
+    )
+    video_file_pca_singleview_df.to_csv(path)
+    # select frames
+    n_frames_to_select = 7
+    idxs = select_frame_idxs_model(
+        video_file=video_file,
+        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),
+        n_frames_to_select=n_frames_to_select,
+        frame_range=[0, 1],
+        thresh_metric_z=0.5,  # important! otherwise this setup doesn't pick up any outliers
+    )
+    assert len(idxs) == n_frames_to_select
+
+
+def test_export_frames(video_file, tmpdir):
+
+    from lightning_pose_app.backend.extract_frames import export_frames
+
+    # multiple frames, no context
+    save_dir_0 = os.path.join(str(tmpdir), 'labeled-frames-0')
+    idxs = np.array([0, 2, 4, 6, 8, 10])
+    export_frames(
+        video_file=video_file,
+        save_dir=save_dir_0,
+        frame_idxs=idxs,
+        context_frames=0,
+    )
+    assert len(os.listdir(save_dir_0)) == len(idxs)
+
+    # multiple frames, 2-frame context
+    save_dir_1 = os.path.join(str(tmpdir), 'labeled-frames-1')
+    idxs = np.array([5, 10, 15, 20])
+    export_frames(
+        video_file=video_file,
+        save_dir=save_dir_1,
+        frame_idxs=idxs,
+        context_frames=2,
+    )
+    assert len(os.listdir(save_dir_1)) == 5 * len(idxs)
+
+    # single frame, 2-frame context
+    save_dir_2 = os.path.join(str(tmpdir), 'labeled-frames-2')
+    idxs = np.array([10])
+    export_frames(
+        video_file=video_file,
+        save_dir=save_dir_2,
+        frame_idxs=idxs,
+        context_frames=2,
+    )
+    assert len(os.listdir(save_dir_2)) == 5 * len(idxs)

@@ -5,12 +5,12 @@ import zipfile
 
 import cv2
 import numpy as np
-import pandas as pd
 import streamlit as st
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.state import AppState
 from streamlit_autorefresh import st_autorefresh
+from typing import Optional
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -22,19 +22,15 @@ from lightning_pose_app import (
     VIDEOS_TMP_DIR,
     ZIPPED_TMP_DIR,
 )
-from lightning_pose_app.backend.video import (
-    copy_and_reformat_video,
-    get_frames_from_idxs,
-)
+from lightning_pose_app.backend.video import copy_and_reformat_video
 from lightning_pose_app.backend.extract_frames import (
-    read_nth_frames,
+    export_frames,
     select_frame_idxs_kmeans,
-    select_frames_using_metrics,
+    select_frame_idxs_model,
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
-    run_kmeans,
 )
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
@@ -54,104 +50,6 @@ class ExtractFramesWork(LightningWork):
         self.trained_models = []
         self.proj_dir = None
         self.config_dict = None
-
-    @staticmethod
-    def _select_frame_idxs_using_model(
-        video_file: str,
-        proj_dir: str,
-        model_dir: str,
-        n_frames_per_video: int,
-        frame_range: list = [0, 1],
-        likelihood_thresh: float = 0.0,
-        thresh_metric_z: float = 3.0,
-    ) -> np.ndarray:
-
-        video_name = os.path.splitext(os.path.basename(video_file))[0]
-        pred_file = os.path.join(model_dir, video_name + ".csv")
-        preds = pd.read_csv(pred_file, header=[0, 1, 2], index_col=0)
-
-        metrics = {
-            'likelihood': None,
-            'pca_singleview': None,
-            'pca_multiview': None,
-            'temporal_norm': None,
-        }
-
-        keys_to_remove = []
-        for key in metrics.keys():
-            if key == "pca_singleview":
-                filename = os.path.join(model_dir, video_name + "_pca_singleview_error.csv")
-            elif key == "pca_multiview":
-                filename = os.path.join(model_dir, video_name + "_pca_multiview_error.csv")
-            elif key == "temporal_norm":
-                filename = os.path.join(model_dir, video_name + "_temporal_norm.csv")
-            else:
-                filename = 'None'
-
-            if os.path.exists(filename):
-                # update dict with dataframe
-                metrics[key] = pd.read_csv(filename, index_col=0)
-            else:
-                # make sure we remove this key later
-                keys_to_remove.append(key)
-
-        # remove unused keys from metrics
-        for key in keys_to_remove:
-            metrics.pop(key)
-
-        idxs_selected = select_frames_using_metrics(
-            preds=preds,
-            metrics=metrics,
-            n_frames_per_video=n_frames_per_video,
-            likelihood_thresh=likelihood_thresh,
-            thresh_metric_z=thresh_metric_z,
-        )
-
-        return np.array(idxs_selected)
-
-    @staticmethod
-    def _export_frames(
-        video_file: str,
-        save_dir: str,
-        frame_idxs: np.ndarray,
-        format: str = "png",
-        n_digits: int = 8,
-        context_frames: int = 0,
-    ) -> None:
-        """
-
-        Parameters
-        ----------
-        video_file: absolute path to video file from which to select frames
-        save_dir: absolute path to directory in which selected frames are saved
-        frame_idxs: indices of frames to grab
-        format: only "png" currently supported
-        n_digits: number of digits in image names
-        context_frames: number of frames on either side of selected frame to also save
-
-        """
-
-        cap = cv2.VideoCapture(video_file)
-
-        # expand frame_idxs to include context frames
-        if context_frames > 0:
-            context_vec = np.arange(-context_frames, context_frames + 1)
-            frame_idxs = (frame_idxs[None, :] + context_vec[:, None]).flatten()
-            frame_idxs.sort()
-            frame_idxs = frame_idxs[frame_idxs >= 0]
-            frame_idxs = frame_idxs[frame_idxs < int(cap.get(cv2.CAP_PROP_FRAME_COUNT))]
-            frame_idxs = np.unique(frame_idxs)
-
-        # load frames from video
-        frames = get_frames_from_idxs(cap, frame_idxs)
-
-        # save out frames
-        os.makedirs(save_dir, exist_ok=True)
-        for frame, idx in zip(frames, frame_idxs):
-            cv2.imwrite(
-                filename=os.path.join(save_dir, "img%s.%s" % (str(idx).zfill(n_digits), format)),
-                img=frame[0],
-            )
 
     def _extract_frames(
         self,
@@ -193,7 +91,6 @@ class ExtractFramesWork(LightningWork):
         # create folder to save images
         video_name = os.path.splitext(os.path.basename(video_file))[0]
         save_dir = os.path.join(data_dir, video_name)
-        os.makedirs(save_dir, exist_ok=True)
 
         # select indices for labeling
         if method == "random":
@@ -208,20 +105,21 @@ class ExtractFramesWork(LightningWork):
             idxs_selected = select_frame_idxs_kmeans(
                 video_file=video_file_abs,
                 resize_dims=resize_dims,
-                n_clusters=n_frames_per_video,
+                n_frames_to_select=n_frames_per_video,
                 frame_range=frame_range,
                 work=self,
             )
         elif method == "active":
-            idxs_selected = self._select_frame_idxs_using_model(
+            idxs_selected = select_frame_idxs_model(
                 video_file=video_file_abs,
-                proj_dir=proj_dir,
                 model_dir=model_dir,
-                n_frames_per_video=n_frames_per_video,
+                n_frames_to_select=n_frames_per_video,
                 frame_range=frame_range,
                 likelihood_thresh=likelihood_thresh,
                 thresh_metric_z=thresh_metric_z,
             )
+        else:
+            raise NotImplementedError
 
         # save csv file inside same output directory
         frames_to_label = np.array([
@@ -234,9 +132,14 @@ class ExtractFramesWork(LightningWork):
         )
 
         # save frames
-        self._export_frames(
-            video_file=video_file_abs, save_dir=save_dir, frame_idxs=idxs_selected,
-            format=extension, n_digits=n_digits, context_frames=context_frames)
+        export_frames(
+            video_file=video_file_abs,
+            save_dir=save_dir,
+            frame_idxs=idxs_selected,
+            format=extension,
+            n_digits=n_digits,
+            context_frames=context_frames,
+        )
 
         # set flag for parent app
         self.work_is_done_extract_frames = True
@@ -317,8 +220,8 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def run(self, action, **kwargs):
-        if action == "extract_frames":
+    def run(self, action: str, **kwargs) -> None:
+        if action == "extract_frames_using_kmeans":
             new_vid_file = copy_and_reformat_video(
                 video_file=abspath(kwargs["video_file"]),
                 dst_dir=abspath(os.path.join(kwargs["proj_dir"], VIDEOS_DIR)),
@@ -327,9 +230,10 @@ class ExtractFramesWork(LightningWork):
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._extract_frames(method="random", **kwargs)
         elif action == "extract_frames_using_model":
+            # note: we do not need to copy and reformat video because we assume the user has
+            # already run inference on this video(s)
             self._extract_frames(method="active", **kwargs)
         elif action == "unzip_frames":
-            # TODO: maybe we need to reformat the file names?
             self._unzip_frames(**kwargs)
         else:
             pass
@@ -371,7 +275,13 @@ class ExtractFramesUI(LightningFlow):
     def st_frame_files(self):
         return np.unique(self.st_frame_files_).tolist()
 
-    def _launch_works(self, action, video_files, work_kwargs, testing=False):
+    def _launch_works(
+        self,
+        action: str,
+        video_files: list,
+        work_kwargs: dict,
+        testing: bool = False
+    ) -> None:
 
         # launch works (sequentially for now)
         for video_file in video_files:
@@ -405,7 +315,12 @@ class ExtractFramesUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def _extract_frames(self, video_files=None, n_frames_per_video=None, testing=False):
+    def _extract_frames_using_kmeans(
+        self,
+        video_files: Optional[list] = None,
+        n_frames_per_video: Optional[int] = None,
+        testing: bool = False
+    ) -> None:
 
         self.work_is_done_extract_frames = False
 
@@ -420,14 +335,18 @@ class ExtractFramesUI(LightningFlow):
             'frame_range': self.st_frame_range,
         }
         self._launch_works(
-            action="extract_frames",
+            action="extract_frames_using_kmeans",
             video_files=video_files,
             work_kwargs=work_kwargs,
             testing=testing,
         )
 
     def _extract_frames_using_model(
-            self, video_files=None, n_frames_per_video=None, testing=False):
+        self,
+        video_files: Optional[list] = None,
+        n_frames_per_video: Optional[int] = None,
+        testing: bool = False,
+    ) -> None:
 
         self.work_is_done_extract_frames = False
 
@@ -454,7 +373,11 @@ class ExtractFramesUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def _unzip_frames(self, video_files=None, testing=False):
+    def _unzip_frames(
+        self,
+        video_files: Optional[list] = None,
+        testing: bool = False
+    ) -> None:
 
         self.work_is_done_extract_frames = False
 
@@ -474,9 +397,9 @@ class ExtractFramesUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_extract_frames = True
 
-    def run(self, action, **kwargs):
+    def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames":
-            self._extract_frames(**kwargs)
+            self._extract_frames_using_kmeans(**kwargs)
         elif action == "extract_frames_using_model":
             self._extract_frames_using_model(**kwargs)
         elif action == "unzip_frames":

@@ -4,11 +4,15 @@ import os
 import pandas as pd
 import shutil
 
-
 from lightning_pose_app import (
-    LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME, MODEL_VIDEO_PREDS_INFER_DIR
+    LABELED_DATA_DIR,
+    MODEL_VIDEO_PREDS_INFER_DIR,
+    MODELS_DIR,
+    SELECTED_FRAMES_FILENAME,
+    VIDEOS_DIR,
+    VIDEOS_TMP_DIR,
 )
-from lightning_pose_app import MODELS_DIR, VIDEOS_TMP_DIR, VIDEOS_DIR
+from lightning_pose_app.backend.extract_frames import export_frames
 
 
 def test_extract_frames_work(
@@ -23,66 +27,7 @@ def test_extract_frames_work(
     )
 
     # -----------------
-    # select indices w/ model
-    # -----------------
-    proj_dir = os.path.join(str(tmpdir), 'proj-dir-0')
-    model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
-    video_name = os.path.splitext(os.path.basename(str(video_file)))[0]
-    # save predictions
-    path = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + ".csv")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    video_file_pred_df.to_csv(path)
-    # save metrics
-    path = os.path.join(
-        model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name + "_pca_singleview_error.csv"
-    )
-    video_file_pca_singleview_df.to_csv(path)
-    # select frames
-    n_frames_per_video = 7
-    idxs = work._select_frame_idxs_using_model(
-        video_file=video_file,
-        proj_dir=proj_dir,
-        model_dir=os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR),
-        n_frames_per_video=n_frames_per_video,
-        frame_range=[0, 1],
-        thresh_metric_z=0.5,  # important! otherwise this setup doesn't pick up any outliers
-    )
-    assert len(idxs) == n_frames_per_video
-
-    # -----------------
-    # export frames
-    # -----------------
-    save_dir_0 = os.path.join(str(tmpdir), 'labeled-frames-0')
-    work._export_frames(
-        video_file=video_file,
-        save_dir=save_dir_0,
-        frame_idxs=idxs,
-        context_frames=0,  # no context
-    )
-    assert len(os.listdir(save_dir_0)) == len(idxs)
-
-    save_dir_1 = os.path.join(str(tmpdir), 'labeled-frames-1')
-    idxs = np.array([5, 10, 15, 20])
-    work._export_frames(
-        video_file=video_file,
-        save_dir=save_dir_1,
-        frame_idxs=idxs,
-        context_frames=2,  # 2-frame context
-    )
-    assert len(os.listdir(save_dir_1)) == 5 * len(idxs)
-
-    save_dir_2 = os.path.join(str(tmpdir), 'labeled-frames-2')
-    idxs = np.array([10])  # try with single frame
-    work._export_frames(
-        video_file=video_file,
-        save_dir=save_dir_2,
-        frame_idxs=idxs,
-        context_frames=2,  # 2-frame context
-    )
-    assert len(os.listdir(save_dir_2)) == 5 * len(idxs)
-
-    # -----------------
-    # extract frames
+    # extract frames 0
     # -----------------
     # use "random" method
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
@@ -102,6 +47,9 @@ def test_extract_frames_work(
     assert os.path.exists(os.path.join(video_dir, SELECTED_FRAMES_FILENAME))
     assert work.work_is_done_extract_frames
 
+    # -----------------
+    # extract frames 1
+    # -----------------
     # use "active" method
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-2')
     model_dir = os.path.join(proj_dir, MODELS_DIR, 'dd-mm-yy/hh-mm-ss')
@@ -134,8 +82,17 @@ def test_extract_frames_work(
     # -----------------
     # unzip frames 0
     # -----------------
-    # zip up a subset of the frames extracted from the previous test
-    n_frames_to_zip = 5
+    # extract some frames
+    save_dir_1 = os.path.join(str(tmpdir), 'labeled-frames-1')
+    idxs = np.array([5, 10, 15, 20])
+    export_frames(
+        video_file=video_file,
+        save_dir=save_dir_1,
+        frame_idxs=idxs,
+        context_frames=2,
+    )
+    # zip up a subset of the frames
+    n_frames_to_zip = 3
     frame_files = os.listdir(save_dir_1)
     new_vid_name = "TEST_VID_ZIPPED_FRAMES"
     dst = os.path.join(tmpdir, new_vid_name)
