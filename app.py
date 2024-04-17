@@ -8,12 +8,22 @@ To run from the command line (inside the conda environment named "lai" here):
 from lightning.app import CloudCompute, LightningApp, LightningFlow
 from lightning.app.structures import Dict
 import logging
+import numpy as np
 import os
+import pandas as pd
+import shutil
 import sys
 import time
 import yaml
 
-from lightning_pose_app import LABELSTUDIO_DB_DIR, LIGHTNING_POSE_DIR
+from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
+    LABELED_DATA_DIR,
+    LABELSTUDIO_DB_DIR,
+    LIGHTNING_POSE_DIR,
+    MODELS_DIR,
+    SELECTED_FRAMES_FILENAME,
+)
 from lightning_pose_app.bashwork import LitBashWork
 from lightning_pose_app.label_studio.component import LitLabelStudio
 from lightning_pose_app.ui.extract_frames import ExtractFramesUI
@@ -85,8 +95,141 @@ class LitPoseApp(LightningFlow):
             database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
-        # works for inference
-        self.inference = Dict()
+        # start label studio
+        self.label_studio.run(action="start_label_studio")
+
+        # import mirror-mouse-example dataset
+        if not os.environ.get("TESTING_LAI"):
+            self.import_demo_dataset(
+                src_dir=os.path.join(LIGHTNING_POSE_DIR, "data", "mirror-mouse-example"),
+                dst_dir=os.path.join(self.data_dir[1:], "mirror-mouse-example")
+            )
+
+    def import_demo_dataset(self, src_dir, dst_dir):
+
+        src_dir_abs = os.path.join(os.path.dirname(__file__), src_dir)
+        proj_dir_abs = os.path.join(os.path.dirname(__file__), dst_dir)
+        if os.path.isdir(proj_dir_abs):
+            return
+
+        _logger.info("Importing demo dataset; this will only take a minute")
+
+        project_name = os.path.basename(dst_dir)
+
+        # -------------------------------
+        # copy data
+        # -------------------------------
+        # copy full example data directory over
+        shutil.copytree(src_dir_abs, proj_dir_abs)
+
+        # copy config file
+        config_file_dst = os.path.join(proj_dir_abs, f"model_config_{project_name}.yaml")
+        shutil.copyfile(
+            os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs", f"config_{project_name}.yaml"),
+            config_file_dst,
+        )
+
+        # make csv file for label studio
+        n_frames = len(os.listdir(os.path.join(proj_dir_abs, LABELED_DATA_DIR)))
+        idxs_selected = np.arange(1, n_frames - 2)  # we've stored mock context frames
+        n_digits = 2
+        extension = "png"
+        frames_to_label = np.sort(np.array(
+            ["img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected]
+        ))
+        np.savetxt(
+            os.path.join(proj_dir_abs, LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME),
+            frames_to_label,
+            delimiter=",",
+            fmt="%s",
+        )
+
+        # make models dir
+        os.makedirs(os.path.join(proj_dir_abs, MODELS_DIR), exist_ok=True)
+
+        # -------------------------------
+        # remove obstacle keypoints
+        # -------------------------------
+        config_dict = yaml.safe_load(open(config_file_dst))
+        config_dict["data"]["keypoint_names"] = [
+            "paw1LH_top",
+            "paw2LF_top",
+            "paw3RF_top",
+            "paw4RH_top",
+            "tailBase_top",
+            "tailMid_top",
+            "nose_top",
+            "paw1LH_bot",
+            "paw2LF_bot",
+            "paw3RF_bot",
+            "paw4RH_bot",
+            "tailBase_bot",
+            "tailMid_bot",
+            "nose_bot",
+        ]
+        config_dict["data"]["columns_for_singleview_pca"] = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+        ]
+        config_dict["data"]["mirrored_column_matches"] = [
+            [0, 1, 2, 3, 4, 5, 6],
+            [7, 8, 9, 10, 11, 12, 13],
+        ]
+        yaml.dump(config_dict, open(config_file_dst, "w"))
+
+        csv_file = os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME)
+        df = pd.read_csv(csv_file, index_col=0, header=[0, 1, 2])
+        df.drop('obs_top', axis=1, level=1, inplace=True)
+        df.drop('obsHigh_bot', axis=1, level=1, inplace=True)
+        df.drop('obsLow_bot', axis=1, level=1, inplace=True)
+        df.to_csv(csv_file)
+
+        # -------------------------------
+        # import project to labelstudio
+        # -------------------------------
+        # create project flow to help with upload
+        project_ui_demo = ProjectUI(
+            data_dir=self.data_dir,
+            default_config_dict=self.project_ui.default_config_dict,
+            debug=False,  # if True, hard-code project details like n_views, keypoint_names, etc.
+        )
+        # update paths
+        project_ui_demo.run(action="update_paths", project_name=project_name)
+        # load project defaults
+        project_ui_demo.run(action="update_project_config")
+        # make keypoints field
+        keypoint_names = project_ui_demo.config_dict["data"]["keypoint_names"]
+        project_ui_demo.run(
+            action="update_project_config",
+            new_vals_dict={
+                "data": {"keypoints": keypoint_names, "num_keypoints": len(keypoint_names)}
+            },
+        )
+
+        # import to labelstudio
+        self.label_studio.run(
+            action="update_paths",
+            proj_dir=project_ui_demo.proj_dir,
+            proj_name=project_name,
+        )
+        self.label_studio.run(
+            action="create_labeling_config_xml",
+            keypoints=project_ui_demo.config_dict["data"]["keypoints"],
+        )
+        self.label_studio.run(action="create_new_project")
+        self.label_studio.run(action="import_existing_annotations")
+
+        # -------------------------------
+        # cleanup - reset labelstudio
+        # -------------------------------
+        self.label_studio.proj_dir = None
+        self.label_studio.proj_name = None
+        self.label_studio.keypoints = None
+        for key, val in self.label_studio.filenames.items():
+            self.label_studio.filenames[key] = ""
+        self.label_studio.counts["create_new_project"] = 0
+        self.label_studio.counts["import_existing_annotations"] = 0
+
+        del project_ui_demo
 
     def start_tensorboard(self, logdir):
         """run tensorboard"""
@@ -129,7 +272,6 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # start background services (run only once)
         # -------------------------------------------------------------
-        self.label_studio.run(action="start_label_studio")
         self.start_fiftyone()
         if self.project_ui.model_dir is not None:
             # find previously trained models for project, expose to training and diagnostics UIs

@@ -35,6 +35,12 @@ from lightning_pose_app.utilities import (
 
 _logger = logging.getLogger('APP.PROJECT')
 
+# options for handling projects
+CREATE_STR = "Create new project"
+UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
+LOAD_STR = "Load existing project"
+DELETE_STR = "Delete existing project"
+
 
 class ProjectUI(LightningFlow):
     """UI to set up project."""
@@ -553,11 +559,6 @@ def _render_streamlit_fn(state: AppState):
 
     st.header("Manage Lightning Pose projects")
 
-    CREATE_STR = "Create new project"
-    UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
-    LOAD_STR = "Load existing project"
-    DELETE_STR = "Delete existing project"
-
     st_mode = st.radio(
         label="Check the box that applies:",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
@@ -717,7 +718,7 @@ def _render_streamlit_fn(state: AppState):
     # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
     st_n_views = state.st_n_views
     if not state.st_upload_existing_project:
-        st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+        st_keypoints = state.st_keypoints_
         # if we are uploading existing project, we don't want to sort via np.unique, need to keep
         # keypoints in the correct order
     st_n_keypoints = state.st_n_keypoints
