@@ -30,24 +30,6 @@ The PCA Multiview option will only appear if your data have more than one view;
 the Pose PCA option will only appear if you selected keypoints for the Pose PCA loss during
 project creation.
 
-Video handling options
-----------------------
-
-After each model has completed training, you can choose to automatically run inference on the set
-of videos uploaded for labeling:
-
-* **Do not run inference**: self-explanatory
-* **Run inference on videos**: runs on all videos previously uploaded in the "Extract Frames" tab
-* **Run inference on videos and make labeled movie**: runs inference and then creates a labeled video with model predictions overlaid on the frames.
-
-.. .. image:: https://imgur.com/8UBY5y9.png
-    :width: 400
-
-.. warning::
-
-    Video traces will not be available in the :ref:`Video Diagnostics <tab_video_diagnostics>` tab
-    if you choose "Do not run inference".
-
 Select models to train
 ----------------------
 

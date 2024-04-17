@@ -49,6 +49,10 @@ VIDEO_LABEL_NONE = "Do not run inference on videos after training"
 VIDEO_LABEL_INFER = "Run inference on videos"
 VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
+VIDEO_SELECT_NEW = "Upload new"
+VIDEO_SELECT_TRAIN_INFER = "Select video(s) previously uploaded to this tab (TRAIN/INFER)"
+VIDEO_SELECT_EXTRACT = "Select video(s) previously uploaded to the EXTRACT FRAMES tab"
+
 
 class LitPose(LightningWork):
 
@@ -428,13 +432,17 @@ class TrainUI(LightningFlow):
             if status == "initialized" or status == "active":
                 self.st_infer_status[video_file] = "active"
                 # run inference (automatically reformats video for DALI)
+                if testing:
+                    remove_old = True
+                else:
+                    remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
                 self.works_dict[video_key].run(
                     action="run_inference",
                     model_dir=model_dir,
                     video_file="/" + video_file,
                     make_labeled_video_full=self.st_label_full,
                     make_labeled_video_clip=self.st_label_short,
-                    remove_old=not testing,  # remove bad format file by default
+                    remove_old=remove_old,
                 )
                 self.st_infer_status[video_file] = "complete"
 
@@ -518,7 +526,7 @@ def _render_streamlit_fn(state: AppState):
         )
         # expander = st.expander("Change Defaults")
         expander = st.expander(
-            "Expand to adjust maximum training epochs and select unsupervised losses")
+            "Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
@@ -545,19 +553,22 @@ def _render_streamlit_fn(state: AppState):
             st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)
 
-        st.markdown(
-            """
-            #### Video handling options""",
-            help="Choose if you want to automatically run inference on the videos uploaded for "
-                 "labeling. **Warning** : Video traces will not be available in the "
-                 "Video Diagnostics tab if you choose “Do not run inference”"
-        )
-        st_train_label_opt = st.radio(
-            "",
-            options=[VIDEO_LABEL_NONE, VIDEO_LABEL_INFER, VIDEO_LABEL_INFER_LABEL],
-            label_visibility="collapsed",
-            index=1,  # default to inference but no labeled movie
-        )
+        # as of 04/2024 we are deprecating this option to streamline video handling
+        # video handling will now be solely carried out by the inference tab
+        # st.markdown(
+        #     """
+        #     #### Video handling options""",
+        #     help="Choose if you want to automatically run inference on the videos uploaded for "
+        #          "labeling. **Warning** : Video traces will not be available in the "
+        #          "Video Diagnostics tab if you choose “Do not run inference”"
+        # )
+        # st_train_label_opt = st.radio(
+        #     "",
+        #     options=[VIDEO_LABEL_NONE, VIDEO_LABEL_INFER, VIDEO_LABEL_INFER_LABEL],
+        #     label_visibility="collapsed",
+        #     index=1,  # default to inference but no labeled movie
+        # )
+        st_train_label_opt = VIDEO_LABEL_NONE
 
         st.markdown(
             """
@@ -657,7 +668,8 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
 
     with right_column:
-         with st.container():
+
+        with st.container():
             st.header(
                 body="Predict on New Videos",
                 help="Select your preferred inference model, then drag and drop your video "
@@ -676,22 +688,54 @@ def _render_streamlit_fn(state: AppState):
             video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
             os.makedirs(video_dir, exist_ok=True)
 
-            # initialize the file uploader
-            uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+            # allow user to select video through uploading or already-uploaded video
+            video_select_option = st.radio(
+                "Video selection",
+                options=[
+                    VIDEO_SELECT_NEW,
+                    VIDEO_SELECT_TRAIN_INFER,
+                    VIDEO_SELECT_EXTRACT,
+                ],
+            )
 
-            # for each of the uploaded files
-            st_videos = []
-            for uploaded_file in uploaded_files:
-                # read it
-                bytes_data = uploaded_file.read()
-                # name it
-                filename = uploaded_file.name.replace(" ", "_")
-                filepath = os.path.join(video_dir, filename)
-                st_videos.append(filepath)
-                if not state.run_script_infer:
-                    # write the content of the file to the path, but not while processing
-                    with open(filepath, "wb") as f:
-                        f.write(bytes_data)
+            if video_select_option == VIDEO_SELECT_NEW:
+
+                # initialize the file uploader
+                uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+
+                # for each of the uploaded files
+                st_videos = []
+                for uploaded_file in uploaded_files:
+                    # read it
+                    bytes_data = uploaded_file.read()
+                    # name it
+                    filename = uploaded_file.name.replace(" ", "_")
+                    filepath = os.path.join(video_dir, filename)
+                    st_videos.append(filepath)
+                    if not state.run_script_infer:
+                        # write the content of the file to the path, but not while processing
+                        with open(filepath, "wb") as f:
+                            f.write(bytes_data)
+
+            elif video_select_option == VIDEO_SELECT_EXTRACT:
+
+                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+                st_videos = st.multiselect(
+                    "Select video files",
+                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
+                    help="These are videos used for labeled frame extraction",
+                )
+                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
+
+            elif video_select_option == VIDEO_SELECT_TRAIN_INFER:
+
+                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
+                st_videos = st.multiselect(
+                    "Select video files",
+                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
+                    help="These are videos previously used for inference",
+                )
+                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
 
             # allow user to select labeled video option
             st.markdown(
