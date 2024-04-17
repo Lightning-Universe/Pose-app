@@ -1,3 +1,5 @@
+"""Functions for video handling."""
+
 import logging
 import os
 import shutil
