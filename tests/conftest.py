@@ -24,15 +24,16 @@ ROOT = os.path.dirname(os.path.dirname(__file__))
 
 def make_tmp_project() -> tuple:
 
-    proj_dir = "data/mirror-mouse-example"
+    data_dir = "data/mirror-mouse-example"  # relative the LIGHTNING_POSE_DIR
 
+    proj_dir = "data/mirror-mouse-example-pytest"  # relative to Pose-app
     proj_dir_abs = os.path.join(ROOT, proj_dir)
     if os.path.isdir(proj_dir_abs):
         print(f"{proj_dir_abs} already exists!")
         return proj_dir, proj_dir_abs
 
     # copy full example data directory over
-    src = os.path.join(ROOT, LIGHTNING_POSE_DIR, proj_dir)
+    src = os.path.join(ROOT, LIGHTNING_POSE_DIR, data_dir)
     shutil.copytree(src, proj_dir_abs)
 
     # copy and rename the video for further tests

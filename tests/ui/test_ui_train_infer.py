@@ -70,7 +70,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     assert os.path.exists(results_dir_0)
     assert "predictions.csv" in results_artifacts_0
     assert "lightning_logs" not in results_artifacts_0
-    assert "video_preds" not in results_artifacts_0
+    assert MODEL_VIDEO_PREDS_TRAIN_DIR not in results_artifacts_0
 
     # ----------------------------
     # train, output videos
