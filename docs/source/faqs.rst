@@ -89,8 +89,9 @@ FAQs
     (with semi-supervised context models needing the most memory).
     If you encounter this error, reduce batch sizes during training or inference.
     This feature is currently not supported in the app, so you will need to manually open the config
-    file, located at `Pose-app/data/<proj_name>/model_config_<proj_name>.yaml`, update bactch
+    file, located at ``Pose-app/data/<proj_name>/model_config_<proj_name>.yaml``, update bactch
     sizes, save the file, then close.
     We also recommend restarting the app after config updates.
     You can find the relevant parameters to adjust
-    `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html>`_.
+    `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html>`_
+    (this link takes you to another set of docs specifically for Lightning Pose).

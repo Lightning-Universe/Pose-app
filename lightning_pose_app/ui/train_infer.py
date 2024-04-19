@@ -50,7 +50,7 @@ VIDEO_LABEL_INFER = "Run inference on videos"
 VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
 VIDEO_SELECT_NEW = "Upload new"
-VIDEO_SELECT_TRAIN_INFER = "Select video(s) previously uploaded to this tab (TRAIN/INFER)"
+VIDEO_SELECT_TRAIN_INFER = "Select video(s) previously uploaded to the TRAIN/INFER tab"
 VIDEO_SELECT_EXTRACT = "Select video(s) previously uploaded to the EXTRACT FRAMES tab"
 
 
@@ -682,7 +682,7 @@ def _render_streamlit_fn(state: AppState):
             )
 
             model_dir = st.selectbox(
-                "Choose model to run inference", sorted(state.trained_models, reverse=True))
+                "Select model to run inference", sorted(state.trained_models, reverse=True))
 
             # upload video files
             video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)

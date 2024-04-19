@@ -415,7 +415,6 @@ class ExtractFramesUI(LightningFlow):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
-@st.cache_resource
 def find_models(model_dir):
     trained_models = []
     # this returns a list of model training days

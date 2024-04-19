@@ -43,8 +43,9 @@ class StreamlitAppLightningPose(LightningFlow):
             else:
                 model_dir = os.path.join(os.getcwd(), self.proj_dir[1:], MODELS_DIR)
 
-            model_dir_args = f" --model_dir={model_dir} --make_dir " \
-                             f"--video_subdir {MODEL_VIDEO_PREDS_INFER_DIR}"
+            model_dir_args = f" --model_dir={model_dir} --make_dir"
+            if self.app_type == "video":
+                model_dir_args += f" --video_subdir {MODEL_VIDEO_PREDS_INFER_DIR}"
 
             cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
                 + " --server.address $host --server.port $port --server.headless true" \

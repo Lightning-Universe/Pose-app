@@ -11,7 +11,7 @@ First, select models to compare and a specific video on the left panel.
 
 .. warning::
 
-    Video traces will not be available if you chose "Do not run inference" in the Train/Infer tab.
+    Video traces will only be available once you have run inference in the Train/Infer tab.
 
 Models can be renamed using the text fields in the left panel.
 
