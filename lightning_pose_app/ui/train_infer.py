@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 import lightning.pytorch as pl
+import numpy as np
 import streamlit as st
 import yaml
 from lightning.app import CloudCompute, LightningFlow, LightningWork
@@ -257,6 +258,9 @@ class LitPose(LightningWork):
 
     def run(self, action: str, **kwargs) -> None:
         if action == "train":
+            # don't fit model if training has already launched
+            if os.path.exists(kwargs["results_dir"]):
+                return
             self._train(**kwargs)
             self._make_fiftyone_dataset(**kwargs)
         elif action == "run_inference":
@@ -314,7 +318,8 @@ class TrainUI(LightningFlow):
         self.st_datetimes = {}
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
-        self.st_rng_seed_data_pt = rng_seed_data_pt_default
+        self.st_rng_seed_data_pt_ = rng_seed_data_pt_default
+        self.st_train_ensemble_number = 0
 
         # ------------------------
         # Inference
@@ -336,10 +341,18 @@ class TrainUI(LightningFlow):
         self.st_label_short = True
         self.st_label_full = False
 
+    @property
+    def st_rng_seed_data_pt(self):
+        if len(np.unique(self.st_rng_seed_data_pt_)) == len(self.st_rng_seed_data_pt_):
+            return self.st_rng_seed_data_pt_
+        else:
+            return np.unique(self.st_rng_seed_data_pt_).tolist()  # hack to fix duplication bug
+
     def _train(
         self,
         config_filename: Optional[str] = None,
-        video_dirname: str = VIDEOS_DIR
+        video_dirname: str = VIDEOS_DIR,
+        rng_seed_data_pt: int = 0,
     ) -> None:
 
         if config_filename is None:
@@ -382,7 +395,7 @@ class TrainUI(LightningFlow):
                 "imgaug": "dlc",
                 "log_every_n_steps": 5,
                 "max_epochs": self.st_max_epochs,
-                "rng_seed_data_pt": self.st_rng_seed_data_pt,
+                "rng_seed_data_pt": rng_seed_data_pt,
             }
         }
 
@@ -396,15 +409,25 @@ class TrainUI(LightningFlow):
             status = self.st_train_status[m]
             if status == "initialized" or status == "active":
                 self.st_train_status[m] = "active"
+
+                # update config
                 config_overrides["model"]["losses_to_use"] = self.st_losses[m]
                 if m.find("ctx") > -1:
                     config_overrides["model"]["model_type"] = "heatmap_mhcrnn"
+
+                # model save dir
+                model_name = f"{self.st_datetimes[m]}-{rng_seed_data_pt}"
+                results_dir = os.path.join(base_dir, MODELS_DIR, model_name)
+
+                # start training
                 self.work.run(
                     action="train",
                     config_file=os.path.join(self.proj_dir, config_filename),
                     config_overrides=config_overrides,
-                    results_dir=os.path.join(base_dir, MODELS_DIR, self.st_datetimes[m])
+                    results_dir=results_dir,
                 )
+
+                # post-training cleanup
                 self.st_train_status[m] = "complete"
                 self.work.progress = 0.0  # reset for next model
 
@@ -473,7 +496,22 @@ class TrainUI(LightningFlow):
 
     def run(self, action: str, **kwargs) -> None:
         if action == "train":
-            self._train(**kwargs)
+
+            if "rng_seed_data_pt" in kwargs.keys():
+                self._train(**kwargs)
+            else:
+                # loop over rng seeds
+                for rng_idx, rng in enumerate(self.st_rng_seed_data_pt):
+                    # train all model types
+                    self.run(action="train", rng_seed_data_pt=rng, **kwargs)
+                    # update model count for UI
+                    self.st_train_ensemble_number = rng_idx + 1
+                    # reset train statuses for selected models
+                    if self.st_train_ensemble_number != len(self.st_rng_seed_data_pt):
+                        for key, val in self.st_train_status.items():
+                            if val == "complete":
+                                self.st_train_status[key] = "initialized"
+
         elif action == "run_inference":
             self._run_inference(**kwargs)
         elif action == "determine_dataset_type":
@@ -528,20 +566,28 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-        # expander = st.expander("Change Defaults")
-        expander = st.expander(
-            "Expand to adjust training parameters")
+        expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
 
         st_rng_seed_data_pt = expander.text_input(
-            "Set the seed/s (all models)", value=state.rng_seed_data_pt_default,
+            "Set the seed(s) for all models (int or comma-separated string)",
+            value=state.rng_seed_data_pt_default,
             help="By setting a seed or a list of seeds, you enable reproducible model training, "
-            "ensuring consistent results across different runs. Users can specify a single "
-            "integer for individual models or a list to train multiple networks (e.g. 1,5,6,7) "
-            "thereby enhancing flexibility and control over the training process."
+                 "ensuring consistent results across different runs. Users can specify a single "
+                 "integer for individual models or a list to train multiple networks "
+                 "(e.g. 1,5,6,7) thereby enhancing flexibility and control over the training "
+                 "process."
         )
+        if isinstance(st_rng_seed_data_pt, int):
+            st_rng_seed_data_pt = [st_rng_seed_data_pt]
+        elif isinstance(st_rng_seed_data_pt, str):
+            st_rng_seed_data_pt = [int(rng) for rng in st_rng_seed_data_pt.split(",")]
+        elif isinstance(st_rng_seed_data_pt, list):
+            pass
+        else:
+            st.text("RNG seed must be a single integer or a list of comma-separated integers")
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
@@ -592,6 +638,14 @@ def _render_streamlit_fn(state: AppState):
 
         # give user training updates
         if state.run_script_train:
+
+            if len(st_rng_seed_data_pt) > 1:
+                # print ensemble member progress
+                a = state.st_train_ensemble_number
+                b = len(np.unique(state.st_rng_seed_data_pt_))
+                progress_value = min((a + 1) / b, 1)
+                st.progress(progress_value, f"Training on seed {a + 1} of {b}")
+
             for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
                 if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
                     status = state.st_train_status[m]
@@ -623,10 +677,12 @@ def _render_streamlit_fn(state: AppState):
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
         if st_submit_button_train:
+
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
-            state.st_rng_seed_data_pt = int(st_rng_seed_data_pt)
+            state.st_train_ensemble_number = 0
+            state.st_rng_seed_data_pt_ = st_rng_seed_data_pt
             state.st_train_label_opt = st_train_label_opt
             state.st_train_status = {
                 "super": "initialized" if st_train_super else "none",
