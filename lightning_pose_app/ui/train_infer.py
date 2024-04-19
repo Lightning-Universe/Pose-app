@@ -163,8 +163,8 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
         # run inference on full video; compute metrics; export labeled video
         # ----------------------------------------------------------------------------------
-        self.progress = 0.0
         self.status_ = "video inference"
+        self.progress = 0.0
         preds_df = inference_with_metrics(
             video_file=video_file_abs,
             ckpt_file=ckpt_file,
@@ -175,25 +175,27 @@ class LitPose(LightningWork):
         )
         if make_labeled_video_full:
             self.status_ = "creating labeled video"
+            self.progress = 0.0
             make_labeled_video(
                 video_file=video_file_abs,
                 preds_df=preds_df,
                 save_file=preds_file.replace(".csv", ".labeled.mp4"),
                 confidence_thresh=cfg.eval.confidence_thresh_for_vid,
+                work=self,
             )
 
         # ----------------------------------------------------------------------------------
         # run inference on video clip; compute metrics; export labeled video
         # ----------------------------------------------------------------------------------
         if make_labeled_video_clip:
-            self.progress = 0.0  # reset progress so it will be updated during snippet inference
             self.status_ = "creating short clip"
+            self.progress = 0.0  # reset progress so it will be updated during snippet inference
             video_file_abs_short, clip_start_idx, clip_start_sec = make_video_snippet(
                 video_file=video_file_abs,
                 preds_file=preds_file,
             )
-            self.progress = 0.0
             self.status_ = "video inference (short clip)"
+            self.progress = 0.0
             preds_file_short = preds_file.replace(".csv", ".short.csv")
             preds_df = inference_with_metrics(
                 video_file=video_file_abs_short,
@@ -204,12 +206,14 @@ class LitPose(LightningWork):
                 trainer=trainer,
             )
             self.status_ = "creating labeled video (short clip)"
+            self.progress = 0.0
             make_labeled_video(
                 video_file=video_file_abs_short,
                 preds_df=preds_df,
                 save_file=preds_file_short.replace(".csv", ".labeled.mp4"),
                 video_start_time=clip_start_sec,
                 confidence_thresh=cfg.eval.confidence_thresh_for_vid,
+                work=self,
             )
 
         # set flag for parent app
@@ -433,7 +437,7 @@ class TrainUI(LightningFlow):
                 self.st_infer_status[video_file] = "active"
                 # run inference (automatically reformats video for DALI)
                 if testing:
-                    remove_old = True
+                    remove_old = False
                 else:
                     remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
                 self.works_dict[video_key].run(
@@ -481,7 +485,7 @@ class TrainUI(LightningFlow):
 
 def _render_streamlit_fn(state: AppState):
 
-    train_tab, right_column = st.columns([1,1])
+    train_tab, right_column = st.columns([1, 1])
     # add shadows around each column
     # box-shadow args: h-offset v-offset blur spread color
     st.markdown("""
@@ -602,7 +606,7 @@ def _render_streamlit_fn(state: AppState):
                     else:
                         st.text(status)
                     st.progress(
-                        p / 100.0, f"{m} progress ({status_ or status}: {int(p)}\% complete)"
+                        p / 100.0, f"model: {m}\n\n{status_ or status}: {int(p)}\% complete"
                     )
 
         if st_submit_button_train:
@@ -768,7 +772,7 @@ def _render_streamlit_fn(state: AppState):
                             try:
                                 p = state.works_dict[vid_].progress
                                 status_ = state.works_dict[vid_].status_
-                            except:
+                            except Exception:
                                 p = 100.0  # if work is deleted while accessing
                         else:
                             p = 100.0
@@ -777,7 +781,7 @@ def _render_streamlit_fn(state: AppState):
                     else:
                         st.text(status)
                     st.progress(
-                        p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
+                        p / 100.0, f"video: {vid}\n\n{status_ or status}: {int(p)}\% complete")
                 st.warning("waiting for existing inference to finish")
 
             # Lightning way of returning the parameters
@@ -796,45 +800,45 @@ def _render_streamlit_fn(state: AppState):
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-         # st.markdown("----")
+        # st.markdown("----")
 
-         # eks_tab = st.container()
-         # with eks_tab:
-         #    st.header("Ensemble Selected Models")
-         #    selected_models = st.multiselect(
-         #        "Select models for ensembling",
-         #        sorted(state.trained_models, reverse=True),
-         #        help="Select which models you want to create an new ensemble model"
-         #    )
-         #
-         #    st_submit_button_eks = st.button(
-         #        "Create ensemble",
-         #        key="eks_unique_key_button",
-         #        disabled=(
-         #            len(selected_models) < 2
-         #            or state.run_script_train
-         #            or state.run_script_infer
-         #        )
-         #    )
-         #
-         #    if st_submit_button_eks:
-         #
-         #        model_abs_paths = [
-         #            os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
-         #            for model_name in selected_models
-         #        ]
-         #
-         #        dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-         #        eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
-         #        # create a folder for the eks in the models project folder
-         #        os.makedirs(eks_folder_path, exist_ok=True)
-         #
-         #        text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
-         #
-         #        with open(text_file_path, 'w') as file:
-         #            file.writelines(f"{path}\n" for path in model_abs_paths)
-         #
-         #        if os.path.exists(text_file_path):
-         #            st.text(f"Ensemble {eks_folder_path} created!")
-         #
-         #        st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+        # eks_tab = st.container()
+        # with eks_tab:
+        #    st.header("Ensemble Selected Models")
+        #    selected_models = st.multiselect(
+        #        "Select models for ensembling",
+        #        sorted(state.trained_models, reverse=True),
+        #        help="Select which models you want to create an new ensemble model"
+        #    )
+        #
+        #    st_submit_button_eks = st.button(
+        #        "Create ensemble",
+        #        key="eks_unique_key_button",
+        #        disabled=(
+        #            len(selected_models) < 2
+        #            or state.run_script_train
+        #            or state.run_script_infer
+        #        )
+        #    )
+        #
+        #    if st_submit_button_eks:
+        #
+        #        model_abs_paths = [
+        #            os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
+        #            for model_name in selected_models
+        #        ]
+        #
+        #        dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+        #        eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
+        #        # create a folder for the eks in the models project folder
+        #        os.makedirs(eks_folder_path, exist_ok=True)
+        #
+        #        text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
+        #
+        #        with open(text_file_path, 'w') as file:
+        #            file.writelines(f"{path}\n" for path in model_abs_paths)
+        #
+        #        if os.path.exists(text_file_path):
+        #            st.text(f"Ensemble {eks_folder_path} created!")
+        #
+        #        st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")

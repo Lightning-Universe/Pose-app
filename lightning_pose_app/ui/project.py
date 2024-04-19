@@ -5,7 +5,6 @@ import os
 import shutil
 import time
 import zipfile
-import re
 
 import numpy as np
 import pandas as pd

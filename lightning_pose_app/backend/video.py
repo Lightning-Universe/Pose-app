@@ -169,9 +169,10 @@ def make_video_snippet(
     dst = os.path.join(save_dir, os.path.basename(video_file).replace(".mp4", ".short.mp4"))
     if win_len >= df.shape[0]:
         # short video, no need to shorten further. just copy existing video
-        shutil.copyfile(src, dst)
         clip_start_idx = 0
         clip_start_sec = 0.0
+        if not os.path.exists(dst):
+            shutil.copyfile(src, dst)
     else:
         # compute motion energy (averaged over keypoints)
         me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
@@ -187,8 +188,9 @@ def make_video_snippet(
             clip_start_sec = 0
 
         # make clip
-        ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
-        subprocess.run(ffmpeg_cmd, shell=True)
+        if not os.path.exists(dst):
+            ffmpeg_cmd = f"ffmpeg -ss {clip_start_sec} -i {src} -t {clip_length} {dst}"
+            subprocess.run(ffmpeg_cmd, shell=True)
 
     return dst, int(clip_start_idx), float(clip_start_sec)
 

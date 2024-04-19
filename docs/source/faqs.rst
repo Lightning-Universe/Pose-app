@@ -2,6 +2,9 @@
 FAQs
 ####
 
+General
+-------
+
 .. _faq_can_i_import:
 
 .. dropdown:: Can I import a pose estimation project in another format into the app?
@@ -17,6 +20,35 @@ FAQs
     you would like to see, please
     `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
 
+
+.. _faq_change_machine:
+
+.. dropdown:: How can I switch the cloud machine type (CPU to/from GPU)?
+
+    In the upper right corner of the Lightning Studio, click on the compute icon
+    (which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
+    connected to a CPU-only machine).
+    Select the GPU or CPU box to see available options.
+    We recommend a default CPU machine (not data prep) for labeling tasks.
+
+    .. image:: https://imgur.com/HGtYm0g.png
+        :width: 400
+
+
+.. _faq_upload_limit:
+
+.. dropdown:: How do I increase the file upload size limit?
+
+    Set the following environment variable (in units of MB);
+    we recommend using videos less than 500MB for best performance.
+
+    .. code-block:: console
+
+        lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
+
+
+Data labeling
+-------------
 
 .. _faq_ls_login:
 
@@ -54,31 +86,8 @@ FAQs
     Repeat this process until you are happy with the results.
 
 
-.. _faq_change_machine:
-
-.. dropdown:: How can I switch the cloud machine type (CPU to/from GPU)?
-
-    In the upper right corner of the Lightning Studio, click on the compute icon
-    (which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
-    connected to a CPU-only machine).
-    Select the GPU or CPU box to see available options.
-    We recommend a default CPU machine (not data prep) for labeling tasks.
-
-    .. image:: https://imgur.com/HGtYm0g.png
-        :width: 400
-
-
-.. _faq_upload_limit:
-
-.. dropdown:: How do I increase the file upload size limit?
-
-    Set the following environment variable (in units of MB);
-    we recommend using videos less than 500MB for best performance.
-
-    .. code-block:: console
-
-        lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
-
+Model training
+--------------
 
 .. _faq_oom:
 

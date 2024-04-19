@@ -16,7 +16,7 @@ def args_to_dict(script_args: str) -> dict:
     for x in shlex.split(script_args, posix=False):
         try:
             k, v = x.split("=", 1)
-        except:
+        except Exception:
             k = x
             v = None
         script_args_dict[k] = v
@@ -33,7 +33,7 @@ class StreamlitFrontend(LitStreamlitFrontend):
         super().start_server(*args, **kwargs)
         try:
             _logger.info(f"Running streamlit on http://{kwargs['host']}:{kwargs['port']}")
-        except:
+        except Exception:
             # on the cloud, args[0] = host, args[1] = port
             pass
 

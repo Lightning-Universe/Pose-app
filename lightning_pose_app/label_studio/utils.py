@@ -24,7 +24,7 @@ def retry(func):
         while True:
             try:
                 return func(*args, **kwargs)
-            except:
+            except Exception:
                 _logger.debug(f"Could not execute {func.__name__}, retrying in one second...")
                 attempts += 1
                 time.sleep(1)

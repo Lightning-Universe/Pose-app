@@ -24,7 +24,10 @@ def test_select_idxs_kmeans(video_file):
     resize_dims = 8
     n_clusters = 5
     idxs = select_frame_idxs_kmeans(
-        video_file=video_file, resize_dims=resize_dims, n_frames_to_select=n_clusters, frame_skip=1,
+        video_file=video_file,
+        resize_dims=resize_dims,
+        n_frames_to_select=n_clusters,
+        frame_skip=1,
     )
     assert len(idxs) == n_clusters
 
@@ -51,9 +54,9 @@ def test_identify_outliers():
     temp_norm_mock = pd.DataFrame(pca_singleview_data).set_index("frame")
 
     mock_metrics = {
-        "likelihood": likelihood_mock, 
+        "likelihood": likelihood_mock,
         "pca_singleview": pca_singleview_mock,
-        "pca_multiview": pca_multiview_mock, 
+        "pca_multiview": pca_multiview_mock,
         "temporal_norm": temp_norm_mock,
     }
 
@@ -128,6 +131,7 @@ def test_select_frames_using_metrics():
     n_frames_per_video = 5
 
     # Generate mock data
+    np.random.seed(0)
     pca_singleview_mock = mock_error_metrix_df(n_frames, keypoints)
     pca_multiview_mock = mock_error_metrix_df(n_frames, keypoints)
     temp_norm_mock = mock_error_metrix_df(n_frames, keypoints)
@@ -145,8 +149,8 @@ def test_select_frames_using_metrics():
         preds_mock,
         metrics,
         n_frames_per_video,
-        likelihood_thresh=0,
-        thresh_metric_z=1
+        likelihood_thresh=0.0,
+        thresh_metric_z=1.0,
     )
 
     assert len(idxs_selected) == n_frames_per_video

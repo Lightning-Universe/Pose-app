@@ -6,7 +6,6 @@ To run from the command line (inside the conda environment named "lai" here):
 """
 
 from lightning.app import CloudCompute, LightningApp, LightningFlow
-from lightning.app.structures import Dict
 import logging
 import numpy as np
 import os
@@ -281,7 +280,7 @@ class LitPoseApp(LightningFlow):
             # only launch once we know which project we're working on
             self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
             self.streamlit_frame.run(action="initialize")
-            self.streamlit_video.run(action="initialize") 
+            self.streamlit_video.run(action="initialize")
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
@@ -455,9 +454,9 @@ class LitPoseApp(LightningFlow):
                 train_tab,
                 train_status_tab,
                 st_frame_tab,
+                fo_tab,
                 st_video_tab,
                 st_video_player_tab,
-                fo_tab,
             ]
         else:
             return [

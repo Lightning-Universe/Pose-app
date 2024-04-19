@@ -75,9 +75,9 @@ Click on the links below to find more information about specific tabs.
    tabs/train_infer
    tabs/train_status
    tabs/labeled_diagnostics
+   tabs/fiftyone
    tabs/video_diagnostics
    tabs/video_player
-   tabs/fiftyone
 
 **Close the app**
 
