@@ -5,7 +5,6 @@ import os
 import shutil
 import time
 import zipfile
-import re
 
 import numpy as np
 import pandas as pd
@@ -34,6 +33,12 @@ from lightning_pose_app.utilities import (
 )
 
 _logger = logging.getLogger('APP.PROJECT')
+
+# options for handling projects
+CREATE_STR = "Create new project"
+UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
+LOAD_STR = "Load existing project"
+DELETE_STR = "Delete existing project"
 
 
 class ProjectUI(LightningFlow):
@@ -553,11 +558,6 @@ def _render_streamlit_fn(state: AppState):
 
     st.header("Manage Lightning Pose projects")
 
-    CREATE_STR = "Create new project"
-    UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
-    LOAD_STR = "Load existing project"
-    DELETE_STR = "Delete existing project"
-
     st_mode = st.radio(
         label="Check the box that applies:",
         options=[CREATE_STR, UPLOAD_STR, LOAD_STR, DELETE_STR],
@@ -569,11 +569,15 @@ def _render_streamlit_fn(state: AppState):
     )
     st.text(f"Available projects: {state.initialized_projects}")
 
-    st_project_name = st.text_input(
-        "Enter project name (must be at least 3 characters)",
-        value="" if (not state.st_project_loaded or state.st_reset_project_name)
-        else state.st_project_name
-    )
+    if st_mode == LOAD_STR:
+        st_project_name = st.selectbox("Select existing project", state.initialized_projects)
+    else:
+        st_project_name = st.text_input(
+            "Enter project name (must be at least 3 characters)",
+            value="" if (not state.st_project_loaded or state.st_reset_project_name)
+            else state.st_project_name
+        )
+
     # ----------------------------------------------------
     # determine project status - load existing, create new
     # ----------------------------------------------------
@@ -717,7 +721,7 @@ def _render_streamlit_fn(state: AppState):
     # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
     st_n_views = state.st_n_views
     if not state.st_upload_existing_project:
-        st_keypoints = np.unique(state.st_keypoints_).tolist()  # duplication bug fix, not solved
+        st_keypoints = state.st_keypoints_
         # if we are uploading existing project, we don't want to sort via np.unique, need to keep
         # keypoints in the correct order
     st_n_keypoints = state.st_n_keypoints

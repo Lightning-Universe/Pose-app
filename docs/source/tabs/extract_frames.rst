@@ -6,10 +6,6 @@ Extract Frames
 
 The Extract Frames tab allows you to select frames for labeling using various methods.
 
-.. note::
-
-    This tab does not appear in the demo app.
-
 * :ref:`Upload videos and automatically extract random frames <upload_video_random>`
 * :ref:`Upload zipped files of frames <upload_zipped_frames>`
 * :ref:`Automatically extract frames using a given model <active_learning>`

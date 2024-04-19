@@ -6,7 +6,7 @@ Train/Infer
 
 This tab is the interface for training models and running inference on new videos.
 
-.. image:: https://imgur.com/uU6LbBZ.png
+.. image:: https://imgur.com/1lLek6E.png
 
 The left side-bar displays your current labeling progress, and contains a drop-down menu showing
 all previously trained models.
@@ -19,9 +19,10 @@ Train Networks
 Training options
 ----------------
 
-From the drop-down "Change Defaults" menu,
-optionally change the max training epochs and the types of unsupervised losses used for the
-semi-supervised models.
+From the drop-down "Expand to adjust training parameters" menu,
+optionally change the max training epochs,
+the model seed (different seeds will lead to different model outputs that are useful for ensembling),
+and the types of unsupervised losses used for the semi-supervised models.
 
 .. .. image:: https://imgur.com/LiylXxc.png
     :width: 400
@@ -29,24 +30,6 @@ semi-supervised models.
 The PCA Multiview option will only appear if your data have more than one view;
 the Pose PCA option will only appear if you selected keypoints for the Pose PCA loss during
 project creation.
-
-Video handling options
-----------------------
-
-After each model has completed training, you can choose to automatically run inference on the set
-of videos uploaded for labeling:
-
-* **Do not run inference**: self-explanatory
-* **Run inference on videos**: runs on all videos previously uploaded in the "Extract Frames" tab
-* **Run inference on videos and make labeled movie**: runs inference and then creates a labeled video with model predictions overlaid on the frames.
-
-.. .. image:: https://imgur.com/8UBY5y9.png
-    :width: 400
-
-.. warning::
-
-    Video traces will not be available in the :ref:`Video Diagnostics <tab_video_diagnostics>` tab
-    if you choose "Do not run inference".
 
 Select models to train
 ----------------------
@@ -63,7 +46,7 @@ There are currently 4 options to choose from:
 
 .. note::
 
-    If you uploaded a DLC project or are using ``demo_app.py`` you will not see the context options.
+    If you uploaded a DLC project or are using the example data you will not see the context options.
 
 Train models
 ------------
@@ -74,10 +57,6 @@ A set of progress bars will appear below, one for each model.
 .. image:: https://imgur.com/Atekosg.png
     :width: 400
 
-Afer training is complete for each model, inference is run on each video if selected in the
-"Video handling options" above.
-The progress bar will reset and display inference progress for each video.
-
 Once training is complete for all models you will see
 "Training complete; see diagnostics in the following tabs" in green.
 
@@ -87,32 +66,45 @@ Predict on New Videos
 =====================
 
 First, select the model you would like to use for inference from the drop-down menu.
-Then, drag and drop video file(s) using the provided interface.
-You will see an upload progress bar.
 
-.. image:: https://imgur.com/MXHq8hx.png
-    :width: 400
+Select videos
+-------------
 
+You have three options for video selection:
+
+* **Upload new**:
+  upload a new video to the app.
+  To do so, drag and drop the video file(s) using the provided interface.
+  You will see an upload progress bar.
+  If your video is larger than the 200MB default limit, see the :ref:`FAQs<faq_upload_limit>`.
+* **Select video(s) previously uploaded to the TRAIN/INFER tab**:
+  any video previously uploaded to this tab will be available in the drop down menu; you may
+  select multiple videos.
+* **Select video(s) previously uploaded to the EXTRACT FRAMES tab**:
+  any video previously uploaded in the EXTRACT FRAMES tab for labeling will be available in the
+  drop down menu; you may select multiple videos.
+
+Video handling options
+----------------------
 You may also choose to create videos overlaid with predictions from the model.
 
-.. image:: https://imgur.com/RBqSZTF.png
-    :width: 300
-
-The option "Save labeled video (30 second clip)" will find the 30 second portion of the video
-with the highest motion energy in the model predictions.
-This is a good option if you want to quickly get a sense of how well the model is performing.
-
-The option "Save labeled video (full video)" will plot predictions for the duration of the entire
-video.
-This is a good option if you want to search over longer or more diverse periods of the video.
+* **Save labeled video (30 second clip)**:
+  label the 30 second portion of the video with the highest motion energy in the model predictions.
+  This is a good option if you want to quickly get a sense of how well the model is performing.
+* **Save labeled video (full video)**:
+  plot predictions for the duration of the entire video.
+  This is a good option if you want to search over longer or more diverse periods of the video.
 
 If you check one or both boxes, you will be able to view the resulting videos directly in the app
 in the :ref:`"Video Player" tab <tab_video_player>`.
 
+Run inference
+-------------
+
 Click "Run inference" once the video uploads are complete,
 and another set of progress bars will appear.
 
-.. image:: https://imgur.com/rK2d7ph.png
+.. image:: https://imgur.com/xHS1D3X.png
     :width: 400
 
 Once inference is complete for all videos you will see the

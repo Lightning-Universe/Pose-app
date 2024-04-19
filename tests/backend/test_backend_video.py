@@ -75,6 +75,7 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
     fps = cap.get(cv2.CAP_PROP_FPS)
     n_frames_1 = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     assert n_frames_1 == int(fps * clip_length)
+    os.remove(snippet_file)
 
     # CHECK 2: requested clip is longer than actual video (return original video)
     clip_length = 100
@@ -86,6 +87,7 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
     cap = cv2.VideoCapture(snippet_file)
     n_frames_2 = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     assert n_frames_2 == n_frames
+    os.remove(snippet_file)
 
 
 def test_compute_motion_energy_from_predection_df(video_file_pred_df):

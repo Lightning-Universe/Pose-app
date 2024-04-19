@@ -43,11 +43,12 @@ def get_models(model_dir):
 def list_labeled_mp4_files(model_dir, selected_model):
     """List labeled MP4 files in a directory."""
     labeled_mp4_files = []
-    model_path = os.path.join(model_dir, selected_model)
-    for root, dirs, files in os.walk(model_path):
-        for file in files:
-            if file.endswith(".labeled.mp4"):
-                labeled_mp4_files.append(os.path.join(root, file))
+    if selected_model:
+        model_path = os.path.join(model_dir, selected_model)
+        for root, dirs, files in os.walk(model_path):
+            for file in files:
+                if file.endswith(".labeled.mp4"):
+                    labeled_mp4_files.append(os.path.join(root, file))
     return labeled_mp4_files
 
 

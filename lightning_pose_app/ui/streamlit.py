@@ -2,7 +2,7 @@ import os
 
 from lightning.app import CloudCompute, LightningFlow
 
-from lightning_pose_app import LIGHTNING_POSE_DIR, MODELS_DIR
+from lightning_pose_app import LIGHTNING_POSE_DIR, MODELS_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.bashwork import LitBashWork
 
 
@@ -44,6 +44,8 @@ class StreamlitAppLightningPose(LightningFlow):
                 model_dir = os.path.join(os.getcwd(), self.proj_dir[1:], MODELS_DIR)
 
             model_dir_args = f" --model_dir={model_dir} --make_dir"
+            if self.app_type == "video":
+                model_dir_args += f" --video_subdir {MODEL_VIDEO_PREDS_INFER_DIR}"
 
             cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
                 + " --server.address $host --server.port $port --server.headless true" \

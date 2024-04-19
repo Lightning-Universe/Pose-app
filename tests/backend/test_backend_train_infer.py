@@ -7,7 +7,6 @@ from omegaconf import DictConfig
 from lightning_pose_app import (
     LIGHTNING_POSE_DIR,
     MODELS_DIR,
-    MODEL_VIDEO_PREDS_INFER_DIR,
     MODEL_VIDEO_PREDS_TRAIN_DIR,
     VIDEOS_DIR,
 )

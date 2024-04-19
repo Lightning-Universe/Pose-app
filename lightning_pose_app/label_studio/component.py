@@ -70,7 +70,7 @@ class LitLabelStudio(LightningFlow):
 
         # start label-studio
         self.label_studio.run(
-            "label-studio start --no-browser --internal-host $host --port $port",
+            "label-studio start --no-browser --internal-host $host --port $port --log-level ERROR",
             venv_name=label_studio_venv,
             wait_for_exit=False,
             env={
@@ -203,9 +203,6 @@ class LitLabelStudio(LightningFlow):
                         f"--keypoints_list {keypoints_list} "
 
         # run command to save out xml
-        # NOTE: we cannot just save out the xml from this function, since we are inside a Flow. We
-        # need a Work to save the xml so that the Work has local access to that file; the Work can
-        # then put that file to a Drive
         self.label_studio.run(
             build_command,
             wait_for_exit=True,

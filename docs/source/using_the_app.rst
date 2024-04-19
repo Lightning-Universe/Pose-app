@@ -4,11 +4,14 @@
 Using the app
 #############
 
-We provide three different apps:
+The app allows you to
 
-* ``demo_app.py``: using provided example data, train and evaluate pose estimation models
-* ``labeling_app.py``: stand-alone labeling app where you can upload videos, extract frames, and annotate keypoints on extracted frames using LabelStudio
-* ``app.py``: full app that includes labeling, training, and evaluation
+* label data (upload videos, extract frames, annotate keypoints)
+* train and evaluate models
+* run inference on new videos
+
+Additionally, the app comes with an example dataset if you want to explore, without needing to
+label your own data.
 
 **Launch the app**
 
@@ -35,7 +38,7 @@ and run:
 
 .. code-block:: console
 
-    lightning run app <app_name>.py
+    lightning run app app.py
 
 .. note::
 
@@ -60,8 +63,7 @@ VS Code icon in the right-hand tool bar.
 .. image:: https://imgur.com/lINajyE.png
     :width: 200
 
-Click on the links below to find more information about specific tabs;
-remember that ``demo_app.py`` and ``labeleing_app.py`` only utilize a subset of the tabs.
+Click on the links below to find more information about specific tabs.
 
 .. toctree::
    :maxdepth: 1
@@ -73,9 +75,9 @@ remember that ``demo_app.py`` and ``labeleing_app.py`` only utilize a subset of 
    tabs/train_infer
    tabs/train_status
    tabs/labeled_diagnostics
+   tabs/fiftyone
    tabs/video_diagnostics
    tabs/video_player
-   tabs/fiftyone
 
 **Close the app**
 

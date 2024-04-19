@@ -49,6 +49,10 @@ VIDEO_LABEL_NONE = "Do not run inference on videos after training"
 VIDEO_LABEL_INFER = "Run inference on videos"
 VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
+VIDEO_SELECT_NEW = "Upload new"
+VIDEO_SELECT_TRAIN_INFER = "Select video(s) previously uploaded to the TRAIN/INFER tab"
+VIDEO_SELECT_EXTRACT = "Select video(s) previously uploaded to the EXTRACT FRAMES tab"
+
 
 class LitPose(LightningWork):
 
@@ -159,8 +163,8 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
         # run inference on full video; compute metrics; export labeled video
         # ----------------------------------------------------------------------------------
-        self.progress = 0.0
         self.status_ = "video inference"
+        self.progress = 0.0
         preds_df = inference_with_metrics(
             video_file=video_file_abs,
             ckpt_file=ckpt_file,
@@ -171,25 +175,27 @@ class LitPose(LightningWork):
         )
         if make_labeled_video_full:
             self.status_ = "creating labeled video"
+            self.progress = 0.0
             make_labeled_video(
                 video_file=video_file_abs,
                 preds_df=preds_df,
                 save_file=preds_file.replace(".csv", ".labeled.mp4"),
                 confidence_thresh=cfg.eval.confidence_thresh_for_vid,
+                work=self,
             )
 
         # ----------------------------------------------------------------------------------
         # run inference on video clip; compute metrics; export labeled video
         # ----------------------------------------------------------------------------------
         if make_labeled_video_clip:
-            self.progress = 0.0  # reset progress so it will be updated during snippet inference
             self.status_ = "creating short clip"
+            self.progress = 0.0  # reset progress so it will be updated during snippet inference
             video_file_abs_short, clip_start_idx, clip_start_sec = make_video_snippet(
                 video_file=video_file_abs,
                 preds_file=preds_file,
             )
-            self.progress = 0.0
             self.status_ = "video inference (short clip)"
+            self.progress = 0.0
             preds_file_short = preds_file.replace(".csv", ".short.csv")
             preds_df = inference_with_metrics(
                 video_file=video_file_abs_short,
@@ -200,12 +206,14 @@ class LitPose(LightningWork):
                 trainer=trainer,
             )
             self.status_ = "creating labeled video (short clip)"
+            self.progress = 0.0
             make_labeled_video(
                 video_file=video_file_abs_short,
                 preds_df=preds_df,
                 save_file=preds_file_short.replace(".csv", ".labeled.mp4"),
                 video_start_time=clip_start_sec,
                 confidence_thresh=cfg.eval.confidence_thresh_for_vid,
+                work=self,
             )
 
         # set flag for parent app
@@ -428,13 +436,17 @@ class TrainUI(LightningFlow):
             if status == "initialized" or status == "active":
                 self.st_infer_status[video_file] = "active"
                 # run inference (automatically reformats video for DALI)
+                if testing:
+                    remove_old = False
+                else:
+                    remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
                 self.works_dict[video_key].run(
                     action="run_inference",
                     model_dir=model_dir,
                     video_file="/" + video_file,
                     make_labeled_video_full=self.st_label_full,
                     make_labeled_video_clip=self.st_label_short,
-                    remove_old=not testing,  # remove bad format file by default
+                    remove_old=remove_old,
                 )
                 self.st_infer_status[video_file] = "complete"
 
@@ -473,7 +485,7 @@ class TrainUI(LightningFlow):
 
 def _render_streamlit_fn(state: AppState):
 
-    train_tab, right_column = st.columns([1,1])
+    train_tab, right_column = st.columns([1, 1])
     # add shadows around each column
     # box-shadow args: h-offset v-offset blur spread color
     st.markdown("""
@@ -518,7 +530,7 @@ def _render_streamlit_fn(state: AppState):
         )
         # expander = st.expander("Change Defaults")
         expander = st.expander(
-            "Expand to adjust maximum training epochs and select unsupervised losses")
+            "Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
@@ -545,19 +557,22 @@ def _render_streamlit_fn(state: AppState):
             st_loss_pcasv = False
         st_loss_temp = expander.checkbox("Temporal", value=True)
 
-        st.markdown(
-            """
-            #### Video handling options""",
-            help="Choose if you want to automatically run inference on the videos uploaded for "
-                 "labeling. **Warning** : Video traces will not be available in the "
-                 "Video Diagnostics tab if you choose “Do not run inference”"
-        )
-        st_train_label_opt = st.radio(
-            "",
-            options=[VIDEO_LABEL_NONE, VIDEO_LABEL_INFER, VIDEO_LABEL_INFER_LABEL],
-            label_visibility="collapsed",
-            index=1,  # default to inference but no labeled movie
-        )
+        # as of 04/2024 we are deprecating this option to streamline video handling
+        # video handling will now be solely carried out by the inference tab
+        # st.markdown(
+        #     """
+        #     #### Video handling options""",
+        #     help="Choose if you want to automatically run inference on the videos uploaded for "
+        #          "labeling. **Warning** : Video traces will not be available in the "
+        #          "Video Diagnostics tab if you choose “Do not run inference”"
+        # )
+        # st_train_label_opt = st.radio(
+        #     "",
+        #     options=[VIDEO_LABEL_NONE, VIDEO_LABEL_INFER, VIDEO_LABEL_INFER_LABEL],
+        #     label_visibility="collapsed",
+        #     index=1,  # default to inference but no labeled movie
+        # )
+        st_train_label_opt = VIDEO_LABEL_NONE
 
         st.markdown(
             """
@@ -591,7 +606,7 @@ def _render_streamlit_fn(state: AppState):
                     else:
                         st.text(status)
                     st.progress(
-                        p / 100.0, f"{m} progress ({status_ or status}: {int(p)}\% complete)"
+                        p / 100.0, f"model: {m}\n\n{status_ or status}: {int(p)}\% complete"
                     )
 
         if st_submit_button_train:
@@ -657,7 +672,8 @@ def _render_streamlit_fn(state: AppState):
             st_autorefresh(interval=2000, key="refresh_train_ui_submitted")
 
     with right_column:
-         with st.container():
+
+        with st.container():
             st.header(
                 body="Predict on New Videos",
                 help="Select your preferred inference model, then drag and drop your video "
@@ -670,28 +686,60 @@ def _render_streamlit_fn(state: AppState):
             )
 
             model_dir = st.selectbox(
-                "Choose model to run inference", sorted(state.trained_models, reverse=True))
+                "Select model to run inference", sorted(state.trained_models, reverse=True))
 
             # upload video files
             video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
             os.makedirs(video_dir, exist_ok=True)
 
-            # initialize the file uploader
-            uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+            # allow user to select video through uploading or already-uploaded video
+            video_select_option = st.radio(
+                "Video selection",
+                options=[
+                    VIDEO_SELECT_NEW,
+                    VIDEO_SELECT_TRAIN_INFER,
+                    VIDEO_SELECT_EXTRACT,
+                ],
+            )
 
-            # for each of the uploaded files
-            st_videos = []
-            for uploaded_file in uploaded_files:
-                # read it
-                bytes_data = uploaded_file.read()
-                # name it
-                filename = uploaded_file.name.replace(" ", "_")
-                filepath = os.path.join(video_dir, filename)
-                st_videos.append(filepath)
-                if not state.run_script_infer:
-                    # write the content of the file to the path, but not while processing
-                    with open(filepath, "wb") as f:
-                        f.write(bytes_data)
+            if video_select_option == VIDEO_SELECT_NEW:
+
+                # initialize the file uploader
+                uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+
+                # for each of the uploaded files
+                st_videos = []
+                for uploaded_file in uploaded_files:
+                    # read it
+                    bytes_data = uploaded_file.read()
+                    # name it
+                    filename = uploaded_file.name.replace(" ", "_")
+                    filepath = os.path.join(video_dir, filename)
+                    st_videos.append(filepath)
+                    if not state.run_script_infer:
+                        # write the content of the file to the path, but not while processing
+                        with open(filepath, "wb") as f:
+                            f.write(bytes_data)
+
+            elif video_select_option == VIDEO_SELECT_EXTRACT:
+
+                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+                st_videos = st.multiselect(
+                    "Select video files",
+                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
+                    help="These are videos used for labeled frame extraction",
+                )
+                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
+
+            elif video_select_option == VIDEO_SELECT_TRAIN_INFER:
+
+                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
+                st_videos = st.multiselect(
+                    "Select video files",
+                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
+                    help="These are videos previously used for inference",
+                )
+                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
 
             # allow user to select labeled video option
             st.markdown(
@@ -724,7 +772,7 @@ def _render_streamlit_fn(state: AppState):
                             try:
                                 p = state.works_dict[vid_].progress
                                 status_ = state.works_dict[vid_].status_
-                            except:
+                            except Exception:
                                 p = 100.0  # if work is deleted while accessing
                         else:
                             p = 100.0
@@ -733,7 +781,7 @@ def _render_streamlit_fn(state: AppState):
                     else:
                         st.text(status)
                     st.progress(
-                        p / 100.0, f"{vid} progress ({status_ or status}: {int(p)}\% complete)")
+                        p / 100.0, f"video: {vid}\n\n{status_ or status}: {int(p)}\% complete")
                 st.warning("waiting for existing inference to finish")
 
             # Lightning way of returning the parameters
@@ -752,45 +800,45 @@ def _render_streamlit_fn(state: AppState):
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-         st.markdown("----")
+        # st.markdown("----")
 
-         eks_tab = st.container()
-         with eks_tab:
-            st.header("Ensemble Selected Models")
-            selected_models = st.multiselect(
-                "Select models for ensembling",
-                sorted(state.trained_models, reverse=True),
-                help="Select which models you want to create an new ensemble model"
-            )
-
-            st_submit_button_eks = st.button(
-                "Create ensemble",
-                key="eks_unique_key_button",
-                disabled=(
-                    len(selected_models) < 2
-                    or state.run_script_train
-                    or state.run_script_infer
-                )
-            )
-
-            if st_submit_button_eks:
-
-                model_abs_paths = [
-                    os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
-                    for model_name in selected_models
-                ]
-
-                dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-                eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
-                # create a folder for the eks in the models project folder
-                os.makedirs(eks_folder_path, exist_ok=True)
-
-                text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
-
-                with open(text_file_path, 'w') as file:
-                    file.writelines(f"{path}\n" for path in model_abs_paths)
-
-                if os.path.exists(text_file_path):
-                    st.text(f"Ensemble {eks_folder_path} created!")
-
-                st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+        # eks_tab = st.container()
+        # with eks_tab:
+        #    st.header("Ensemble Selected Models")
+        #    selected_models = st.multiselect(
+        #        "Select models for ensembling",
+        #        sorted(state.trained_models, reverse=True),
+        #        help="Select which models you want to create an new ensemble model"
+        #    )
+        #
+        #    st_submit_button_eks = st.button(
+        #        "Create ensemble",
+        #        key="eks_unique_key_button",
+        #        disabled=(
+        #            len(selected_models) < 2
+        #            or state.run_script_train
+        #            or state.run_script_infer
+        #        )
+        #    )
+        #
+        #    if st_submit_button_eks:
+        #
+        #        model_abs_paths = [
+        #            os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
+        #            for model_name in selected_models
+        #        ]
+        #
+        #        dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+        #        eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
+        #        # create a folder for the eks in the models project folder
+        #        os.makedirs(eks_folder_path, exist_ok=True)
+        #
+        #        text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
+        #
+        #        with open(text_file_path, 'w') as file:
+        #            file.writelines(f"{path}\n" for path in model_abs_paths)
+        #
+        #        if os.path.exists(text_file_path):
+        #            st.text(f"Ensemble {eks_folder_path} created!")
+        #
+        #        st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")

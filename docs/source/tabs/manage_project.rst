@@ -6,10 +6,6 @@ Manage Project
 
 The first tab of the app is a project manager that allows you to create, load, and delete projects.
 
-.. note::
-
-    This tab does not appear in the demo app.
-
 * :ref:`Create new project <create_new_project>`
 * :ref:`Create new project from source (e.g. existing DLC project) <create_new_project_from_source>`
 * :ref:`Load existing project <load_existing_project>`
