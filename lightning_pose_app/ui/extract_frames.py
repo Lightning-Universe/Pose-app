@@ -318,9 +318,6 @@ class ExtractFramesUI(LightningFlow):
                         self.works_dict[video_key].stop()
                     del self.works_dict[video_key]
 
-        # set flag for parent app
-        self.work_is_done_extract_frames = True
-
     def _extract_frames_using_kmeans(
         self,
         video_files: Optional[list] = None,
@@ -346,6 +343,9 @@ class ExtractFramesUI(LightningFlow):
             work_kwargs=work_kwargs,
             testing=testing,
         )
+
+        # set flag for parent app
+        self.work_is_done_extract_frames = True
 
     def _extract_frames_using_model(
         self,

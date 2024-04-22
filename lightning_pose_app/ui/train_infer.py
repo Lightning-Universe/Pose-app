@@ -513,6 +513,12 @@ class TrainUI(LightningFlow):
         # set flag for parent app
         self.work_is_done_inference = True
 
+    def _run_eks(
+        self
+
+    ) -> None:
+        pass
+
     def _determine_dataset_type(self, **kwargs):
         """Check if labeled data directory contains context frames."""
         self.allow_context = is_context_dataset(
@@ -524,15 +530,23 @@ class TrainUI(LightningFlow):
         if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
+
             # check to see if we have a single model or an ensemble
             default_model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
             model_dir = kwargs.pop("model_dir", default_model_dir)
+
             if ENSEMBLE_MEMBER_FILENAME not in os.listdir(abspath(model_dir)):
                 # single model
                 self._run_inference(model_dirs=[model_dir], **kwargs)
             else:
-                # ensemble
-                pass
+                # run inference with ensemble
+                ensemble_list_file = os.path.join(model_dir, ENSEMBLE_MEMBER_FILENAME)
+                with open(abspath(ensemble_list_file), "r") as file:
+                    model_dirs = [line.strip() for line in file.readlines()]
+                self._run_inference(model_dirs=model_dirs, **kwargs)
+
+                # run eks on ensemble output
+                self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
 
         elif action == "determine_dataset_type":
             self._determine_dataset_type(**kwargs)
@@ -887,18 +901,27 @@ def _render_streamlit_fn(state: AppState):
                 ]
 
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-                eks_dir = os.path.join(
-                    state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}"
+                eks_dir = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}")
+
+                ensemble_file = create_ensemble_directory(
+                    ensemble_dir=eks_dir,
+                    model_dirs=model_abs_paths,
                 )
-                # create a folder for the eks in the models project folder
-                os.makedirs(eks_dir, exist_ok=True)
 
-                text_file_path = os.path.join(eks_folder_path, ENSEMBLE_MEMBER_FILENAME)
-
-                with open(text_file_path, 'w') as file:
-                    file.writelines(f"{path}\n" for path in model_abs_paths)
-
-                if os.path.exists(text_file_path):
-                    st.text(f"Ensemble {eks_folder_path} created!")
+                if os.path.exists(ensemble_file):
+                    st.text(f"Ensemble {eks_dir} created!")
 
                 st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+
+
+def create_ensemble_directory(ensemble_dir: str, model_dirs: list):
+
+    # create a folder for the ensemble
+    os.makedirs(ensemble_dir, exist_ok=True)
+
+    # save model paths in a text file
+    text_file_path = os.path.join(ensemble_dir, ENSEMBLE_MEMBER_FILENAME)
+    with open(text_file_path, 'w') as file:
+        file.writelines(f"{path}\n" for path in model_dirs)
+
+    return text_file_path

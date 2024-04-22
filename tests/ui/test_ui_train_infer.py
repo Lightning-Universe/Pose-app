@@ -3,12 +3,14 @@ import os
 import yaml
 
 from lightning_pose_app import (
+    ENSEMBLE_MEMBER_FILENAME,
     LIGHTNING_POSE_DIR,
     MODELS_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODEL_VIDEO_PREDS_TRAIN_DIR,
     VIDEOS_DIR,
 )
+from lightning_pose_app.ui.train_infer import create_ensemble_directory
 
 
 def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
@@ -165,9 +167,9 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow.st_train_label_opt = VIDEO_LABEL_NONE  # don't run inference on vids
     flow.st_max_epochs = 1
 
-    # ----------------
+    # ----------------------------
     # helper flow
-    # ----------------
+    # ----------------------------
     # load default config and pass to project manager
     config_dir = os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs")
     default_config_dict = yaml.safe_load(open(os.path.join(config_dir, "config_default.yaml")))
@@ -186,9 +188,9 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
         },
     )
 
-    # ----------------
+    # ----------------------------
     # train 0
-    # ----------------
+    # ----------------------------
     flow.st_datetime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
     flow.st_train_flag["super"] = True
     flow.st_rng_seed_data_pt = [rng_seed_0]
@@ -219,9 +221,9 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert len(config_dict["model"]["losses_to_use"]) == 0
     assert config_dict["training"]["rng_seed_data_pt"] == rng_seed_0
 
-    # ----------------
+    # ----------------------------
     # train 1 (for eks)
-    # ----------------
+    # ----------------------------
     rng_seed_1 = 1
     flow.st_rng_seed_data_pt = [rng_seed_1]
     flow.st_train_status = {}
@@ -238,12 +240,13 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert len(config_dict["model"]["losses_to_use"]) == 0
     assert config_dict["training"]["rng_seed_data_pt"] == rng_seed_1
 
-    # ----------------
-    # infer
-    # ----------------
+    # ----------------------------
+    # inference (single model)
+    # ----------------------------
     flow.st_inference_model = model_name_0
     flow.st_label_full = False
     flow.st_label_short = True
+    flow.st_infer_status = {}
     flow.run(action="run_inference", video_files=[video_file], testing=True)
 
     # check flow state
@@ -254,16 +257,42 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert len(flow.works_dict) == 0
 
     # check output files
-    results_dir_1 = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
-    results_artifacts_1 = os.listdir(results_dir_1)
+    results_dir_0a = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_0a = os.listdir(results_dir_0a)
     preds = os.path.basename(video_file).replace(".mp4", ".csv")
-    assert preds in results_artifacts_1
-    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_1
-    assert preds.replace(".csv", ".labeled.mp4") not in results_artifacts_1
-    assert preds.replace(".csv", ".short.mp4") in results_artifacts_1
-    assert preds.replace(".csv", ".short.csv") in results_artifacts_1
-    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_1
-    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_1
+    assert preds in results_artifacts_0a
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_0a
+    assert preds.replace(".csv", ".labeled.mp4") not in results_artifacts_0a
+    assert preds.replace(".csv", ".short.mp4") in results_artifacts_0a
+    assert preds.replace(".csv", ".short.csv") in results_artifacts_0a
+    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_0a
+    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_0a
+
+    # ----------------------------
+    # inference (ensemble)
+    # ----------------------------
+    st_datetime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_eks")
+    ensemble_dir = os.path.join(tmp_proj_dir, MODELS_DIR, st_datetime)
+    create_ensemble_directory(
+        ensemble_dir=ensemble_dir,
+        model_dirs=[
+            "/" + os.path.join(tmp_proj_dir, MODELS_DIR, model_name_0),
+            "/" + os.path.join(tmp_proj_dir, MODELS_DIR, model_name_1),
+        ],
+    )
+
+    flow.st_inference_model = st_datetime  # takes relative path
+    flow.st_label_full = False
+    flow.st_label_short = False
+    flow.st_infer_status = {}
+    flow.run(action="run_inference", video_files=[video_file], testing=True)
+
+    # check flow state
+    assert len(flow.st_infer_status) == 2  # one for each ensemble member
+    for key, val in flow.st_infer_status.items():
+        assert val == "complete"
+    assert flow.work_is_done_inference
+    assert len(flow.works_dict) == 0
 
     # ----------------------------
     # run eks, output full labeled
@@ -286,3 +315,24 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     # ----------------
     del flowp
     del flow
+
+
+def test_create_ensemble_directory(tmpdir):
+
+    ensemble_dir = os.path.join(tmpdir, "ensemble_dir")
+    model_dirs = [
+        os.path.join(tmpdir, "model_dir_0"),
+        os.path.join(tmpdir, "model_dir_1"),
+    ]
+    create_ensemble_directory(ensemble_dir=ensemble_dir, model_dirs=model_dirs)
+
+    # check file exists
+    ensemble_list_file = os.path.join(ensemble_dir, ENSEMBLE_MEMBER_FILENAME)
+    assert os.path.isfile(ensemble_list_file)
+
+    # check file contains the correct paths
+    with open(ensemble_list_file, "r") as file:
+        model_dirs_saved = [line.strip() for line in file.readlines()]
+    assert len(model_dirs_saved) == len(model_dirs)
+    for model_dir in model_dirs:
+        assert model_dir in model_dirs_saved
