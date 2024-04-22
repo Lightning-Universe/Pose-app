@@ -18,6 +18,7 @@ from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app import (
     __version__,
+    ENSEMBLE_MEMBER_FILENAME,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODELS_DIR,
@@ -312,12 +313,19 @@ class TrainUI(LightningFlow):
         # track number of times user hits buttons; used internally and externally
         self.submit_count_train = 0
 
-        # output from the UI (all will be dicts with keys=models, except st_max_epochs)
+        # output from the UI
         self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
         self.st_losses = []  # for both semi-super and semi-super context models
-        self.st_datetimes = {}
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
+        self.st_rng_seed_data_pt = [rng_seed_data_pt_default]
+        self.st_train_flag = {
+            "super": False,
+            "semisuper": False,
+            "super-ctx": False,
+            "semisuper-ctx": False,
+        }
+        self.st_datetime = None
 
         # ------------------------
         # Inference
@@ -343,6 +351,7 @@ class TrainUI(LightningFlow):
         self,
         config_filename: Optional[str] = None,
         video_dirname: str = VIDEOS_DIR,
+        testing: bool = False,
     ) -> None:
 
         if config_filename is None:
@@ -397,34 +406,30 @@ class TrainUI(LightningFlow):
             config_overrides["training"]["check_val_every_n_epoch"] = 1
             config_overrides["training"]["log_every_n_steps"] = 1
 
-        # train models
-        for m in self.st_train_status.keys():
-            status = self.st_train_status[m]
-            if status == "initialized" or status == "active":
-                self.st_train_status[m] = "active"
+        # populate status dict
+        # this dict controls execution logic as well as progress bar updates in the UI
+        # cannot do this in the other nested for loops otherwise not all entries are initialized
+        # at the same time, even if called before launching the works
+        for m, (model_type, train_flag) in enumerate(self.st_train_flag.items()):
+            for rng in self.st_rng_seed_data_pt:
+                if testing:
+                    model_type += "_PYTEST"
+                model_name = f"{self.st_datetime[:-2]}{m:02}_{model_type}-{rng}"
+                if model_name not in self.st_train_status.keys():
+                    self.st_train_status[model_name] = "initialized" if train_flag else "none"
 
-                # model save dir; depends on the model name pattern "<model_type> (rng=xx)"
-                ri0 = m.find("=")
-                ri1 = m.find(")")
-                rng = m[ri0+1:ri1]
-                if m.find("semisuper ctx") > -1:
-                    model_date = self.st_datetimes["semisuper ctx"]
-                elif m.find("super ctx") > -1:
-                    model_date = self.st_datetimes["super ctx"]
-                elif m.find("semisuper") > -1:
-                    model_date = self.st_datetimes["semisuper"]
-                elif m.find("super") > -1:
-                    model_date = self.st_datetimes["super"]
-                model_name = f"{model_date}-{rng}"
-                results_dir = os.path.join(base_dir, MODELS_DIR, model_name)
+        # train models
+        for model_name, status in self.st_train_status.items():
+            if status == "initialized" or status == "active":
+                self.st_train_status[model_name] = "active"
 
                 # update config
-                config_overrides["training"]["rng_seed_data_pt"] = int(rng)
-                if m.find("semi") > -1:
+                config_overrides["training"]["rng_seed_data_pt"] = int(model_name.split("-")[-1])
+                if model_name.find("semi") > -1:
                     config_overrides["model"]["losses_to_use"] = self.st_losses
                 else:
                     config_overrides["model"]["losses_to_use"] = []
-                if m.find("ctx") > -1:
+                if model_name.find("ctx") > -1:
                     config_overrides["model"]["model_type"] = "heatmap_mhcrnn"
 
                 # start training
@@ -432,65 +437,78 @@ class TrainUI(LightningFlow):
                     action="train",
                     config_file=os.path.join(self.proj_dir, config_filename),
                     config_overrides=config_overrides,
-                    results_dir=results_dir,
+                    results_dir=os.path.join(base_dir, MODELS_DIR, model_name),
                 )
 
                 # post-training cleanup
-                self.st_train_status[m] = "complete"
+                self.st_train_status[model_name] = "complete"
                 self.work.progress = 0.0  # reset for next model
 
         self.submit_count_train += 1
 
     def _run_inference(
         self,
-        model_dir: Optional[str] = None,
+        model_dirs: Optional[list] = None,
         video_files: Optional[list] = None,
         testing: bool = False,
     ) -> None:
 
         self.work_is_done_inference = False
 
-        if not model_dir:
-            model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+        if not model_dirs:
+            model_dirs = [os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)]
         if not video_files:
             video_files = self.st_inference_videos
 
+        # populate status dict
+        # this dict controls execution logic as well as progress bar updates in the UI
+        # cannot do this in the other nested for loops otherwise not all entries are initialized
+        # at the same time, even if called before launching the works
+        for model_dir in model_dirs:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.st_infer_status.keys():
+                    self.st_infer_status[worker_key] = "initialized"
+
         # launch works (sequentially for now)
-        for video_file in video_files:
-            video_key = video_file.replace(".", "_")  # keys cannot contain "."
-            if video_key not in self.works_dict.keys():
-                self.works_dict[video_key] = LitPose(
-                    cloud_compute=CloudCompute("gpu"),
-                    parallel=is_running_in_cloud(),
-                )
-            status = self.st_infer_status[video_file]
-            if status == "initialized" or status == "active":
-                self.st_infer_status[video_file] = "active"
-                # run inference (automatically reformats video for DALI)
-                if testing:
-                    remove_old = False
-                else:
-                    remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
-                self.works_dict[video_key].run(
-                    action="run_inference",
-                    model_dir=model_dir,
-                    video_file="/" + video_file,
-                    make_labeled_video_full=self.st_label_full,
-                    make_labeled_video_clip=self.st_label_short,
-                    remove_old=remove_old,
-                )
-                self.st_infer_status[video_file] = "complete"
+        for model_dir in model_dirs:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.works_dict.keys():
+                    self.works_dict[worker_key] = LitPose(
+                        cloud_compute=CloudCompute("gpu"),
+                        parallel=is_running_in_cloud(),
+                    )
+                status = self.st_infer_status[worker_key]
+                if status == "initialized" or status == "active":
+                    self.st_infer_status[worker_key] = "active"
+                    # run inference (automatically reformats video for DALI)
+                    if testing:
+                        remove_old = False
+                    else:
+                        remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
+                    self.works_dict[worker_key].run(
+                        action="run_inference",
+                        model_dir=model_dir,
+                        video_file="/" + video_file,
+                        make_labeled_video_full=self.st_label_full,
+                        make_labeled_video_clip=self.st_label_short,
+                        remove_old=remove_old,
+                    )
+                    self.st_infer_status[worker_key] = "complete"
 
         # clean up works
         while len(self.works_dict) > 0:
-            for video_key in list(self.works_dict):
-                if (video_key in self.works_dict.keys()) \
-                        and self.works_dict[video_key].work_is_done_inference:
+            for worker_key in list(self.works_dict):
+                if (worker_key in self.works_dict.keys()) \
+                        and self.works_dict[worker_key].work_is_done_inference:
                     # kill work
-                    _logger.info(f"killing work from video {video_key}")
+                    _logger.info(f"killing work from video {worker_key}")
                     if not testing:  # cannot run stop() from tests for some reason
-                        self.works_dict[video_key].stop()
-                    del self.works_dict[video_key]
+                        self.works_dict[worker_key].stop()
+                    del self.works_dict[worker_key]
 
         # set flag for parent app
         self.work_is_done_inference = True
@@ -506,7 +524,16 @@ class TrainUI(LightningFlow):
         if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
-            self._run_inference(**kwargs)
+            # check to see if we have a single model or an ensemble
+            default_model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+            model_dir = kwargs.pop("model_dir", default_model_dir)
+            if ENSEMBLE_MEMBER_FILENAME not in os.listdir(abspath(model_dir)):
+                # single model
+                self._run_inference(model_dirs=[model_dir], **kwargs)
+            else:
+                # ensemble
+                pass
+
         elif action == "determine_dataset_type":
             self._determine_dataset_type(**kwargs)
 
@@ -618,7 +645,7 @@ def _render_streamlit_fn(state: AppState):
             #### Select models to train
             """
         )
-        st_train_bool = {
+        st_train_flag = {
             "super": st.checkbox("Supervised", value=True),
             "semisuper": st.checkbox("Semi-supervised", value=True),
             "super-ctx": st.checkbox("Supervised context", value=True)
@@ -631,8 +658,7 @@ def _render_streamlit_fn(state: AppState):
 
         # give user training updates
         if state.run_script_train:
-            for m in state.st_train_status.keys():
-                status = state.st_train_status[m]
+            for m, status in state.st_train_status.items():
                 if status != "none":
                     status_ = None  # define more detailed status info from work
                     if status == "initialized":
@@ -644,8 +670,12 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
+
+                    rng = m.split("-")[-1]
                     st.progress(
-                        p / 100.0, f"model: {m}\n\n{status_ or status}: {int(p)}\% complete"
+                        p / 100.0,
+                        f"model: {m} (rng={rng})\n\n"
+                        f"{status_ or status}: {int(p)}\% complete"
                     )
 
         if st_submit_button_train:
@@ -666,23 +696,12 @@ def _render_streamlit_fn(state: AppState):
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
+            state.st_rng_seed_data_pt = st_rng_seed_data_pt
             state.st_train_label_opt = st_train_label_opt
-
-            # st_train_status controls execution logic as well as progress bar updates in the UI
-            st_train_status = {}
-            for model_type, train_bool in st_train_bool.items():
-                for rng in st_rng_seed_data_pt:
-                    model_name = f"{model_type} (rng={rng})"
-                    st_train_status[model_name] = "initialized" if train_bool else "none"
-            state.st_train_status = st_train_status
-
-            # set model times
-            st_datetimes = {}
+            state.st_train_flag = st_train_flag
+            state.st_train_status = {}  # reset; the Flow will update this
             dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-            # force different datetimes for different model types
-            for m, model_type in enumerate(st_train_bool.keys()):
-                st_datetimes[model_type] = dtime[:-2] + f"{m:02}_{model_type}"
-            state.st_datetimes = st_datetimes
+            state.st_datetime = dtime
 
             # construct semi-supervised loss list
             semi_losses = []
@@ -701,7 +720,8 @@ def _render_streamlit_fn(state: AppState):
 
     with right_column:
 
-        with st.container():
+        inference_container = st.container()
+        with inference_container:
             st.header(
                 body="Predict on New Videos",
                 help="Select your preferred inference model, then drag and drop your video "
@@ -789,17 +809,17 @@ def _render_streamlit_fn(state: AppState):
                 disabled=len(st_videos) == 0 or state.run_script_infer,
             )
             if state.run_script_infer:
-                keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
-                for vid, status in state.st_infer_status.items():
+                # cannot directly call keys()?
+                worker_keys = [k for k, _ in state.works_dict.items()]
+                for worker_key, status in state.st_infer_status.items():
                     status_ = None  # more detailed status provided by work
                     if status == "initialized":
                         p = 0.0
                     elif status == "active":
-                        vid_ = vid.replace(".", "_")
-                        if vid_ in keys:
+                        if worker_key in worker_keys:
                             try:
-                                p = state.works_dict[vid_].progress
-                                status_ = state.works_dict[vid_].status_
+                                p = state.works_dict[worker_key].progress
+                                status_ = state.works_dict[worker_key].status_
                             except Exception:
                                 p = 100.0  # if work is deleted while accessing
                         else:
@@ -808,8 +828,15 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
+
+                    vid_, model_ = worker_key.split("---")
+                    model_ = "/".join(model_.split("/")[-2:])
+                    vid_ = "/".join(vid_.split("/")[-2:])
                     st.progress(
-                        p / 100.0, f"video: {vid}\n\n{status_ or status}: {int(p)}\% complete")
+                        p / 100.0,
+                        f"model: {model_}\n\nvideo: {vid_}\n\n"
+                        f"{status_ or status}: {int(p)}\% complete")
+
                 st.warning("waiting for existing inference to finish")
 
             # Lightning way of returning the parameters
@@ -819,7 +846,7 @@ def _render_streamlit_fn(state: AppState):
 
                 state.st_inference_model = model_dir
                 state.st_inference_videos = st_videos
-                state.st_infer_status = {s: "initialized" for s in st_videos}
+                state.st_infer_status = {}  # reset; the Flow will update this
                 state.st_label_short = st_label_short
                 state.st_label_full = st_label_full
                 st.text("Request submitted!")
@@ -828,45 +855,50 @@ def _render_streamlit_fn(state: AppState):
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-        # st.markdown("----")
+        st.markdown("----")
 
-        # eks_tab = st.container()
-        # with eks_tab:
-        #    st.header("Ensemble Selected Models")
-        #    selected_models = st.multiselect(
-        #        "Select models for ensembling",
-        #        sorted(state.trained_models, reverse=True),
-        #        help="Select which models you want to create an new ensemble model"
-        #    )
-        #
-        #    st_submit_button_eks = st.button(
-        #        "Create ensemble",
-        #        key="eks_unique_key_button",
-        #        disabled=(
-        #            len(selected_models) < 2
-        #            or state.run_script_train
-        #            or state.run_script_infer
-        #        )
-        #    )
-        #
-        #    if st_submit_button_eks:
-        #
-        #        model_abs_paths = [
-        #            os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
-        #            for model_name in selected_models
-        #        ]
-        #
-        #        dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-        #        eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
-        #        # create a folder for the eks in the models project folder
-        #        os.makedirs(eks_folder_path, exist_ok=True)
-        #
-        #        text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
-        #
-        #        with open(text_file_path, 'w') as file:
-        #            file.writelines(f"{path}\n" for path in model_abs_paths)
-        #
-        #        if os.path.exists(text_file_path):
-        #            st.text(f"Ensemble {eks_folder_path} created!")
-        #
-        #        st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+        eks_tab = st.container()
+        with eks_tab:
+
+            st.header("Ensemble Selected Models")
+            selected_models = st.multiselect(
+               "Select models for ensembling",
+               sorted(state.trained_models, reverse=True),
+               help="Select which models you want to create an new ensemble model",
+            )
+            eks_model_name = st.text_input(label="Add ensemble name", value="eks")
+            eks_model_name = eks_model_name.replace(" ", "_")
+
+            st_submit_button_eks = st.button(
+                "Create ensemble",
+                key="eks_unique_key_button",
+                disabled=(
+                    len(selected_models) < 2
+                    or state.run_script_train
+                    or state.run_script_infer
+                )
+            )
+
+            if st_submit_button_eks:
+
+                model_abs_paths = [
+                   os.path.join(state.proj_dir, MODELS_DIR, model_name)
+                   for model_name in selected_models
+                ]
+
+                dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+                eks_dir = os.path.join(
+                    state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}"
+                )
+                # create a folder for the eks in the models project folder
+                os.makedirs(eks_dir, exist_ok=True)
+
+                text_file_path = os.path.join(eks_folder_path, ENSEMBLE_MEMBER_FILENAME)
+
+                with open(text_file_path, 'w') as file:
+                    file.writelines(f"{path}\n" for path in model_abs_paths)
+
+                if os.path.exists(text_file_path):
+                    st.text(f"Ensemble {eks_folder_path} created!")
+
+                st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")

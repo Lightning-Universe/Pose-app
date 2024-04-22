@@ -147,7 +147,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
 
 
 def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
-    """Test private methods here; test run method externally from the UI object."""
+    """Test run methods of TrainUI object."""
 
     from lightning_pose_app.ui.project import ProjectUI
     from lightning_pose_app.ui.train_infer import TrainUI, VIDEO_LABEL_NONE
@@ -157,19 +157,13 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow = TrainUI()
 
     # set attributes
-    rng_seed = 0
+    rng_seed_0 = 0
     flow.proj_dir = "/" + str(tmp_proj_dir)
     flow.n_labeled_frames = 90
     flow.n_total_frames = 90
-    flow.st_train_status = {
-        f"super (rng={rng_seed})": "initialized",
-        f"semisuper (rng={rng_seed})": None,
-        f"super ctx (rng={rng_seed})": None,
-        f"semisuper ctx (rng={rng_seed})": None,
-    }
     flow.st_losses = []
     flow.st_train_label_opt = VIDEO_LABEL_NONE  # don't run inference on vids
-    flow.st_max_epochs = 2
+    flow.st_max_epochs = 1
 
     # ----------------
     # helper flow
@@ -188,20 +182,26 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
         action="update_project_config",
         new_vals_dict={
             "data": {"num_keypoints": 17},
-            "training": {"check_val_every_n_epoch": 2},  # match flow.st_max_epochs
+            "training": {"check_val_every_n_epoch": 1},  # match flow.st_max_epochs
         },
     )
 
     # ----------------
-    # train
+    # train 0
     # ----------------
-    st_datetimes_0 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
-    flow.st_datetimes = {"super": st_datetimes_0}
-    model_name_0 = f"{st_datetimes_0}-{rng_seed}"
+    flow.st_datetime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+    flow.st_train_flag["super"] = True
+    flow.st_rng_seed_data_pt = [rng_seed_0]
+    flow.st_train_status = {}
     flow.run(action="train", config_filename=f"model_config_{proj_name}.yaml")
 
     # check flow state
-    assert flow.st_train_status[f"super (rng={rng_seed})"] == "complete"
+    assert len(flow.st_train_status.keys()) == 4  # 4 potential models to fit
+    assert sum([val == "complete" for _, val in flow.st_train_status.items()]) == 1
+    for key, val in flow.st_train_status.items():
+        if val == "complete":
+            model_name_0 = key
+            break
     assert flow.work.progress == 0.0
     assert flow.work.work_is_done_training
 
@@ -213,17 +213,43 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert "lightning_logs" not in results_artifacts_0
     assert "video_preds" not in results_artifacts_0
 
+    # check config
+    config_file = os.path.join(results_dir_0, "config.yaml")
+    config_dict = yaml.safe_load(open(config_file))
+    assert len(config_dict["model"]["losses_to_use"]) == 0
+    assert config_dict["training"]["rng_seed_data_pt"] == rng_seed_0
+
+    # ----------------
+    # train 1 (for eks)
+    # ----------------
+    rng_seed_1 = 1
+    flow.st_rng_seed_data_pt = [rng_seed_1]
+    flow.st_train_status = {}
+    flow.run(action="train", config_filename=f"model_config_{proj_name}.yaml")
+
+    # check
+    for key, val in flow.st_train_status.items():
+        if val == "complete":
+            model_name_1 = key
+            break
+    results_dir_1 = os.path.join(base_dir, MODELS_DIR, model_name_1)
+    config_file = os.path.join(results_dir_1, "config.yaml")
+    config_dict = yaml.safe_load(open(config_file))
+    assert len(config_dict["model"]["losses_to_use"]) == 0
+    assert config_dict["training"]["rng_seed_data_pt"] == rng_seed_1
+
     # ----------------
     # infer
     # ----------------
-    flow.st_infer_status[video_file] = "initialized"
     flow.st_inference_model = model_name_0
     flow.st_label_full = False
     flow.st_label_short = True
     flow.run(action="run_inference", video_files=[video_file], testing=True)
 
     # check flow state
-    assert flow.st_infer_status[video_file] == "complete"
+    keys = list(flow.st_infer_status.keys())
+    assert len(keys) == 1
+    assert flow.st_infer_status[keys[0]] == "complete"
     assert flow.work_is_done_inference
     assert len(flow.works_dict) == 0
 
@@ -238,6 +264,16 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert preds.replace(".csv", ".short.csv") in results_artifacts_1
     assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_1
     assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_1
+
+    # ----------------------------
+    # run eks, output full labeled
+    # ----------------------------
+    # make 2 model folders, save mock pred csv files there
+    # make ensemble folder
+    # work._run_eks()  # TODO
+    # check that prediction csv file is saved in ensemble folder
+    # check that temporal norm metric file is saved
+    # check that labeled video file is saved
 
     # ----------------
     # determine type
