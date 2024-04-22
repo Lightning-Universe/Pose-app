@@ -157,16 +157,17 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow = TrainUI()
 
     # set attributes
+    rng_seed = 0
     flow.proj_dir = "/" + str(tmp_proj_dir)
     flow.n_labeled_frames = 90
     flow.n_total_frames = 90
     flow.st_train_status = {
-        "super": "initialized",
-        "semisuper": None,
-        "super ctx": None,
-        "semisuper ctx": None,
+        f"super (rng={rng_seed})": "initialized",
+        f"semisuper (rng={rng_seed})": None,
+        f"super ctx (rng={rng_seed})": None,
+        f"semisuper ctx (rng={rng_seed})": None,
     }
-    flow.st_losses = {"super": []}
+    flow.st_losses = []
     flow.st_train_label_opt = VIDEO_LABEL_NONE  # don't run inference on vids
     flow.st_max_epochs = 2
 
@@ -194,12 +195,13 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     # ----------------
     # train
     # ----------------
-    model_name_0 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
-    flow.st_datetimes = {"super": model_name_0}
+    st_datetimes_0 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
+    flow.st_datetimes = {"super": st_datetimes_0}
+    model_name_0 = f"{st_datetimes_0}-{rng_seed}"
     flow.run(action="train", config_filename=f"model_config_{proj_name}.yaml")
 
     # check flow state
-    assert flow.st_train_status["super"] == "complete"
+    assert flow.st_train_status[f"super (rng={rng_seed})"] == "complete"
     assert flow.work.progress == 0.0
     assert flow.work.work_is_done_training
 
