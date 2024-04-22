@@ -314,12 +314,10 @@ class TrainUI(LightningFlow):
 
         # output from the UI (all will be dicts with keys=models, except st_max_epochs)
         self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
-        self.st_losses = {}
+        self.st_losses = []  # for both semi-super and semi-super context models
         self.st_datetimes = {}
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
-        self.st_rng_seed_data_pt_ = rng_seed_data_pt_default
-        self.st_train_ensemble_number = 0
 
         # ------------------------
         # Inference
@@ -341,18 +339,10 @@ class TrainUI(LightningFlow):
         self.st_label_short = True
         self.st_label_full = False
 
-    @property
-    def st_rng_seed_data_pt(self):
-        if len(np.unique(self.st_rng_seed_data_pt_)) == len(self.st_rng_seed_data_pt_):
-            return self.st_rng_seed_data_pt_
-        else:
-            return np.unique(self.st_rng_seed_data_pt_).tolist()  # hack to fix duplication bug
-
     def _train(
         self,
         config_filename: Optional[str] = None,
         video_dirname: str = VIDEOS_DIR,
-        rng_seed_data_pt: int = 0,
     ) -> None:
 
         if config_filename is None:
@@ -393,9 +383,9 @@ class TrainUI(LightningFlow):
             },
             "training": {
                 "imgaug": "dlc",
+                "check_val_every_n_epoch": 10,
                 "log_every_n_steps": 5,
                 "max_epochs": self.st_max_epochs,
-                "rng_seed_data_pt": rng_seed_data_pt,
             }
         }
 
@@ -403,21 +393,39 @@ class TrainUI(LightningFlow):
         if self.n_labeled_frames <= 20:
             config_overrides["training"]["log_every_n_steps"] = 1
             config_overrides["training"]["train_batch_size"] = 1
+        if self.st_max_epochs < 10:
+            config_overrides["training"]["check_val_every_n_epoch"] = 1
+            config_overrides["training"]["log_every_n_steps"] = 1
 
         # train models
-        for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
+        for m in self.st_train_status.keys():
             status = self.st_train_status[m]
             if status == "initialized" or status == "active":
                 self.st_train_status[m] = "active"
 
+                # model save dir; depends on the model name pattern "<model_type> (rng=xx)"
+                ri0 = m.find("=")
+                ri1 = m.find(")")
+                rng = m[ri0+1:ri1]
+                if m.find("semisuper ctx") > -1:
+                    model_date = self.st_datetimes["semisuper ctx"]
+                elif m.find("super ctx") > -1:
+                    model_date = self.st_datetimes["super ctx"]
+                elif m.find("semisuper") > -1:
+                    model_date = self.st_datetimes["semisuper"]
+                elif m.find("super") > -1:
+                    model_date = self.st_datetimes["super"]
+                model_name = f"{model_date}-{rng}"
+                results_dir = os.path.join(base_dir, MODELS_DIR, model_name)
+
                 # update config
-                config_overrides["model"]["losses_to_use"] = self.st_losses[m]
+                config_overrides["training"]["rng_seed_data_pt"] = int(rng)
+                if m.find("semi") > -1:
+                    config_overrides["model"]["losses_to_use"] = self.st_losses
+                else:
+                    config_overrides["model"]["losses_to_use"] = []
                 if m.find("ctx") > -1:
                     config_overrides["model"]["model_type"] = "heatmap_mhcrnn"
-
-                # model save dir
-                model_name = f"{self.st_datetimes[m]}-{rng_seed_data_pt}"
-                results_dir = os.path.join(base_dir, MODELS_DIR, model_name)
 
                 # start training
                 self.work.run(
@@ -496,22 +504,7 @@ class TrainUI(LightningFlow):
 
     def run(self, action: str, **kwargs) -> None:
         if action == "train":
-
-            if "rng_seed_data_pt" in kwargs.keys():
-                self._train(**kwargs)
-            else:
-                # loop over rng seeds
-                for rng_idx, rng in enumerate(self.st_rng_seed_data_pt):
-                    # train all model types
-                    self.run(action="train", rng_seed_data_pt=rng, **kwargs)
-                    # update model count for UI
-                    self.st_train_ensemble_number = rng_idx + 1
-                    # reset train statuses for selected models
-                    if self.st_train_ensemble_number != len(self.st_rng_seed_data_pt):
-                        for key, val in self.st_train_status.items():
-                            if val == "complete":
-                                self.st_train_status[key] = "initialized"
-
+            self._train(**kwargs)
         elif action == "run_inference":
             self._run_inference(**kwargs)
         elif action == "determine_dataset_type":
@@ -625,31 +618,23 @@ def _render_streamlit_fn(state: AppState):
             #### Select models to train
             """
         )
-        st_train_super = st.checkbox("Supervised", value=True)
-        st_train_semisuper = st.checkbox("Semi-supervised", value=True)
-        if state.allow_context:
-            st_train_super_ctx = st.checkbox("Supervised context", value=True)
-            st_train_semisuper_ctx = st.checkbox("Semi-supervised context", value=True)
-        else:
-            st_train_super_ctx = False
-            st_train_semisuper_ctx = False
+        st_train_bool = {
+            "super": st.checkbox("Supervised", value=True),
+            "semisuper": st.checkbox("Semi-supervised", value=True),
+            "super-ctx": st.checkbox("Supervised context", value=True)
+            if state.allow_context else False,
+            "semisuper-ctx": st.checkbox("Semi-supervised context", value=True)
+            if state.allow_context else False,
+        }
 
         st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
 
         # give user training updates
         if state.run_script_train:
-
-            if len(st_rng_seed_data_pt) > 1:
-                # print ensemble member progress
-                a = state.st_train_ensemble_number
-                b = len(np.unique(state.st_rng_seed_data_pt_))
-                progress_value = min((a + 1) / b, 1)
-                st.progress(progress_value, f"Training on seed {a + 1} of {b}")
-
-            for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
-                if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
-                    status = state.st_train_status[m]
-                    status_ = None  # more detailed status info from work
+            for m in state.st_train_status.keys():
+                status = state.st_train_status[m]
+                if status != "none":
+                    status_ = None  # define more detailed status info from work
                     if status == "initialized":
                         p = 0.0
                     elif status == "active":
@@ -681,15 +666,23 @@ def _render_streamlit_fn(state: AppState):
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
-            state.st_train_ensemble_number = 0
-            state.st_rng_seed_data_pt_ = st_rng_seed_data_pt
             state.st_train_label_opt = st_train_label_opt
-            state.st_train_status = {
-                "super": "initialized" if st_train_super else "none",
-                "semisuper": "initialized" if st_train_semisuper else "none",
-                "super ctx": "initialized" if st_train_super_ctx else "none",
-                "semisuper ctx": "initialized" if st_train_semisuper_ctx else "none",
-            }
+
+            # st_train_status controls execution logic as well as progress bar updates in the UI
+            st_train_status = {}
+            for model_type, train_bool in st_train_bool.items():
+                for rng in st_rng_seed_data_pt:
+                    model_name = f"{model_type} (rng={rng})"
+                    st_train_status[model_name] = "initialized" if train_bool else "none"
+            state.st_train_status = st_train_status
+
+            # set model times
+            st_datetimes = {}
+            dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+            # force different datetimes for different model types
+            for m, model_type in enumerate(st_train_bool.keys()):
+                st_datetimes[model_type] = dtime[:-2] + f"{m:02}_{model_type}"
+            state.st_datetimes = st_datetimes
 
             # construct semi-supervised loss list
             semi_losses = []
@@ -699,29 +692,8 @@ def _render_streamlit_fn(state: AppState):
                 semi_losses.append("pca_singleview")
             if st_loss_temp:
                 semi_losses.append("temporal")
-            state.st_losses = {
-                "super": [],
-                "semisuper": semi_losses,
-                "super ctx": [],
-                "semisuper ctx": semi_losses,
-            }
+            state.st_losses = semi_losses
 
-            # set model times
-            st_datetimes = {}
-            dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-            # force different datetimes
-            for i in range(4):
-                if i == 0:  # supervised model
-                    st_datetimes["super"] = dtime[:-2] + "00_super"
-                if i == 1:  # semi-supervised model
-                    st_datetimes["semisuper"] = dtime[:-2] + "01_semisuper"
-                if i == 2:  # supervised context model
-                    st_datetimes["super ctx"] = dtime[:-2] + "02_super-ctx"
-                if i == 3:  # semi-supervised context model
-                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03_semisuper-ctx"
-
-            # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
-            state.st_datetimes = st_datetimes
             st.text("Model training launched!")
             state.run_script_train = True  # must the last to prevent race condition
             # force rerun to show "waiting for existing..." message
