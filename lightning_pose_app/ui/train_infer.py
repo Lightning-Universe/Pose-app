@@ -7,6 +7,7 @@ from typing import Optional
 
 import lightning.pytorch as pl
 import numpy as np
+import pandas as pd
 import streamlit as st
 import yaml
 from lightning.app import CloudCompute, LightningFlow, LightningWork
@@ -67,6 +68,7 @@ class LitPose(LightningWork):
 
         self.work_is_done_training = False
         self.work_is_done_inference = False
+        self.work_is_done_eks = False
         self.count = 0
 
     def _train(
@@ -97,8 +99,8 @@ class LitPose(LightningWork):
         self,
         model_dir: str,
         video_file: str,
-        make_labeled_video_full: bool,
-        make_labeled_video_clip: bool,
+        make_labeled_video_full: bool = False,
+        make_labeled_video_clip: bool = False,
     ):
 
         from lightning_pose.utils.io import ckpt_path_from_base_path
@@ -221,6 +223,75 @@ class LitPose(LightningWork):
         # set flag for parent app
         self.work_is_done_inference = True
 
+    def _run_eks(
+        self,
+        ensemble_dir: str,
+        model_dirs: list,
+        video_file: str,
+        make_labeled_video_full: bool = False,
+        make_labeled_video_clip: bool = False,
+    ) -> None:
+
+        # set flag for parent app
+        self.work_is_done_eks = False
+
+        video_name = os.path.basename(video_file)
+        # load predictions from each model
+        csv_files = []
+        for model_dir in model_dirs:
+            pred_file = abspath(os.path.join(
+                model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name.replace(".mp4", ".csv")
+            ))
+            csv_files.append(pred_file)
+
+        # run eks
+        # this will output a dataframe
+        # for now, let's just copy one of our model outputs
+        for file_path in csv_files:
+            try:
+                df = pd.read_csv(file_path, index_col=0, header=[0, 1])
+                print(f"Successfully loaded DataFrame from {file_path}")
+                break  # Exit the loop if the DataFrame is loaded successfully
+            except Exception as e:
+                print(f"Failed to load DataFrame from {file_path}: {e}")
+
+        # save eks outputs
+        save_file = abspath(os.path.join(
+            ensemble_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name.replace(".mp4", ".csv")
+        ))
+        os.makedirs(os.path.dirname(save_file), exist_ok=True)
+        df.to_csv(save_file)
+
+        # # TODO: compute metrics and/or create labeled video
+        # if make_labeled_video_full or make_labeled_video_clip:
+        #     data_module = None  # None for now; this means PCA metrics are not computed
+        #     with open(text_file_path, 'r') as file:
+        #         first_model_path = file.readline().strip()
+        #     first_model_cfg_path = os.path.join(first_model_path, 'config.yaml')
+        #     cfg = DictConfig(yaml.safe_load(open(abspath(first_model_cfg_path), "r")))
+        #
+        #     # TODO: load config from one of the models in the ensemble
+        #
+        # if make_labeled_video_full:
+        #     self._inference_with_metrics_and_labeled_video(
+        #         video_file=video_file,
+        #         ckpt_file=None,
+        #         cfg=cfg,
+        #         preds_file=save_file,
+        #         data_module=data_module,
+        #         trainer=None,
+        #         make_labeled_video=make_labeled_video_full,
+        #         labeled_video_file=None,  # defaults to saving in the same place as the csv file
+        #         status_str="create labeled video",
+        #     )
+        #
+        # if make_labeled_video_clip:
+        #     # TODO: come back to this later once everything else is working
+        #     pass
+
+        # set flag for parent app
+        self.work_is_done_eks = True
+
     @staticmethod
     def _make_fiftyone_dataset(
         config_file: str,
@@ -274,6 +345,8 @@ class LitPose(LightningWork):
             # save relative rather than absolute path
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._run_inference(**kwargs)
+        elif action == "run_eks":
+            self._run_eks(**kwargs)
 
 
 class TrainUI(LightningFlow):
@@ -346,6 +419,11 @@ class TrainUI(LightningFlow):
         self.st_inference_videos = []
         self.st_label_short = True
         self.st_label_full = False
+
+        # ------------------------
+        # Ensembling
+        # ------------------------
+        self.work_is_done_eks = False
 
     def _train(
         self,
@@ -514,10 +592,66 @@ class TrainUI(LightningFlow):
         self.work_is_done_inference = True
 
     def _run_eks(
-        self
-
+        self,
+        ensemble_dir: str,
+        model_dirs: list,
+        video_files: Optional[list] = None,
+        testing: bool = False,
+        **kwargs
     ) -> None:
-        pass
+
+        self.work_is_done_eks = False
+
+        if not video_files:
+            video_files = self.st_inference_videos
+
+        # populate status dict
+        # this dict controls execution logic as well as progress bar updates in the UI
+        # cannot do this in the other nested for loops otherwise not all entries are initialized
+        # at the same time, even if called before launching the works
+        for model_dir in [ensemble_dir]:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.st_infer_status.keys():
+                    self.st_infer_status[worker_key] = "initialized"
+
+        # launch works (sequentially for now)
+        for model_dir in [ensemble_dir]:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.works_dict.keys():
+                    self.works_dict[worker_key] = LitPose(
+                        cloud_compute=CloudCompute("gpu"),
+                        parallel=is_running_in_cloud(),
+                    )
+                status = self.st_infer_status[worker_key]
+                if status == "initialized" or status == "active":
+                    self.st_infer_status[worker_key] = "active"
+                    # run eks
+                    self.works_dict[worker_key].run(
+                        action="run_eks",
+                        ensemble_dir=ensemble_dir,
+                        model_dirs=model_dirs,
+                        video_file="/" + video_file,
+                        make_labeled_video_full=self.st_label_full,
+                        make_labeled_video_clip=self.st_label_short,
+                    )
+                    self.st_infer_status[worker_key] = "complete"
+
+        # clean up works
+        while len(self.works_dict) > 0:
+            for worker_key in list(self.works_dict):
+                if (worker_key in self.works_dict.keys()) \
+                        and self.works_dict[worker_key].work_is_done_eks:
+                    # kill work
+                    _logger.info(f"killing work from video {worker_key}")
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[worker_key].stop()
+                    del self.works_dict[worker_key]
+
+        self.work_is_done_eks = True
 
     def _determine_dataset_type(self, **kwargs):
         """Check if labeled data directory contains context frames."""
@@ -546,6 +680,7 @@ class TrainUI(LightningFlow):
                 self._run_inference(model_dirs=model_dirs, **kwargs)
 
                 # run eks on ensemble output
+                self.st_infer_status = {}
                 self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
 
         elif action == "determine_dataset_type":

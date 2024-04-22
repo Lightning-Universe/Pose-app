@@ -288,11 +288,18 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow.run(action="run_inference", video_files=[video_file], testing=True)
 
     # check flow state
-    assert len(flow.st_infer_status) == 2  # one for each ensemble member
+    assert len(flow.st_infer_status) == 1  # one for eks
     for key, val in flow.st_infer_status.items():
         assert val == "complete"
     assert flow.work_is_done_inference
+    assert flow.work_is_done_eks
     assert len(flow.works_dict) == 0
+
+    # check that eks was run
+    results_dir_eks = os.path.join(base_dir, MODELS_DIR, st_datetime, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_eks = os.listdir(results_dir_eks)
+    preds = os.path.basename(video_file).replace(".mp4", ".csv")
+    assert preds in results_artifacts_eks
 
     # ----------------------------
     # run eks, output full labeled
