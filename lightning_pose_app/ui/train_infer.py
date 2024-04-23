@@ -774,7 +774,7 @@ def _render_streamlit_fn(state: AppState):
 
     with train_tab:
 
-        st.header("Train Networks")
+        st.header("Train networks")
 
         st.markdown(
             """
@@ -918,7 +918,7 @@ def _render_streamlit_fn(state: AppState):
         inference_container = st.container()
         with inference_container:
             st.header(
-                body="Predict on New Videos",
+                body="Predict on new videos",
                 help="Select your preferred inference model, then drag and drop your video "
                      "file(s). Monitor the upload progress bar and click **Run inference** "
                      "once uploads are complete. "
@@ -1064,7 +1064,7 @@ def _render_streamlit_fn(state: AppState):
         eks_tab = st.container()
         with eks_tab:
 
-            st.header("Ensemble Selected Models")
+            st.header("Create an ensemble of models")
             selected_models = st.multiselect(
                "Select models for ensembling",
                sorted(state.trained_models, reverse=True),
