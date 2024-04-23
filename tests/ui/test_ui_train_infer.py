@@ -56,8 +56,8 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         },
         "training": {
             "imgaug": "dlc",
-            "max_epochs": 2,
-            "check_val_every_n_epoch": 2,
+            "max_epochs": 1,
+            "check_val_every_n_epoch": 1,
         },
     }
     model_name_0 = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
@@ -68,7 +68,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         results_dir=results_dir_0,
     )
     results_artifacts_0 = os.listdir(results_dir_0)
-    assert work.work_is_done_training
+    assert work.work_is_done
     assert os.path.exists(results_dir_0)
     assert "predictions.csv" in results_artifacts_0
     assert "lightning_logs" not in results_artifacts_0
@@ -87,7 +87,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         results_dir=results_dir_1,
     )
     results_artifacts_1 = os.listdir(results_dir_1)
-    assert work.work_is_done_training
+    assert work.work_is_done
     assert os.path.exists(results_dir_1)
     assert "predictions.csv" in results_artifacts_1
     assert "lightning_logs" not in results_artifacts_1
@@ -107,7 +107,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     )
     results_dir_2 = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
     results_artifacts_2 = os.listdir(results_dir_2)
-    assert work.work_is_done_inference
+    assert work.work_is_done
     preds = os.path.basename(video_file).replace(".mp4", ".csv")
     assert preds in results_artifacts_2
     assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_2
@@ -128,8 +128,32 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         make_labeled_video_clip=False,
     )
     results_artifacts_2 = os.listdir(results_dir_2)
-    assert work.work_is_done_inference
+    assert work.work_is_done
     assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_2
+
+    # ----------------------------
+    # run eks
+    # ----------------------------
+    model_name_eks = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_PYTEST")
+    ensemble_dir = os.path.join(tmp_proj_dir, MODELS_DIR, model_name_eks)
+    work._run_eks(
+        ensemble_dir=ensemble_dir,
+        model_dirs=[
+            "/" + os.path.join(tmp_proj_dir, MODELS_DIR, model_name_0),
+            "/" + os.path.join(tmp_proj_dir, MODELS_DIR, model_name_1),
+        ],
+        video_file=video_file,
+        make_labeled_video_full=True,
+        make_labeled_video_clip=False,
+    )
+    results_dir_eks = os.path.join(
+        base_dir, MODELS_DIR, model_name_eks, MODEL_VIDEO_PREDS_INFER_DIR,
+    )
+    results_artifacts_eks = os.listdir(results_dir_eks)
+    assert work.work_is_done
+    assert preds in results_artifacts_eks
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_eks
+    assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_eks
 
     # ----------------------------
     # fiftyone
@@ -205,7 +229,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
             model_name_0 = key
             break
     assert flow.work.progress == 0.0
-    assert flow.work.work_is_done_training
+    assert flow.work.work_is_done
 
     # check output files
     results_dir_0 = os.path.join(base_dir, MODELS_DIR, model_name_0)
@@ -269,7 +293,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_0a
 
     # ----------------------------
-    # inference (ensemble)
+    # inference (ensemble/eks)
     # ----------------------------
     st_datetime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S_eks")
     ensemble_dir = os.path.join(tmp_proj_dir, MODELS_DIR, st_datetime)
@@ -282,7 +306,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     )
 
     flow.st_inference_model = st_datetime  # takes relative path
-    flow.st_label_full = False
+    flow.st_label_full = True
     flow.st_label_short = False
     flow.st_infer_status = {}
     flow.run(action="run_inference", video_files=[video_file], testing=True)
@@ -295,31 +319,35 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert flow.work_is_done_eks
     assert len(flow.works_dict) == 0
 
+    # check that inference was run with model 1
+    results_dir_1a = os.path.join(base_dir, MODELS_DIR, model_name_1, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_1a = os.listdir(results_dir_1a)
+    preds = os.path.basename(video_file).replace(".mp4", ".csv")
+    assert preds in results_artifacts_1a
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_1a
+    assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_1a
+    assert preds.replace(".csv", ".short.mp4") not in results_artifacts_1a
+    assert preds.replace(".csv", ".short.csv") not in results_artifacts_1a
+    assert preds.replace(".csv", ".short_temporal_norm.csv") not in results_artifacts_1a
+    assert preds.replace(".csv", ".short.labeled.mp4") not in results_artifacts_1a
+
     # check that eks was run
     results_dir_eks = os.path.join(base_dir, MODELS_DIR, st_datetime, MODEL_VIDEO_PREDS_INFER_DIR)
     results_artifacts_eks = os.listdir(results_dir_eks)
     preds = os.path.basename(video_file).replace(".mp4", ".csv")
     assert preds in results_artifacts_eks
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_eks
+    assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_eks
 
     # ----------------------------
-    # run eks, output full labeled
+    # determine dataset type
     # ----------------------------
-    # make 2 model folders, save mock pred csv files there
-    # make ensemble folder
-    # work._run_eks()  # TODO
-    # check that prediction csv file is saved in ensemble folder
-    # check that temporal norm metric file is saved
-    # check that labeled video file is saved
-
-    # ----------------
-    # determine type
-    # ----------------
     flow.run(action="determine_dataset_type")
     assert not flow.allow_context
 
-    # ----------------
+    # ----------------------------
     # clean up
-    # ----------------
+    # ----------------------------
     del flowp
     del flow
 

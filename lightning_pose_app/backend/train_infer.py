@@ -270,11 +270,11 @@ def train(
 
 def inference_with_metrics(
     video_file: str,
-    ckpt_file: str,
     cfg: DictConfig,
     preds_file: str,
-    data_module: callable,
-    trainer: pl.Trainer,
+    ckpt_file: Optional[str] = None,
+    data_module: Optional[callable] = None,
+    trainer: Optional[pl.Trainer] = None,
 ) -> pd.DataFrame:
 
     # update video size in config

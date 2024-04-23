@@ -47,14 +47,11 @@ class ExtractFramesWork(LightningWork):
 
         super().__init__(*args, **kwargs)
 
+        # record progress of computationally-intensive steps (like reading video frames)
         self.progress = 0.0
-        self.progress_delta = 0.5
-        self.work_is_done_extract_frames = False
 
-        # updated externally by parent app
-        self.trained_models = []
-        self.proj_dir = None
-        self.config_dict = None
+        # flag to communicate state of work to parent flow
+        self.work_is_done = False
 
     def _extract_frames(
         self,
@@ -71,7 +68,7 @@ class ExtractFramesWork(LightningWork):
         _logger.info(f"============== extracting frames from {video_file} ================")
 
         # set flag for parent app
-        self.work_is_done_extract_frames = False
+        self.work_is_done = False
 
         data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
         if not os.path.exists(data_dir_rel):
@@ -148,7 +145,7 @@ class ExtractFramesWork(LightningWork):
         )
 
         # set flag for parent app
-        self.work_is_done_extract_frames = True
+        self.work_is_done = True
 
     def _unzip_frames(
         self,
@@ -159,7 +156,7 @@ class ExtractFramesWork(LightningWork):
         _logger.info(f"============== unzipping frames from {video_file} ================")
 
         # set flag for parent app
-        self.work_is_done_extract_frames = False
+        self.work_is_done = False
 
         data_dir_rel = os.path.join(proj_dir, LABELED_DATA_DIR)
         if not os.path.exists(data_dir_rel):
@@ -224,7 +221,7 @@ class ExtractFramesWork(LightningWork):
         # )
 
         # set flag for parent app
-        self.work_is_done_extract_frames = True
+        self.work_is_done = True
 
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames_using_kmeans":
@@ -311,7 +308,7 @@ class ExtractFramesUI(LightningFlow):
         while len(self.works_dict) > 0:
             for video_key in list(self.works_dict):
                 if (video_key in self.works_dict.keys()) \
-                        and self.works_dict[video_key].work_is_done_extract_frames:
+                        and self.works_dict[video_key].work_is_done:
                     # kill work
                     _logger.info(f"killing work from video {video_key}")
                     if not testing:  # cannot run stop() from tests for some reason
@@ -741,8 +738,9 @@ def _render_streamlit_fn(state: AppState):
             if st_submit_button_model_frames:
                 state.st_submits += 1
                 base_rel_path = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
-                state.st_video_files_ = [os.path.join(base_rel_path,
-                                                      s + ".mp4") for s in st_videos]
+                state.st_video_files_ = [
+                    os.path.join(base_rel_path, s + ".mp4") for s in st_videos
+                ]
                 state.model_dir = base_model_dir
                 state.st_extract_status = {s: 'initialized' for s in state.st_video_files_}
                 state.st_n_frames_per_video = st_n_frames_per_video
