@@ -307,7 +307,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
 
     flow.st_inference_model = st_datetime  # takes relative path
     flow.st_label_full = True
-    flow.st_label_short = False
+    flow.st_label_short = True
     flow.st_infer_status = {}
     flow.run(action="run_inference", video_files=[video_file], testing=True)
 
@@ -326,10 +326,10 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert preds in results_artifacts_1a
     assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_1a
     assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_1a
-    assert preds.replace(".csv", ".short.mp4") not in results_artifacts_1a
-    assert preds.replace(".csv", ".short.csv") not in results_artifacts_1a
-    assert preds.replace(".csv", ".short_temporal_norm.csv") not in results_artifacts_1a
-    assert preds.replace(".csv", ".short.labeled.mp4") not in results_artifacts_1a
+    assert preds.replace(".csv", ".short.mp4") in results_artifacts_1a
+    assert preds.replace(".csv", ".short.csv") in results_artifacts_1a
+    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_1a
+    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_1a
 
     # check that eks was run
     results_dir_eks = os.path.join(base_dir, MODELS_DIR, st_datetime, MODEL_VIDEO_PREDS_INFER_DIR)
@@ -338,6 +338,9 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     assert preds in results_artifacts_eks
     assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_eks
     assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_eks
+    assert preds.replace(".csv", ".short.csv") in results_artifacts_eks
+    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_eks
+    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_eks
 
     # ----------------------------
     # determine dataset type

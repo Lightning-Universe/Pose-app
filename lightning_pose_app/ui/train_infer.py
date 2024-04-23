@@ -293,9 +293,15 @@ class LitPose(LightningWork):
                 work=self,
             )
 
-        # if make_labeled_video_clip:
-        #     # TODO: come back to this later once everything else is working
-        #     pass
+        if make_labeled_video_clip:
+            # hack; rerun this function using the video clip from the first ensemble member
+            self._run_eks(
+                ensemble_dir=ensemble_dir,
+                model_dirs=model_dirs,
+                video_file=os.path.join(csv_files[0].replace(".csv", ".short.mp4")),
+                make_labeled_video_full=True,
+                make_labeled_video_clip=False,
+            )
 
         # set flag for parent app
         self.work_is_done = True
@@ -366,7 +372,7 @@ class TrainUI(LightningFlow):
         allow_context: bool = True,
         max_epochs_default: int = 300,
         rng_seed_data_pt_default: int = 0,
-        **kwargs,
+        **kwargs
     ) -> None:
 
         super().__init__(*args, **kwargs)
