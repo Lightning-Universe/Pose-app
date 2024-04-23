@@ -54,9 +54,8 @@ VIDEO_LABEL_NONE = "Do not run inference on videos after training"
 VIDEO_LABEL_INFER = "Run inference on videos"
 VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
-VIDEO_SELECT_NEW = "Upload new"
-VIDEO_SELECT_TRAIN_INFER = "Select video(s) previously uploaded to the TRAIN/INFER tab"
-VIDEO_SELECT_EXTRACT = "Select video(s) previously uploaded to the EXTRACT FRAMES tab"
+VIDEO_SELECT_NEW = "Upload new video(s)"
+VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
 
 class LitPose(LightningWork):
@@ -941,8 +940,7 @@ def _render_streamlit_fn(state: AppState):
                 "Video selection",
                 options=[
                     VIDEO_SELECT_NEW,
-                    VIDEO_SELECT_TRAIN_INFER,
-                    VIDEO_SELECT_EXTRACT,
+                    VIDEO_SELECT_UPLOADED,
                 ],
             )
 
@@ -965,25 +963,33 @@ def _render_streamlit_fn(state: AppState):
                         with open(filepath, "wb") as f:
                             f.write(bytes_data)
 
-            elif video_select_option == VIDEO_SELECT_EXTRACT:
+            elif video_select_option == VIDEO_SELECT_UPLOADED:
 
-                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+                uploaded_video_dir_train = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+                list_train = []
+                if os.path.isdir(uploaded_video_dir_train):
+                    list_train = [
+                        os.path.join(uploaded_video_dir_train, vid)
+                        for vid in os.listdir(uploaded_video_dir_train)
+                    ]
+
+                uploaded_video_dir_infer = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
+                list_infer = []
+                if os.path.isdir(uploaded_video_dir_infer):
+                    list_infer = [
+                        os.path.join(uploaded_video_dir_infer, vid)
+                        for vid in os.listdir(uploaded_video_dir_infer)
+                    ]
+
                 st_videos = st.multiselect(
                     "Select video files",
-                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
-                    help="These are videos used for labeled frame extraction",
+                    list_train + list_infer,
+                    help="Videos in the 'videos_infer' directory have been previously uploaded "
+                         "for inference. "
+                         "Videos in the 'videos' directory have been previously uploaded for "
+                         "frame extraction.",
+                    format_func=lambda x: "/".join(x.split("/")[-2:]),
                 )
-                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
-
-            elif video_select_option == VIDEO_SELECT_TRAIN_INFER:
-
-                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
-                st_videos = st.multiselect(
-                    "Select video files",
-                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
-                    help="These are videos previously used for inference",
-                )
-                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
 
             # allow user to select labeled video option
             st.markdown(
@@ -1064,7 +1070,11 @@ def _render_streamlit_fn(state: AppState):
                sorted(state.trained_models, reverse=True),
                help="Select which models you want to create an new ensemble model",
             )
-            eks_model_name = st.text_input(label="Add ensemble name", value="eks")
+            eks_model_name = st.text_input(
+                label="Add ensemble name",
+                value="eks",
+                help="Provide a name that will be appended to the data/time information."
+            )
             eks_model_name = eks_model_name.replace(" ", "_")
 
             st_submit_button_eks = st.button(
