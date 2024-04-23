@@ -304,15 +304,17 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
             "/" + os.path.join(tmp_proj_dir, MODELS_DIR, model_name_1),
         ],
     )
-
+    # these attributes are usually set in the streamlit function upon button click
     flow.st_inference_model = st_datetime  # takes relative path
+    flow.st_infer_status = {}
     flow.st_label_full = True
     flow.st_label_short = True
-    flow.st_infer_status = {}
+    flow.work_is_done_inference = False
+    flow.work_is_done_eks = False
     flow.run(action="run_inference", video_files=[video_file], testing=True)
 
     # check flow state
-    assert len(flow.st_infer_status) == 1  # one for eks
+    assert len(flow.st_infer_status) == 3  # one for eks, one for each of the two ensemble members
     for key, val in flow.st_infer_status.items():
         assert val == "complete"
     assert flow.work_is_done_inference

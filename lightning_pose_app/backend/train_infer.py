@@ -301,6 +301,10 @@ def inference_with_metrics(
     except Exception as e:
         _logger.error(f"Error predicting on {video_file}:\n{e}")
 
+    video_clip.close()
+    del video_clip
+    gc.collect()
+
     return preds_df
 
 
@@ -464,7 +468,13 @@ def make_labeled_video(
 
     clip_marked = video_clip.fl(add_marker_and_timestamps)
     clip_marked.write_videofile(save_file, codec="libx264", fps=fps or fps_og or 20.0)
+
+    # clean up memory
     clip_marked.close()
+    del clip_marked
+    video_clip.close()
+    del video_clip
+    gc.collect()
 
 
 def make_cmap(number_colors: int, cmap: str = "cool"):

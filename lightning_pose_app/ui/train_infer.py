@@ -1,5 +1,6 @@
 """UI for training models."""
 
+import gc
 import logging
 import os
 from datetime import datetime
@@ -9,6 +10,7 @@ import lightning.pytorch as pl
 import numpy as np
 import pandas as pd
 import streamlit as st
+import torch
 import yaml
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
@@ -109,7 +111,9 @@ class LitPose(LightningWork):
         from lightning_pose.utils.io import ckpt_path_from_base_path
         from lightning_pose.utils.scripts import get_data_module, get_dataset, get_imgaug_transform
 
-        print(f"========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n=========")
+        _logger.info(
+            f"\n========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n========="
+        )
 
         # set flag for parent app
         self.work_is_done = False
@@ -196,7 +200,7 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
         if make_labeled_video_clip:
             self.status_ = "creating short clip"
-            self.progress = 0.0  # reset progress so it will be updated during snippet inference
+            self.progress = 50.0  # will not dynamically update, but show user something is happing
             video_file_abs_short, clip_start_idx, clip_start_sec = make_video_snippet(
                 video_file=video_file_abs,
                 preds_file=preds_file,
@@ -223,6 +227,14 @@ class LitPose(LightningWork):
                 work=self,
             )
 
+        # clean up memory
+        del imgaug_transform
+        del dataset
+        del data_module
+        del trainer
+        gc.collect()
+        torch.cuda.empty_cache()
+
         # set flag for parent app
         self.work_is_done = True
 
@@ -238,6 +250,17 @@ class LitPose(LightningWork):
 
         # set flag for parent app
         self.work_is_done = False
+
+        # check: does file exist?
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
+        video_file_exists = os.path.exists(video_file_abs)
+        _logger.info(f"video file exists? {video_file_exists}")
+        if not video_file_exists:
+            _logger.info("skipping inference")
+            return
 
         video_name = os.path.basename(video_file)
         # load predictions from each model
@@ -256,10 +279,10 @@ class LitPose(LightningWork):
         for file_path in csv_files:
             try:
                 preds_df = pd.read_csv(file_path, index_col=0, header=[0, 1])
-                print(f"Successfully loaded DataFrame from {file_path}")
+                _logger.info(f"Successfully loaded DataFrame from {file_path}")
                 break  # Exit the loop if the DataFrame is loaded successfully
             except Exception as e:
-                print(f"Failed to load DataFrame from {file_path}: {e}")
+                _logger.exception(f"Failed to load DataFrame from {file_path}: {e}")
 
         # save eks outputs
         preds_file = abspath(os.path.join(
@@ -275,18 +298,19 @@ class LitPose(LightningWork):
         self.status_ = "computing metrics"
         self.progress = 0.0
         preds_df = inference_with_metrics(
-            video_file=video_file,
+            video_file=video_file_abs,
             cfg=cfg,
             preds_file=preds_file,
             ckpt_file=None,
             data_module=data_module,
             trainer=None,
         )
+
         if make_labeled_video_full:
             self.status_ = "creating labeled video"
             self.progress = 0.0
             make_labeled_video(
-                video_file=video_file,
+                video_file=video_file_abs,
                 preds_df=preds_df,
                 save_file=preds_file.replace(".csv", ".labeled.mp4"),
                 confidence_thresh=cfg.eval.confidence_thresh_for_vid,
@@ -686,15 +710,25 @@ class TrainUI(LightningFlow):
                 # single model
                 self._run_inference(model_dirs=[model_dir], **kwargs)
             else:
-                # run inference with ensemble
+
                 ensemble_list_file = os.path.join(model_dir, ENSEMBLE_MEMBER_FILENAME)
                 with open(abspath(ensemble_list_file), "r") as file:
                     model_dirs = [line.strip() for line in file.readlines()]
-                self._run_inference(model_dirs=model_dirs, **kwargs)
+
+                # IMPORTANT: since '_run_inference' and '_run_eks' are not the actual 'run' method
+                # they will not be cached.
+                # Therefore these 'if not' statements prevent these functions from being run more
+                # than once.
+                # It is important that the Streamlit function set these flags to False upon the
+                # button click to ensure a 'True' value is not stored from a previous run.
+
+                # run inference with ensemble
+                if not self.work_is_done_inference:
+                    self._run_inference(model_dirs=model_dirs, **kwargs)
 
                 # run eks on ensemble output
-                self.st_infer_status = {}
-                self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
+                if not self.work_is_done_eks:
+                    self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
 
         elif action == "determine_dataset_type":
             self._determine_dataset_type(**kwargs)
@@ -954,7 +988,7 @@ def _render_streamlit_fn(state: AppState):
             # allow user to select labeled video option
             st.markdown(
                 """
-                #### Video handling options""",
+                #### Video labeling options""",
                 help="Select checkboxes to automatically save a labeled video (short clip or full "
                 "video or both) after inference is complete. The short clip contains the 30 "
                 "second period of highest motion energy in the predictions."
@@ -1011,6 +1045,8 @@ def _render_streamlit_fn(state: AppState):
                 state.st_infer_status = {}  # reset; the Flow will update this
                 state.st_label_short = st_label_short
                 state.st_label_full = st_label_full
+                state.work_is_done_inference = False  # alert flow inference needs performing
+                state.work_is_done_eks = False  # alert flow eks needs performing
                 st.text("Request submitted!")
                 state.run_script_infer = True  # must the last to prevent race condition
 
@@ -1057,7 +1093,7 @@ def _render_streamlit_fn(state: AppState):
                 )
 
                 if os.path.exists(ensemble_file):
-                    st.text(f"Ensemble {eks_dir} created!")
+                    st.text(f"Ensemble created!")
 
                 st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
 
