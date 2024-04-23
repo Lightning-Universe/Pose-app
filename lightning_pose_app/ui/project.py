@@ -104,10 +104,15 @@ class ProjectUI(LightningFlow):
 
     @property
     def st_keypoints(self):
-        if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
-            return self.st_keypoints_
-        else:
-            return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
+        # if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
+        #     return self.st_keypoints_
+        # else:
+        #     return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
+        kps = []
+        for kp in self.st_keypoints_:
+            if kp not in kps:
+                kps.append(kp)
+        return kps
 
     @property
     def proj_dir_abs(self):
@@ -721,7 +726,11 @@ def _render_streamlit_fn(state: AppState):
     # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
     st_n_views = state.st_n_views
     if not state.st_upload_existing_project:
-        st_keypoints = state.st_keypoints_
+        st_keypoints_ = state.st_keypoints_
+        st_keypoints = []
+        for kp in st_keypoints_:
+            if kp not in st_keypoints:
+                st_keypoints.append(kp)
         # if we are uploading existing project, we don't want to sort via np.unique, need to keep
         # keypoints in the correct order
     st_n_keypoints = state.st_n_keypoints
@@ -796,11 +805,13 @@ def _render_streamlit_fn(state: AppState):
             else:
                 value = "\n".join(st_keypoints)
             keypoints = st.text_area(
-                "Enter keypoint names (one per line, determines labeling order):",
+                "Enter keypoint names (one per line, no spaces or dashes)\n\n"
+                "The order here determines the labeling order",
                 disabled=not enter_data,
                 value=value,
             )
-            st_keypoints = keypoints.strip().split("\n")
+            # ensure no spaces or dashes
+            st_keypoints = keypoints.replace(" ", "_").replace("-", "_").strip().split("\n")
             if len(st_keypoints) == 1 and st_keypoints[0] == "":
                 st_keypoints = []
             st_n_keypoints = len(st_keypoints)
