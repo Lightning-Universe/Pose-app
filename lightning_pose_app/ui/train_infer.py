@@ -311,7 +311,7 @@ class LitPose(LightningWork):
                 keypoint_ensemble=keypoint_name,
                 smooth_param=smooth_param,  # default (None) is to compute automatically
             )
-            keypoint_df = keypoint_df_dict[keypoint_name + '_df']
+            keypoint_df = keypoint_df_dict[keypoint_name + '_df']  # make cleaner
 
             # put results into new dataframe
             df_eks = populate_output_dataframe(
