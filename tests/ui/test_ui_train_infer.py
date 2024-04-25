@@ -105,31 +105,32 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         make_labeled_video_full=False,
         make_labeled_video_clip=True,
     )
-    results_dir_2 = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
-    results_artifacts_2 = os.listdir(results_dir_2)
+    results_dir_0a = os.path.join(base_dir, MODELS_DIR, model_name_0, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_0a = os.listdir(results_dir_0a)
     assert work.work_is_done
     preds = os.path.basename(video_file).replace(".mp4", ".csv")
-    assert preds in results_artifacts_2
-    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_2
-    assert preds.replace(".csv", ".labeled.mp4") not in results_artifacts_2
-    assert preds.replace(".csv", ".short.mp4") in results_artifacts_2
-    assert preds.replace(".csv", ".short.csv") in results_artifacts_2
-    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_2
-    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_2
+    assert preds in results_artifacts_0a
+    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_0a
+    assert preds.replace(".csv", ".labeled.mp4") not in results_artifacts_0a
+    assert preds.replace(".csv", ".short.mp4") in results_artifacts_0a
+    assert preds.replace(".csv", ".short.csv") in results_artifacts_0a
+    assert preds.replace(".csv", ".short_temporal_norm.csv") in results_artifacts_0a
+    assert preds.replace(".csv", ".short.labeled.mp4") in results_artifacts_0a
 
     # ----------------------------
     # infer, output full labeled
     # ----------------------------
     # also tests loading of predictions from previous inference
     work._run_inference(
-        model_dir=os.path.join(tmp_proj_dir, MODELS_DIR, model_name_0),
+        model_dir=os.path.join(tmp_proj_dir, MODELS_DIR, model_name_1),
         video_file=video_file,
         make_labeled_video_full=True,
         make_labeled_video_clip=False,
     )
-    results_artifacts_2 = os.listdir(results_dir_2)
+    results_dir_1a = os.path.join(base_dir, MODELS_DIR, model_name_1, MODEL_VIDEO_PREDS_INFER_DIR)
+    results_artifacts_1a = os.listdir(results_dir_1a)
     assert work.work_is_done
-    assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_2
+    assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_1a
 
     # ----------------------------
     # run eks
@@ -145,6 +146,8 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
         video_file=video_file,
         make_labeled_video_full=True,
         make_labeled_video_clip=False,
+        # keypoints_to_smooth=['paw1LH_top'],  # just smooth one keypoint
+        smooth_param=1.0,  # fix, don't optimize, to make testing faster
     )
     results_dir_eks = os.path.join(
         base_dir, MODELS_DIR, model_name_eks, MODEL_VIDEO_PREDS_INFER_DIR,
@@ -152,7 +155,7 @@ def test_train_infer_work(root_dir, tmp_proj_dir, video_file):
     results_artifacts_eks = os.listdir(results_dir_eks)
     assert work.work_is_done
     assert preds in results_artifacts_eks
-    assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_eks
+    # assert preds.replace(".csv", "_temporal_norm.csv") in results_artifacts_eks
     assert preds.replace(".csv", ".labeled.mp4") in results_artifacts_eks
 
     # ----------------------------

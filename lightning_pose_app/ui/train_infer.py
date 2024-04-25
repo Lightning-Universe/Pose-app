@@ -12,6 +12,8 @@ import pandas as pd
 import streamlit as st
 import torch
 import yaml
+from eks.utils import convert_lp_dlc, make_output_dataframe, populate_output_dataframe
+from eks.singleview_smoother import ensemble_kalman_smoother_single_view
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
@@ -244,12 +246,17 @@ class LitPose(LightningWork):
         video_file: str,
         make_labeled_video_full: bool = False,
         make_labeled_video_clip: bool = False,
+        keypoints_to_smooth: Optional[list] = None,
+        smooth_param: Optional[float] = None,
         **kwargs
     ) -> None:
 
         # set flag for parent app
         self.work_is_done = False
 
+        # -----------------------------------------
+        # handle inputs
+        # -----------------------------------------
         # check: does file exist?
         if not os.path.exists(video_file):
             video_file_abs = abspath(video_file)
@@ -262,7 +269,10 @@ class LitPose(LightningWork):
             return
 
         video_name = os.path.basename(video_file)
+
+        # -----------------------------------------
         # load predictions from each model
+        # -----------------------------------------
         csv_files = []
         for model_dir in model_dirs:
             pred_file = abspath(os.path.join(
@@ -270,25 +280,60 @@ class LitPose(LightningWork):
             ))
             csv_files.append(pred_file)
 
-        # TODO: run eks
-        # this will output a dataframe
-        # for now, let's just copy one of our model outputs
-        self.status_ = "running eks"
-        self.progress = 0.0
+        dfs = []
         for file_path in csv_files:
             try:
-                preds_df = pd.read_csv(file_path, index_col=0, header=[0, 1])
+                preds_df = pd.read_csv(file_path, index_col=0, header=[0, 1, 2])
                 _logger.info(f"Successfully loaded DataFrame from {file_path}")
-                break  # Exit the loop if the DataFrame is loaded successfully
+                keypoint_names = [c[1] for c in preds_df.columns[::3]]
+                model_name = preds_df.columns[0][0]
+                preds_df_fmt = convert_lp_dlc(preds_df, keypoint_names, model_name=model_name)
+                dfs.append(preds_df_fmt)
             except Exception as e:
                 _logger.exception(f"Failed to load DataFrame from {file_path}: {e}")
 
+        keypoints_to_smooth = keypoints_to_smooth or keypoint_names
+
+        # -----------------------------------------
+        # run eks
+        # -----------------------------------------
+        self.status_ = "running eks"
+        self.progress = 0.0
+
+        # make empty dataframe for eks outputs
+        df_eks = make_output_dataframe(preds_df)  # make from unformatted dataframe
+
+        # loop over keypoints; apply eks to each individually
+        for k, keypoint_name in enumerate(keypoints_to_smooth):
+            # run eks
+            keypoint_df_dict, s_final, nll_values = ensemble_kalman_smoother_single_view(
+                markers_list=dfs,
+                keypoint_ensemble=keypoint_name,
+                smooth_param=smooth_param,  # default (None) is to compute automatically
+            )
+            keypoint_df = keypoint_df_dict[keypoint_name + '_df']
+
+            # put results into new dataframe
+            df_eks = populate_output_dataframe(
+                keypoint_df, 
+                keypoint_name, 
+                df_eks,
+            )
+
+            self.progress = (k + 1.0) / len(keypoints_to_smooth) * 100.0
+
+        # -----------------------------------------
         # save eks outputs
+        # -----------------------------------------
         preds_file = abspath(os.path.join(
             ensemble_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name.replace(".mp4", ".csv")
         ))
         os.makedirs(os.path.dirname(preds_file), exist_ok=True)
-        preds_df.to_csv(preds_file)
+        df_eks.to_csv(preds_file)
+
+        # -----------------------------------------
+        # post-eks tasks
+        # -----------------------------------------
 
         # compute metrics on eks
         data_module = None  # None for now; this means PCA metrics are not computed
@@ -303,6 +348,7 @@ class LitPose(LightningWork):
             ckpt_file=None,
             data_module=data_module,
             trainer=None,
+            metrics=False,
         )
 
         if make_labeled_video_full:
