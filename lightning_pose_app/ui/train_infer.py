@@ -429,6 +429,7 @@ class LitPose(LightningWork):
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._run_inference(**kwargs)
         elif action == "run_eks":
+            proj_dir = '/'.join(kwargs["model_dir"].split('/')[:3])
             new_vid_file = copy_and_reformat_video(
                 video_file=abspath(kwargs["video_file"]),
                 dst_dir=abspath(os.path.join(proj_dir, VIDEOS_INFER_DIR)),
