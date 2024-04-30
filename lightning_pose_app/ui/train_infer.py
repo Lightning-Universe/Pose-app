@@ -59,6 +59,8 @@ VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 VIDEO_SELECT_NEW = "Upload new video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
+MIN_TRAIN_FRAMES = 20
+
 
 class LitPose(LightningWork):
 
@@ -909,7 +911,10 @@ def _render_streamlit_fn(state: AppState):
             if state.allow_context else False,
         }
 
-        st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
+        st_submit_button_train = st.button(
+            "Train models", 
+            disabled=state.run_script_train or state.n_labeled_frames < MIN_TRAIN_FRAMES
+        )
 
         # give user training updates
         if state.run_script_train:
@@ -938,6 +943,10 @@ def _render_streamlit_fn(state: AppState):
                     and (st_train_semisuper or st_train_semisuper_ctx):
                 st.warning("Must select at least one semi-supervised loss if training that model")
                 st_submit_button_train = False
+
+        if state.n_labeled_frames < MIN_TRAIN_FRAMES:
+            st.warning(f"Must label at least {MIN_TRAIN_FRAMES} frames before training")
+            st_submit_button_train = False
 
         if state.submit_count_train > 0 \
                 and not state.run_script_train \

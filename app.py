@@ -125,14 +125,14 @@ class LitPoseApp(LightningFlow):
                     try:
                         json_file = os.path.join(label_studio_exports, f)
                         d = json.load(open(json_file, "r"))        
-                        project_name = d["project"]["title"]
-                        n_labels = d["project"]["task_number"]
-                        projects[project_name] = n_labels
+                        project_name_curr = d["project"]["title"]
+                        n_labels_curr = d["project"]["task_number"]
+                        projects[project_name_curr] = n_labels_curr
                     except Exception:
                         # sometimes there is a json read error, not sure why
                         continue
         
-        if project_name in projects.keys() and projects[project_name] == 90:
+        if project_name in projects.keys() and projects[project_name] >= 90:
             self.import_demo_count += 1
             return
 
@@ -148,6 +148,7 @@ class LitPoseApp(LightningFlow):
         # copy config file
         config_file_dst = os.path.join(proj_dir_abs, f"model_config_{project_name}.yaml")
         if not os.path.isfile(config_file_dst):
+            print(project_name)
             shutil.copyfile(
                 os.path.join(
                     LIGHTNING_POSE_DIR, "scripts", "configs", f"config_{project_name}.yaml"
