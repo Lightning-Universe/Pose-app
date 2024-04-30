@@ -860,7 +860,13 @@ def _render_streamlit_fn(state: AppState):
         if isinstance(st_rng_seed_data_pt, int):
             st_rng_seed_data_pt = [st_rng_seed_data_pt]
         elif isinstance(st_rng_seed_data_pt, str):
-            st_rng_seed_data_pt = [int(rng) for rng in st_rng_seed_data_pt.split(",")]
+            st_rng_seed_data_pt_ = []
+            for rng in st_rng_seed_data_pt.split(","):
+                try:
+                    st_rng_seed_data_pt_.append(int(rng))
+                except:
+                    continue
+            st_rng_seed_data_pt = np.unique(st_rng_seed_data_pt_).tolist()
         elif isinstance(st_rng_seed_data_pt, list):
             pass
         else:
@@ -940,7 +946,7 @@ def _render_streamlit_fn(state: AppState):
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) \
-                    and (st_train_semisuper or st_train_semisuper_ctx):
+                    and (st_train_flag["semisuper"] or st_train_flag["semisuper-ctx"]):
                 st.warning("Must select at least one semi-supervised loss if training that model")
                 st_submit_button_train = False
 

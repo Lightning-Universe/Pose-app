@@ -575,7 +575,10 @@ def _render_streamlit_fn(state: AppState):
     st.text(f"Available projects: {state.initialized_projects}")
 
     if st_mode == LOAD_STR:
-        st_project_name = st.selectbox("Select existing project", state.initialized_projects)
+        st_project_name = st.selectbox(
+            "Select existing project", 
+            sorted(state.initialized_projects),
+        )
     else:
         st_project_name = st.text_input(
             "Enter project name (must be at least 3 characters)",
@@ -756,8 +759,8 @@ def _render_streamlit_fn(state: AppState):
             st.markdown(
                 "##### Camera views",
                 help="Support for multiple views is currently limited to either fusing the views "
-                "into single frames or utilizing a mirror to generate multiple views from a "
-                "single camera",
+                     "into single frames or utilizing a mirror to generate multiple views from a "
+                     "single camera",
             )
             n_views = st.text_input(
                 "Enter number of camera views:",
@@ -817,6 +820,12 @@ def _render_streamlit_fn(state: AppState):
             st_n_keypoints = len(st_keypoints)
             st.markdown(f"You have defined {st_n_keypoints} keypoints across {st_n_views} views")
             st.markdown("")
+            if state.st_project_loaded:
+                st.warning(
+                    "Currently, there is no option to update keypoint names in an existing "
+                    "project. "
+                    "Please start a new project with your full list of keypoints in advance."
+                )
 
         # pca singleview
         if st_n_keypoints > 1:
@@ -947,9 +956,15 @@ def _render_streamlit_fn(state: AppState):
             st_new_vals["data"]["mirrored_column_matches"] = []
 
         if state.st_project_loaded:
-            st_submit_button = st.button("Update project", disabled=need_update_pcamv)
+            st_submit_button = st.button(
+                "Update project", 
+                disabled=need_update_pcamv or state.st_project_loaded,
+            )
         else:
-            st_submit_button = st.button("Create project", disabled=need_update_pcamv)
+            st_submit_button = st.button(
+                "Create project", 
+                disabled=need_update_pcamv or state.st_project_loaded,
+            )
         if state.st_submits > 0:
             proceed_str = """
                 Proceed to the next tab to extract frames for labeling.<br /><br />
