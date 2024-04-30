@@ -370,6 +370,8 @@ class LitPose(LightningWork):
                 video_file=os.path.join(csv_files[0].replace(".csv", ".short.mp4")),
                 make_labeled_video_full=True,
                 make_labeled_video_clip=False,
+                keypoints_to_smooth=keypoints_to_smooth,
+                smooth_param=smooth_param,
             )
 
         # set flag for parent app
@@ -521,6 +523,7 @@ class TrainUI(LightningFlow):
         config_filename: Optional[str] = None,
         video_dirname: str = VIDEOS_DIR,
         testing: bool = False,
+        **kwargs
     ) -> None:
 
         if config_filename is None:
@@ -622,6 +625,7 @@ class TrainUI(LightningFlow):
         video_files: list,
         work_kwargs: dict,
         testing: bool = False,
+        **kwargs
     ) -> None:
 
         # launch works (sequentially for now)
@@ -667,6 +671,7 @@ class TrainUI(LightningFlow):
         model_dirs: Optional[list] = None,
         video_files: Optional[list] = None,
         testing: bool = False,
+        **kwargs
     ) -> None:
 
         self.work_is_done_inference = False
@@ -732,6 +737,7 @@ class TrainUI(LightningFlow):
             "model_dirs": model_dirs,
             "make_labeled_video_full": self.st_label_full,
             "make_labeled_video_clip": self.st_label_short,
+            "smooth_param": kwargs.get("smooth_param", None)
         }
         self._launch_works(
             action="run_eks",

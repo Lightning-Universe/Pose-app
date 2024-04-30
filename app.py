@@ -122,11 +122,15 @@ class LitPoseApp(LightningFlow):
             files = os.listdir(label_studio_exports)
             for f in files:
                 if f.endswith("info.json"):
-                    json_file = os.path.join(label_studio_exports, f)
-                    d = json.load(open(json_file, "r"))        
-                    project_name = d["project"]["title"]
-                    n_labels = d["project"]["task_number"]
-                    projects[project_name] = n_labels
+                    try:
+                        json_file = os.path.join(label_studio_exports, f)
+                        d = json.load(open(json_file, "r"))        
+                        project_name = d["project"]["title"]
+                        n_labels = d["project"]["task_number"]
+                        projects[project_name] = n_labels
+                    except Exception:
+                        # sometimes there is a json read error, not sure why
+                        continue
         
         if project_name in projects.keys() and projects[project_name] == 90:
             self.import_demo_count += 1
