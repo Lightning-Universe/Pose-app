@@ -45,7 +45,7 @@ def test_extract_frames_work(
     assert os.path.exists(video_dir)
     assert len(os.listdir(video_dir)) > n_frames_per_video
     assert os.path.exists(os.path.join(video_dir, SELECTED_FRAMES_FILENAME))
-    assert work.work_is_done_extract_frames
+    assert work.work_is_done
 
     # -----------------
     # extract frames 1
@@ -77,7 +77,7 @@ def test_extract_frames_work(
     assert os.path.exists(video_dir)
     assert len(os.listdir(video_dir)) > n_frames_per_video
     assert os.path.exists(os.path.join(video_dir, SELECTED_FRAMES_FILENAME))
-    assert work.work_is_done_extract_frames
+    assert work.work_is_done
 
     # -----------------
     # unzip frames 0
@@ -119,7 +119,7 @@ def test_extract_frames_work(
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, new_video_name)
     os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
-    work.work_is_done_extract_frames = False
+    work.work_is_done = False
     work._unzip_frames(
         video_file=zipped_file,
         proj_dir=proj_dir,
@@ -130,7 +130,7 @@ def test_extract_frames_work(
     assert os.path.exists(idx_file_abs)
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_to_zip
-    assert work.work_is_done_extract_frames
+    assert work.work_is_done
 
     # -----------------
     # unzip frames 1
@@ -149,7 +149,7 @@ def test_extract_frames_work(
     proj_dir = os.path.join(str(tmpdir), 'proj-dir-1')
     video_dir = os.path.join(proj_dir, LABELED_DATA_DIR, new_video_name)
     os.makedirs(os.path.dirname(video_dir), exist_ok=True)  # need to create for path purposes
-    work.work_is_done_extract_frames = False
+    work.work_is_done = False
     work._unzip_frames(
         video_file=zipped_file,
         proj_dir=proj_dir,
@@ -160,7 +160,7 @@ def test_extract_frames_work(
     assert os.path.exists(idx_file_abs)
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_to_zip
-    assert work.work_is_done_extract_frames
+    assert work.work_is_done
 
     # -----------------
     # cleanup

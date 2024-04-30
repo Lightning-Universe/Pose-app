@@ -1,6 +1,6 @@
 """Package constants"""
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 
 # dir where lightning pose package lives, relative to Pose-app root
@@ -27,3 +27,6 @@ LABELSTUDIO_CONFIG_FILENAME = "label_studio_config.xml"
 
 # file name constants; relative to project_dir/<LABELED_DATA_DIR>/<video_name>
 SELECTED_FRAMES_FILENAME = "selected_frames.csv"
+
+# file name constatns; relative to project_dir/MODELS_DIR/<date>/<time>/
+ENSEMBLE_MEMBER_FILENAME = "models_for_ensemble.txt"

@@ -25,6 +25,7 @@ def read_nth_frames(
     video_file: str,
     n: int = 1,
     resize_dims: int = 64,
+    progress_delta: float = 0.5,  # for online progress updates
     work: Optional[LightningWork] = None,  # for online progress updates
 ) -> np.ndarray:
 
@@ -51,7 +52,7 @@ def read_nth_frames(
                 progress = frame_counter / frame_total * 100.0
                 # periodically update progress of worker if available
                 if work is not None:
-                    if round(progress, 4) - work.progress >= work.progress_delta:
+                    if round(progress, 4) - work.progress >= progress_delta:
                         if progress > 100:
                             work.progress = 100.0
                         else:

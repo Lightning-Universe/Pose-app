@@ -270,11 +270,12 @@ def train(
 
 def inference_with_metrics(
     video_file: str,
-    ckpt_file: str,
     cfg: DictConfig,
     preds_file: str,
-    data_module: callable,
-    trainer: pl.Trainer,
+    ckpt_file: Optional[str] = None,
+    data_module: Optional[callable] = None,
+    trainer: Optional[pl.Trainer] = None,
+    metrics: bool = True,
 ) -> pd.DataFrame:
 
     # update video size in config
@@ -296,10 +297,15 @@ def inference_with_metrics(
         preds_df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
 
     # compute and save various metrics
-    try:
-        compute_metrics(cfg=cfg, preds_file=preds_file, data_module=data_module)
-    except Exception as e:
-        _logger.error(f"Error predicting on {video_file}:\n{e}")
+    if metrics:
+        try:
+            compute_metrics(cfg=cfg, preds_file=preds_file, data_module=data_module)
+        except Exception as e:
+            _logger.error(f"Error predicting on {video_file}:\n{e}")
+
+    video_clip.close()
+    del video_clip
+    gc.collect()
 
     return preds_df
 
@@ -340,13 +346,16 @@ def make_labeled_video(
     video_clip = VideoFileClip(video_file)
 
     # split predictions into markers and confidences
-    keypoints_arr = np.reshape(preds_df.to_numpy(), [preds_df.shape[0], -1, 3])
-    xs_arr = keypoints_arr[:, :, 0]
-    ys_arr = keypoints_arr[:, :, 1]
+    xmask = preds_df.columns.get_level_values("coords").isin(["x"])
+    ymask = preds_df.columns.get_level_values("coords").isin(["y"])
+    lmask = preds_df.columns.get_level_values("coords").isin(["likelihood"])
+    xs_arr = preds_df.iloc[:, xmask].to_numpy()
+    ys_arr = preds_df.iloc[:, ymask].to_numpy()
+    likelihood_arr = preds_df.iloc[:, lmask].to_numpy()
     n_frames, n_keypoints = xs_arr.shape
 
     # make masking array (do not render markers below the confidence threshold)
-    mask_array = keypoints_arr[:, :, 2] > confidence_thresh
+    mask_array = likelihood_arr > confidence_thresh
     os.makedirs(os.path.dirname(save_file), exist_ok=True)
     if mask_array is None:
         mask_array = ~np.isnan(xs_arr)
@@ -464,7 +473,13 @@ def make_labeled_video(
 
     clip_marked = video_clip.fl(add_marker_and_timestamps)
     clip_marked.write_videofile(save_file, codec="libx264", fps=fps or fps_og or 20.0)
+
+    # clean up memory
     clip_marked.close()
+    del clip_marked
+    video_clip.close()
+    del video_clip
+    gc.collect()
 
 
 def make_cmap(number_colors: int, cmap: str = "cool"):

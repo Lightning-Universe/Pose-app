@@ -104,10 +104,15 @@ class ProjectUI(LightningFlow):
 
     @property
     def st_keypoints(self):
-        if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
-            return self.st_keypoints_
-        else:
-            return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
+        # if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
+        #     return self.st_keypoints_
+        # else:
+        #     return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
+        kps = []
+        for kp in self.st_keypoints_:
+            if kp not in kps:
+                kps.append(kp)
+        return kps
 
     @property
     def proj_dir_abs(self):
@@ -570,7 +575,10 @@ def _render_streamlit_fn(state: AppState):
     st.text(f"Available projects: {state.initialized_projects}")
 
     if st_mode == LOAD_STR:
-        st_project_name = st.selectbox("Select existing project", state.initialized_projects)
+        st_project_name = st.selectbox(
+            "Select existing project", 
+            sorted(state.initialized_projects),
+        )
     else:
         st_project_name = st.text_input(
             "Enter project name (must be at least 3 characters)",
@@ -721,7 +729,11 @@ def _render_streamlit_fn(state: AppState):
     # - automatically updated in the main Flow from ProjectDataIO once the config file is specified
     st_n_views = state.st_n_views
     if not state.st_upload_existing_project:
-        st_keypoints = state.st_keypoints_
+        st_keypoints_ = state.st_keypoints_
+        st_keypoints = []
+        for kp in st_keypoints_:
+            if kp not in st_keypoints:
+                st_keypoints.append(kp)
         # if we are uploading existing project, we don't want to sort via np.unique, need to keep
         # keypoints in the correct order
     st_n_keypoints = state.st_n_keypoints
@@ -747,8 +759,8 @@ def _render_streamlit_fn(state: AppState):
             st.markdown(
                 "##### Camera views",
                 help="Support for multiple views is currently limited to either fusing the views "
-                "into single frames or utilizing a mirror to generate multiple views from a "
-                "single camera",
+                     "into single frames or utilizing a mirror to generate multiple views from a "
+                     "single camera",
             )
             n_views = st.text_input(
                 "Enter number of camera views:",
@@ -796,16 +808,24 @@ def _render_streamlit_fn(state: AppState):
             else:
                 value = "\n".join(st_keypoints)
             keypoints = st.text_area(
-                "Enter keypoint names (one per line, determines labeling order):",
+                "Enter keypoint names (one per line, no spaces or dashes)\n\n"
+                "The order here determines the labeling order",
                 disabled=not enter_data,
                 value=value,
             )
-            st_keypoints = keypoints.strip().split("\n")
+            # ensure no spaces or dashes
+            st_keypoints = keypoints.replace(" ", "_").replace("-", "_").strip().split("\n")
             if len(st_keypoints) == 1 and st_keypoints[0] == "":
                 st_keypoints = []
             st_n_keypoints = len(st_keypoints)
             st.markdown(f"You have defined {st_n_keypoints} keypoints across {st_n_views} views")
             st.markdown("")
+            if state.st_project_loaded:
+                st.warning(
+                    "Currently, there is no option to update keypoint names in an existing "
+                    "project. "
+                    "Please start a new project with your full list of keypoints in advance."
+                )
 
         # pca singleview
         if st_n_keypoints > 1:
@@ -936,9 +956,15 @@ def _render_streamlit_fn(state: AppState):
             st_new_vals["data"]["mirrored_column_matches"] = []
 
         if state.st_project_loaded:
-            st_submit_button = st.button("Update project", disabled=need_update_pcamv)
+            st_submit_button = st.button(
+                "Update project", 
+                disabled=need_update_pcamv or state.st_project_loaded,
+            )
         else:
-            st_submit_button = st.button("Create project", disabled=need_update_pcamv)
+            st_submit_button = st.button(
+                "Create project", 
+                disabled=need_update_pcamv or state.st_project_loaded,
+            )
         if state.st_submits > 0:
             proceed_str = """
                 Proceed to the next tab to extract frames for labeling.<br /><br />

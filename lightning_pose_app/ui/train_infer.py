@@ -1,13 +1,19 @@
 """UI for training models."""
 
+import gc
 import logging
 import os
 from datetime import datetime
 from typing import Optional
 
 import lightning.pytorch as pl
+import numpy as np
+import pandas as pd
 import streamlit as st
+import torch
 import yaml
+from eks.utils import convert_lp_dlc, make_output_dataframe, populate_output_dataframe
+from eks.singleview_smoother import ensemble_kalman_smoother_single_view
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
@@ -17,6 +23,7 @@ from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app import (
     __version__,
+    ENSEMBLE_MEMBER_FILENAME,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODELS_DIR,
@@ -49,9 +56,10 @@ VIDEO_LABEL_NONE = "Do not run inference on videos after training"
 VIDEO_LABEL_INFER = "Run inference on videos"
 VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
-VIDEO_SELECT_NEW = "Upload new"
-VIDEO_SELECT_TRAIN_INFER = "Select video(s) previously uploaded to the TRAIN/INFER tab"
-VIDEO_SELECT_EXTRACT = "Select video(s) previously uploaded to the EXTRACT FRAMES tab"
+VIDEO_SELECT_NEW = "Upload new video(s)"
+VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
+
+MIN_TRAIN_FRAMES = 20
 
 
 class LitPose(LightningWork):
@@ -60,12 +68,14 @@ class LitPose(LightningWork):
 
         super().__init__(*args, **kwargs)
 
+        # record progress of computationally-intensive steps (like training and inference)
         self.progress = 0.0
+
+        # methods update status for fine-grained feedback during processing
         self.status_ = "initialized"
 
-        self.work_is_done_training = False
-        self.work_is_done_inference = False
-        self.count = 0
+        # flag to communicate state of work to parent flow
+        self.work_is_done = False
 
     def _train(
         self,
@@ -74,7 +84,8 @@ class LitPose(LightningWork):
         results_dir: str,
     ) -> None:
 
-        self.work_is_done_training = False
+        # set flag for parent app
+        self.work_is_done = False
 
         # load config
         cfg = DictConfig(yaml.safe_load(open(abspath(config_file), "r")))
@@ -89,23 +100,26 @@ class LitPose(LightningWork):
             work=self,
         )
 
-        self.work_is_done_training = True
+        # set flag for parent app
+        self.work_is_done = True
 
     def _run_inference(
         self,
         model_dir: str,
         video_file: str,
-        make_labeled_video_full: bool,
-        make_labeled_video_clip: bool,
+        make_labeled_video_full: bool = False,
+        make_labeled_video_clip: bool = False,
     ):
 
         from lightning_pose.utils.io import ckpt_path_from_base_path
         from lightning_pose.utils.scripts import get_data_module, get_dataset, get_imgaug_transform
 
-        print(f"========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n=========")
+        _logger.info(
+            f"\n========= launching inference\nvideo: {video_file}\nmodel: {model_dir}\n========="
+        )
 
         # set flag for parent app
-        self.work_is_done_inference = False
+        self.work_is_done = False
 
         # ----------------------------------------------------------------------------------
         # set up paths
@@ -189,7 +203,7 @@ class LitPose(LightningWork):
         # ----------------------------------------------------------------------------------
         if make_labeled_video_clip:
             self.status_ = "creating short clip"
-            self.progress = 0.0  # reset progress so it will be updated during snippet inference
+            self.progress = 50.0  # will not dynamically update, but show user something is happing
             video_file_abs_short, clip_start_idx, clip_start_sec = make_video_snippet(
                 video_file=video_file_abs,
                 preds_file=preds_file,
@@ -216,8 +230,154 @@ class LitPose(LightningWork):
                 work=self,
             )
 
+        # clean up memory
+        del imgaug_transform
+        del dataset
+        del data_module
+        del trainer
+        gc.collect()
+        torch.cuda.empty_cache()
+
         # set flag for parent app
-        self.work_is_done_inference = True
+        self.work_is_done = True
+
+    def _run_eks(
+        self,
+        ensemble_dir: str,
+        model_dirs: list,
+        video_file: str,
+        make_labeled_video_full: bool = False,
+        make_labeled_video_clip: bool = False,
+        keypoints_to_smooth: Optional[list] = None,
+        smooth_param: Optional[float] = None,
+        **kwargs
+    ) -> None:
+
+        # set flag for parent app
+        self.work_is_done = False
+
+        # -----------------------------------------
+        # handle inputs
+        # -----------------------------------------
+        # check: does file exist?
+        if not os.path.exists(video_file):
+            video_file_abs = abspath(video_file)
+        else:
+            video_file_abs = video_file
+        video_file_exists = os.path.exists(video_file_abs)
+        _logger.info(f"video file exists? {video_file_exists}")
+        if not video_file_exists:
+            _logger.info("skipping inference")
+            return
+
+        video_name = os.path.basename(video_file)
+
+        # -----------------------------------------
+        # load predictions from each model
+        # -----------------------------------------
+        csv_files = []
+        for model_dir in model_dirs:
+            pred_file = abspath(os.path.join(
+                model_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name.replace(".mp4", ".csv")
+            ))
+            csv_files.append(pred_file)
+
+        dfs = []
+        for file_path in csv_files:
+            try:
+                preds_df = pd.read_csv(file_path, index_col=0, header=[0, 1, 2])
+                _logger.info(f"Successfully loaded DataFrame from {file_path}")
+                keypoint_names = [c[1] for c in preds_df.columns[::3]]
+                model_name = preds_df.columns[0][0]
+                preds_df_fmt = convert_lp_dlc(preds_df, keypoint_names, model_name=model_name)
+                dfs.append(preds_df_fmt)
+            except Exception as e:
+                _logger.exception(f"Failed to load DataFrame from {file_path}: {e}")
+
+        keypoints_to_smooth = keypoints_to_smooth or keypoint_names
+
+        # -----------------------------------------
+        # run eks
+        # -----------------------------------------
+        self.status_ = "running eks"
+        self.progress = 0.0
+
+        # make empty dataframe for eks outputs
+        df_eks = make_output_dataframe(preds_df)  # make from unformatted dataframe
+
+        # loop over keypoints; apply eks to each individually
+        for k, keypoint_name in enumerate(keypoints_to_smooth):
+            # run eks
+            keypoint_df_dict, s_final, nll_values = ensemble_kalman_smoother_single_view(
+                markers_list=dfs,
+                keypoint_ensemble=keypoint_name,
+                smooth_param=smooth_param,  # default (None) is to compute automatically
+            )
+            keypoint_df = keypoint_df_dict[keypoint_name + '_df']  # make cleaner 2
+
+            # put results into new dataframe
+            df_eks = populate_output_dataframe(
+                keypoint_df, 
+                keypoint_name, 
+                df_eks,
+            )
+
+            self.progress = (k + 1.0) / len(keypoints_to_smooth) * 100.0
+
+        # -----------------------------------------
+        # save eks outputs
+        # -----------------------------------------
+        preds_file = abspath(os.path.join(
+            ensemble_dir, MODEL_VIDEO_PREDS_INFER_DIR, video_name.replace(".mp4", ".csv")
+        ))
+        os.makedirs(os.path.dirname(preds_file), exist_ok=True)
+        df_eks.to_csv(preds_file)
+
+        # -----------------------------------------
+        # post-eks tasks
+        # -----------------------------------------
+
+        # compute metrics on eks
+        data_module = None  # None for now; this means PCA metrics are not computed
+        first_model_cfg_file = abspath(os.path.join(model_dirs[0], "config.yaml"))
+        cfg = DictConfig(yaml.safe_load(open(first_model_cfg_file, "r")))
+        self.status_ = "computing metrics"
+        self.progress = 0.0
+        preds_df = inference_with_metrics(
+            video_file=video_file_abs,
+            cfg=cfg,
+            preds_file=preds_file,
+            ckpt_file=None,
+            data_module=data_module,
+            trainer=None,
+            metrics=True,
+        )
+
+        if make_labeled_video_full:
+            self.status_ = "creating labeled video"
+            self.progress = 0.0
+            make_labeled_video(
+                video_file=video_file_abs,
+                preds_df=preds_df,
+                save_file=preds_file.replace(".csv", ".labeled.mp4"),
+                confidence_thresh=cfg.eval.confidence_thresh_for_vid,
+                work=self,
+            )
+
+        if make_labeled_video_clip:
+            # hack; rerun this function using the video clip from the first ensemble member
+            self._run_eks(
+                ensemble_dir=ensemble_dir,
+                model_dirs=model_dirs,
+                video_file=os.path.join(csv_files[0].replace(".csv", ".short.mp4")),
+                make_labeled_video_full=True,
+                make_labeled_video_clip=False,
+                keypoints_to_smooth=keypoints_to_smooth,
+                smooth_param=smooth_param,
+            )
+
+        # set flag for parent app
+        self.work_is_done = True
 
     @staticmethod
     def _make_fiftyone_dataset(
@@ -257,6 +417,9 @@ class LitPose(LightningWork):
 
     def run(self, action: str, **kwargs) -> None:
         if action == "train":
+            # don't fit model if training has already launched
+            if os.path.exists(kwargs["results_dir"]):
+                return
             self._train(**kwargs)
             self._make_fiftyone_dataset(**kwargs)
         elif action == "run_inference":
@@ -269,6 +432,16 @@ class LitPose(LightningWork):
             # save relative rather than absolute path
             kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
             self._run_inference(**kwargs)
+        elif action == "run_eks":
+            proj_dir = '/'.join(kwargs["model_dir"].split('/')[:3])
+            new_vid_file = copy_and_reformat_video(
+                video_file=abspath(kwargs["video_file"]),
+                dst_dir=abspath(os.path.join(proj_dir, VIDEOS_INFER_DIR)),
+                remove_old=kwargs.pop("remove_old", True),
+            )
+            # save relative rather than absolute path
+            kwargs["video_file"] = '/'.join(new_vid_file.split('/')[-4:])
+            self._run_eks(**kwargs)
 
 
 class TrainUI(LightningFlow):
@@ -280,7 +453,7 @@ class TrainUI(LightningFlow):
         allow_context: bool = True,
         max_epochs_default: int = 300,
         rng_seed_data_pt_default: int = 0,
-        **kwargs,
+        **kwargs
     ) -> None:
 
         super().__init__(*args, **kwargs)
@@ -308,13 +481,19 @@ class TrainUI(LightningFlow):
         # track number of times user hits buttons; used internally and externally
         self.submit_count_train = 0
 
-        # output from the UI (all will be dicts with keys=models, except st_max_epochs)
+        # output from the UI
         self.st_train_status = {}  # 'none' | 'initialized' | 'active' | 'complete'
-        self.st_losses = {}
-        self.st_datetimes = {}
+        self.st_losses = []  # for both semi-super and semi-super context models
         self.st_train_label_opt = None  # what to do with video evaluation
         self.st_max_epochs = None
-        self.st_rng_seed_data_pt = rng_seed_data_pt_default
+        self.st_rng_seed_data_pt = [rng_seed_data_pt_default]
+        self.st_train_flag = {
+            "super": False,
+            "semisuper": False,
+            "super-ctx": False,
+            "semisuper-ctx": False,
+        }
+        self.st_datetime = None
 
         # ------------------------
         # Inference
@@ -336,10 +515,17 @@ class TrainUI(LightningFlow):
         self.st_label_short = True
         self.st_label_full = False
 
+        # ------------------------
+        # Ensembling
+        # ------------------------
+        self.work_is_done_eks = False
+
     def _train(
         self,
         config_filename: Optional[str] = None,
-        video_dirname: str = VIDEOS_DIR
+        video_dirname: str = VIDEOS_DIR,
+        testing: bool = False,
+        **kwargs
     ) -> None:
 
         if config_filename is None:
@@ -380,9 +566,9 @@ class TrainUI(LightningFlow):
             },
             "training": {
                 "imgaug": "dlc",
+                "check_val_every_n_epoch": 10,
                 "log_every_n_steps": 5,
                 "max_epochs": self.st_max_epochs,
-                "rng_seed_data_pt": self.st_rng_seed_data_pt,
             }
         }
 
@@ -390,79 +576,180 @@ class TrainUI(LightningFlow):
         if self.n_labeled_frames <= 20:
             config_overrides["training"]["log_every_n_steps"] = 1
             config_overrides["training"]["train_batch_size"] = 1
+        if self.st_max_epochs < 10:
+            config_overrides["training"]["check_val_every_n_epoch"] = 1
+            config_overrides["training"]["log_every_n_steps"] = 1
+
+        # populate status dict
+        # this dict controls execution logic as well as progress bar updates in the UI
+        # cannot do this in the other nested for loops otherwise not all entries are initialized
+        # at the same time, even if called before launching the works
+        for m, (model_type, train_flag) in enumerate(self.st_train_flag.items()):
+            for rng in self.st_rng_seed_data_pt:
+                if testing:
+                    model_type += "_PYTEST"
+                model_name = f"{self.st_datetime[:-2]}{m:02}_{model_type}-{rng}"
+                if model_name not in self.st_train_status.keys():
+                    self.st_train_status[model_name] = "initialized" if train_flag else "none"
 
         # train models
-        for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
-            status = self.st_train_status[m]
+        for model_name, status in self.st_train_status.items():
             if status == "initialized" or status == "active":
-                self.st_train_status[m] = "active"
-                config_overrides["model"]["losses_to_use"] = self.st_losses[m]
-                if m.find("ctx") > -1:
+                self.st_train_status[model_name] = "active"
+
+                # update config
+                config_overrides["training"]["rng_seed_data_pt"] = int(model_name.split("-")[-1])
+                if model_name.find("semi") > -1:
+                    config_overrides["model"]["losses_to_use"] = self.st_losses
+                else:
+                    config_overrides["model"]["losses_to_use"] = []
+                if model_name.find("ctx") > -1:
                     config_overrides["model"]["model_type"] = "heatmap_mhcrnn"
+
+                # start training
                 self.work.run(
                     action="train",
                     config_file=os.path.join(self.proj_dir, config_filename),
                     config_overrides=config_overrides,
-                    results_dir=os.path.join(base_dir, MODELS_DIR, self.st_datetimes[m])
+                    results_dir=os.path.join(base_dir, MODELS_DIR, model_name),
                 )
-                self.st_train_status[m] = "complete"
+
+                # post-training cleanup
+                self.st_train_status[model_name] = "complete"
                 self.work.progress = 0.0  # reset for next model
 
         self.submit_count_train += 1
 
+    def _launch_works(
+        self,
+        action: str,
+        model_dirs: list,
+        video_files: list,
+        work_kwargs: dict,
+        testing: bool = False,
+        **kwargs
+    ) -> None:
+
+        # launch works (sequentially for now)
+        for model_dir in model_dirs:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.works_dict.keys():
+                    self.works_dict[worker_key] = LitPose(
+                        cloud_compute=CloudCompute("gpu"),
+                        parallel=is_running_in_cloud(),
+                    )
+                status = self.st_infer_status[worker_key]
+                if status == "initialized" or status == "active":
+                    self.st_infer_status[worker_key] = "active"
+                    # launch single worker for this model/video combo
+                    if testing:
+                        remove_old = False
+                    else:
+                        remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
+                    self.works_dict[worker_key].run(
+                        action=action,
+                        model_dir=model_dir,  # used by inference, ignored by eks
+                        video_file="/" + video_file,
+                        remove_old=remove_old,
+                        **work_kwargs,
+                    )
+                    self.st_infer_status[worker_key] = "complete"
+
+        # clean up works
+        while len(self.works_dict) > 0:
+            for worker_key in list(self.works_dict):
+                if (worker_key in self.works_dict.keys()) \
+                        and self.works_dict[worker_key].work_is_done:
+                    # kill work
+                    _logger.info(f"killing worker {worker_key}")
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[worker_key].stop()
+                    del self.works_dict[worker_key]
+
     def _run_inference(
         self,
-        model_dir: Optional[str] = None,
+        model_dirs: Optional[list] = None,
         video_files: Optional[list] = None,
         testing: bool = False,
+        **kwargs
     ) -> None:
 
         self.work_is_done_inference = False
 
-        if not model_dir:
-            model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+        if not model_dirs:
+            model_dirs = [os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)]
         if not video_files:
             video_files = self.st_inference_videos
 
-        # launch works (sequentially for now)
-        for video_file in video_files:
-            video_key = video_file.replace(".", "_")  # keys cannot contain "."
-            if video_key not in self.works_dict.keys():
-                self.works_dict[video_key] = LitPose(
-                    cloud_compute=CloudCompute("gpu"),
-                    parallel=is_running_in_cloud(),
-                )
-            status = self.st_infer_status[video_file]
-            if status == "initialized" or status == "active":
-                self.st_infer_status[video_file] = "active"
-                # run inference (automatically reformats video for DALI)
-                if testing:
-                    remove_old = False
-                else:
-                    remove_old = VIDEOS_TMP_DIR in video_file  # only remove tmp files
-                self.works_dict[video_key].run(
-                    action="run_inference",
-                    model_dir=model_dir,
-                    video_file="/" + video_file,
-                    make_labeled_video_full=self.st_label_full,
-                    make_labeled_video_clip=self.st_label_short,
-                    remove_old=remove_old,
-                )
-                self.st_infer_status[video_file] = "complete"
+        # populate status dict
+        # this dict controls execution logic as well as progress bar updates in the UI
+        # cannot do this in the other nested for loops otherwise not all entries are initialized
+        # at the same time, even if called before launching the works
+        for model_dir in model_dirs:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.st_infer_status.keys():
+                    self.st_infer_status[worker_key] = "initialized"
 
-        # clean up works
-        while len(self.works_dict) > 0:
-            for video_key in list(self.works_dict):
-                if (video_key in self.works_dict.keys()) \
-                        and self.works_dict[video_key].work_is_done_inference:
-                    # kill work
-                    _logger.info(f"killing work from video {video_key}")
-                    if not testing:  # cannot run stop() from tests for some reason
-                        self.works_dict[video_key].stop()
-                    del self.works_dict[video_key]
+        work_kwargs = {
+            "make_labeled_video_full": self.st_label_full,
+            "make_labeled_video_clip": self.st_label_short,
+        }
+        self._launch_works(
+            action="run_inference",
+            model_dirs=model_dirs,
+            video_files=video_files,
+            testing=testing,
+            work_kwargs=work_kwargs,
+        )
 
         # set flag for parent app
         self.work_is_done_inference = True
+
+    def _run_eks(
+        self,
+        ensemble_dir: str,
+        model_dirs: list,
+        video_files: Optional[list] = None,
+        testing: bool = False,
+        **kwargs
+    ) -> None:
+
+        self.work_is_done_eks = False
+
+        if not video_files:
+            video_files = self.st_inference_videos
+
+        # populate status dict
+        # this dict controls execution logic as well as progress bar updates in the UI
+        # cannot do this in the other nested for loops otherwise not all entries are initialized
+        # at the same time, even if called before launching the works
+        for model_dir in [ensemble_dir]:
+            for video_file in video_files:
+                # combine model and video; keys cannot contain "."
+                worker_key = f"{video_file.replace('.', '_')}---{model_dir}"
+                if worker_key not in self.st_infer_status.keys():
+                    self.st_infer_status[worker_key] = "initialized"
+
+        work_kwargs = {
+            "ensemble_dir": ensemble_dir,
+            "model_dirs": model_dirs,
+            "make_labeled_video_full": self.st_label_full,
+            "make_labeled_video_clip": self.st_label_short,
+            "smooth_param": kwargs.get("smooth_param", None)
+        }
+        self._launch_works(
+            action="run_eks",
+            model_dirs=[ensemble_dir],  # just loop over ensemble dir for each video
+            video_files=video_files,
+            testing=testing,
+            work_kwargs=work_kwargs,
+        )
+
+        self.work_is_done_eks = True
 
     def _determine_dataset_type(self, **kwargs):
         """Check if labeled data directory contains context frames."""
@@ -475,7 +762,35 @@ class TrainUI(LightningFlow):
         if action == "train":
             self._train(**kwargs)
         elif action == "run_inference":
-            self._run_inference(**kwargs)
+
+            # check to see if we have a single model or an ensemble
+            default_model_dir = os.path.join(self.proj_dir, MODELS_DIR, self.st_inference_model)
+            model_dir = kwargs.pop("model_dir", default_model_dir)
+
+            if ENSEMBLE_MEMBER_FILENAME not in os.listdir(abspath(model_dir)):
+                # single model
+                self._run_inference(model_dirs=[model_dir], **kwargs)
+            else:
+
+                ensemble_list_file = os.path.join(model_dir, ENSEMBLE_MEMBER_FILENAME)
+                with open(abspath(ensemble_list_file), "r") as file:
+                    model_dirs = [line.strip() for line in file.readlines()]
+
+                # IMPORTANT: since '_run_inference' and '_run_eks' are not the actual 'run' method
+                # they will not be cached.
+                # Therefore these 'if not' statements prevent these functions from being run more
+                # than once.
+                # It is important that the Streamlit function set these flags to False upon the
+                # button click to ensure a 'True' value is not stored from a previous run.
+
+                # run inference with ensemble
+                if not self.work_is_done_inference:
+                    self._run_inference(model_dirs=model_dirs, **kwargs)
+
+                # run eks on ensemble output
+                if not self.work_is_done_eks:
+                    self._run_eks(ensemble_dir=model_dir, model_dirs=model_dirs, **kwargs)
+
         elif action == "determine_dataset_type":
             self._determine_dataset_type(**kwargs)
 
@@ -521,27 +836,41 @@ def _render_streamlit_fn(state: AppState):
 
     with train_tab:
 
-        st.header("Train Networks")
+        st.header("Train networks")
 
         st.markdown(
             """
             #### Training options
             """
         )
-        # expander = st.expander("Change Defaults")
-        expander = st.expander(
-            "Expand to adjust training parameters")
+        expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
             "Set the max training epochs (all models)", value=state.max_epochs_default)
 
         st_rng_seed_data_pt = expander.text_input(
-            "Set the seed/s (all models)", value=state.rng_seed_data_pt_default,
+            "Set the seed(s) for all models (int or comma-separated string)",
+            value=state.rng_seed_data_pt_default,
             help="By setting a seed or a list of seeds, you enable reproducible model training, "
-            "ensuring consistent results across different runs. Users can specify a single "
-            "integer for individual models or a list to train multiple networks (e.g. 1,5,6,7) "
-            "thereby enhancing flexibility and control over the training process."
+                 "ensuring consistent results across different runs. Users can specify a single "
+                 "integer for individual models or a list to train multiple networks "
+                 "(e.g. 1,5,6,7) thereby enhancing flexibility and control over the training "
+                 "process."
         )
+        if isinstance(st_rng_seed_data_pt, int):
+            st_rng_seed_data_pt = [st_rng_seed_data_pt]
+        elif isinstance(st_rng_seed_data_pt, str):
+            st_rng_seed_data_pt_ = []
+            for rng in st_rng_seed_data_pt.split(","):
+                try:
+                    st_rng_seed_data_pt_.append(int(rng))
+                except:
+                    continue
+            st_rng_seed_data_pt = np.unique(st_rng_seed_data_pt_).tolist()
+        elif isinstance(st_rng_seed_data_pt, list):
+            pass
+        else:
+            st.text("RNG seed must be a single integer or a list of comma-separated integers")
 
         # unsupervised losses (semi-supervised only; only expose relevant losses)
         expander.write("Select losses for semi-supervised model")
@@ -579,23 +908,25 @@ def _render_streamlit_fn(state: AppState):
             #### Select models to train
             """
         )
-        st_train_super = st.checkbox("Supervised", value=True)
-        st_train_semisuper = st.checkbox("Semi-supervised", value=True)
-        if state.allow_context:
-            st_train_super_ctx = st.checkbox("Supervised context", value=True)
-            st_train_semisuper_ctx = st.checkbox("Semi-supervised context", value=True)
-        else:
-            st_train_super_ctx = False
-            st_train_semisuper_ctx = False
+        st_train_flag = {
+            "super": st.checkbox("Supervised", value=True),
+            "semisuper": st.checkbox("Semi-supervised", value=True),
+            "super-ctx": st.checkbox("Supervised context", value=True)
+            if state.allow_context else False,
+            "semisuper-ctx": st.checkbox("Semi-supervised context", value=True)
+            if state.allow_context else False,
+        }
 
-        st_submit_button_train = st.button("Train models", disabled=state.run_script_train)
+        st_submit_button_train = st.button(
+            "Train models", 
+            disabled=state.run_script_train or state.n_labeled_frames < MIN_TRAIN_FRAMES
+        )
 
         # give user training updates
         if state.run_script_train:
-            for m in ["super", "semisuper", "super ctx", "semisuper ctx"]:
-                if m in state.st_train_status.keys() and state.st_train_status[m] != "none":
-                    status = state.st_train_status[m]
-                    status_ = None  # more detailed status info from work
+            for m, status in state.st_train_status.items():
+                if status != "none":
+                    status_ = None  # define more detailed status info from work
                     if status == "initialized":
                         p = 0.0
                     elif status == "active":
@@ -605,15 +936,23 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
+
+                    rng = m.split("-")[-1]
                     st.progress(
-                        p / 100.0, f"model: {m}\n\n{status_ or status}: {int(p)}\% complete"
+                        p / 100.0,
+                        f"model: {m} (rng={rng})\n\n"
+                        f"{status_ or status}: {int(p)}\% complete"
                     )
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) \
-                    and (st_train_semisuper or st_train_semisuper_ctx):
+                    and (st_train_flag["semisuper"] or st_train_flag["semisuper-ctx"]):
                 st.warning("Must select at least one semi-supervised loss if training that model")
                 st_submit_button_train = False
+
+        if state.n_labeled_frames < MIN_TRAIN_FRAMES:
+            st.warning(f"Must label at least {MIN_TRAIN_FRAMES} frames before training")
+            st_submit_button_train = False
 
         if state.submit_count_train > 0 \
                 and not state.run_script_train \
@@ -623,17 +962,16 @@ def _render_streamlit_fn(state: AppState):
             st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
 
         if st_submit_button_train:
+
             # save streamlit options to flow object
             state.submit_count_train += 1
             state.st_max_epochs = int(st_max_epochs)
-            state.st_rng_seed_data_pt = int(st_rng_seed_data_pt)
+            state.st_rng_seed_data_pt = st_rng_seed_data_pt
             state.st_train_label_opt = st_train_label_opt
-            state.st_train_status = {
-                "super": "initialized" if st_train_super else "none",
-                "semisuper": "initialized" if st_train_semisuper else "none",
-                "super ctx": "initialized" if st_train_super_ctx else "none",
-                "semisuper ctx": "initialized" if st_train_semisuper_ctx else "none",
-            }
+            state.st_train_flag = st_train_flag
+            state.st_train_status = {}  # reset; the Flow will update this
+            dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+            state.st_datetime = dtime
 
             # construct semi-supervised loss list
             semi_losses = []
@@ -643,29 +981,8 @@ def _render_streamlit_fn(state: AppState):
                 semi_losses.append("pca_singleview")
             if st_loss_temp:
                 semi_losses.append("temporal")
-            state.st_losses = {
-                "super": [],
-                "semisuper": semi_losses,
-                "super ctx": [],
-                "semisuper ctx": semi_losses,
-            }
+            state.st_losses = semi_losses
 
-            # set model times
-            st_datetimes = {}
-            dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-            # force different datetimes
-            for i in range(4):
-                if i == 0:  # supervised model
-                    st_datetimes["super"] = dtime[:-2] + "00_super"
-                if i == 1:  # semi-supervised model
-                    st_datetimes["semisuper"] = dtime[:-2] + "01_semisuper"
-                if i == 2:  # supervised context model
-                    st_datetimes["super ctx"] = dtime[:-2] + "02_super-ctx"
-                if i == 3:  # semi-supervised context model
-                    st_datetimes["semisuper ctx"] = dtime[:-2] + "03_semisuper-ctx"
-
-            # NOTE: cannot set these dicts entry-by-entry in the above loop, o/w don't get set?
-            state.st_datetimes = st_datetimes
             st.text("Model training launched!")
             state.run_script_train = True  # must the last to prevent race condition
             # force rerun to show "waiting for existing..." message
@@ -673,9 +990,10 @@ def _render_streamlit_fn(state: AppState):
 
     with right_column:
 
-        with st.container():
+        inference_container = st.container()
+        with inference_container:
             st.header(
-                body="Predict on New Videos",
+                body="Predict on new videos",
                 help="Select your preferred inference model, then drag and drop your video "
                      "file(s). Monitor the upload progress bar and click **Run inference** "
                      "once uploads are complete. "
@@ -697,8 +1015,7 @@ def _render_streamlit_fn(state: AppState):
                 "Video selection",
                 options=[
                     VIDEO_SELECT_NEW,
-                    VIDEO_SELECT_TRAIN_INFER,
-                    VIDEO_SELECT_EXTRACT,
+                    VIDEO_SELECT_UPLOADED,
                 ],
             )
 
@@ -721,30 +1038,38 @@ def _render_streamlit_fn(state: AppState):
                         with open(filepath, "wb") as f:
                             f.write(bytes_data)
 
-            elif video_select_option == VIDEO_SELECT_EXTRACT:
+            elif video_select_option == VIDEO_SELECT_UPLOADED:
 
-                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+                uploaded_video_dir_train = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+                list_train = []
+                if os.path.isdir(uploaded_video_dir_train):
+                    list_train = [
+                        os.path.join(uploaded_video_dir_train, vid)
+                        for vid in os.listdir(uploaded_video_dir_train)
+                    ]
+
+                uploaded_video_dir_infer = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
+                list_infer = []
+                if os.path.isdir(uploaded_video_dir_infer):
+                    list_infer = [
+                        os.path.join(uploaded_video_dir_infer, vid)
+                        for vid in os.listdir(uploaded_video_dir_infer)
+                    ]
+
                 st_videos = st.multiselect(
                     "Select video files",
-                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
-                    help="These are videos used for labeled frame extraction",
+                    list_train + list_infer,
+                    help="Videos in the 'videos_infer' directory have been previously uploaded "
+                         "for inference. "
+                         "Videos in the 'videos' directory have been previously uploaded for "
+                         "frame extraction.",
+                    format_func=lambda x: "/".join(x.split("/")[-2:]),
                 )
-                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
-
-            elif video_select_option == VIDEO_SELECT_TRAIN_INFER:
-
-                uploaded_video_dir = os.path.join(state.proj_dir[1:], VIDEOS_INFER_DIR)
-                st_videos = st.multiselect(
-                    "Select video files",
-                    os.listdir(uploaded_video_dir) if os.path.isdir(uploaded_video_dir) else [],
-                    help="These are videos previously used for inference",
-                )
-                st_videos = [os.path.join(uploaded_video_dir, vid) for vid in st_videos]
 
             # allow user to select labeled video option
             st.markdown(
                 """
-                #### Video handling options""",
+                #### Video labeling options""",
                 help="Select checkboxes to automatically save a labeled video (short clip or full "
                 "video or both) after inference is complete. The short clip contains the 30 "
                 "second period of highest motion energy in the predictions."
@@ -761,17 +1086,17 @@ def _render_streamlit_fn(state: AppState):
                 disabled=len(st_videos) == 0 or state.run_script_infer,
             )
             if state.run_script_infer:
-                keys = [k for k, _ in state.works_dict.items()]  # cannot directly call keys()?
-                for vid, status in state.st_infer_status.items():
+                # cannot directly call keys()?
+                worker_keys = [k for k, _ in state.works_dict.items()]
+                for worker_key, status in state.st_infer_status.items():
                     status_ = None  # more detailed status provided by work
                     if status == "initialized":
                         p = 0.0
                     elif status == "active":
-                        vid_ = vid.replace(".", "_")
-                        if vid_ in keys:
+                        if worker_key in worker_keys:
                             try:
-                                p = state.works_dict[vid_].progress
-                                status_ = state.works_dict[vid_].status_
+                                p = state.works_dict[worker_key].progress
+                                status_ = state.works_dict[worker_key].status_
                             except Exception:
                                 p = 100.0  # if work is deleted while accessing
                         else:
@@ -780,8 +1105,15 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
+
+                    vid_, model_ = worker_key.split("---")
+                    model_ = "/".join(model_.split("/")[-2:])
+                    vid_ = "/".join(vid_.split("/")[-2:])
                     st.progress(
-                        p / 100.0, f"video: {vid}\n\n{status_ or status}: {int(p)}\% complete")
+                        p / 100.0,
+                        f"model: {model_}\n\nvideo: {vid_}\n\n"
+                        f"{status_ or status}: {int(p)}\% complete")
+
                 st.warning("waiting for existing inference to finish")
 
             # Lightning way of returning the parameters
@@ -791,54 +1123,74 @@ def _render_streamlit_fn(state: AppState):
 
                 state.st_inference_model = model_dir
                 state.st_inference_videos = st_videos
-                state.st_infer_status = {s: "initialized" for s in st_videos}
+                state.st_infer_status = {}  # reset; the Flow will update this
                 state.st_label_short = st_label_short
                 state.st_label_full = st_label_full
+                state.work_is_done_inference = False  # alert flow inference needs performing
+                state.work_is_done_eks = False  # alert flow eks needs performing
                 st.text("Request submitted!")
                 state.run_script_infer = True  # must the last to prevent race condition
 
                 # force rerun to show "waiting for existing..." message
                 st_autorefresh(interval=2000, key="refresh_infer_ui_submitted")
 
-        # st.markdown("----")
+        st.markdown("----")
 
-        # eks_tab = st.container()
-        # with eks_tab:
-        #    st.header("Ensemble Selected Models")
-        #    selected_models = st.multiselect(
-        #        "Select models for ensembling",
-        #        sorted(state.trained_models, reverse=True),
-        #        help="Select which models you want to create an new ensemble model"
-        #    )
-        #
-        #    st_submit_button_eks = st.button(
-        #        "Create ensemble",
-        #        key="eks_unique_key_button",
-        #        disabled=(
-        #            len(selected_models) < 2
-        #            or state.run_script_train
-        #            or state.run_script_infer
-        #        )
-        #    )
-        #
-        #    if st_submit_button_eks:
-        #
-        #        model_abs_paths = [
-        #            os.path.join(state.proj_dir[1:], MODELS_DIR, model_name)
-        #            for model_name in selected_models
-        #        ]
-        #
-        #        dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
-        #        eks_folder_path = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_eks")
-        #        # create a folder for the eks in the models project folder
-        #        os.makedirs(eks_folder_path, exist_ok=True)
-        #
-        #        text_file_path = os.path.join(eks_folder_path, "models_for_eks.txt")
-        #
-        #        with open(text_file_path, 'w') as file:
-        #            file.writelines(f"{path}\n" for path in model_abs_paths)
-        #
-        #        if os.path.exists(text_file_path):
-        #            st.text(f"Ensemble {eks_folder_path} created!")
-        #
-        #        st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+        eks_tab = st.container()
+        with eks_tab:
+
+            st.header("Create an ensemble of models")
+            selected_models = st.multiselect(
+               "Select models for ensembling",
+               sorted(state.trained_models, reverse=True),
+               help="Select which models you want to create an new ensemble model",
+            )
+            eks_model_name = st.text_input(
+                label="Add ensemble name",
+                value="eks",
+                help="Provide a name that will be appended to the data/time information."
+            )
+            eks_model_name = eks_model_name.replace(" ", "_")
+
+            st_submit_button_eks = st.button(
+                "Create ensemble",
+                key="eks_unique_key_button",
+                disabled=(
+                    len(selected_models) < 2
+                    or state.run_script_train
+                    or state.run_script_infer
+                )
+            )
+
+            if st_submit_button_eks:
+
+                model_abs_paths = [
+                   os.path.join(state.proj_dir, MODELS_DIR, model_name)
+                   for model_name in selected_models
+                ]
+
+                dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
+                eks_dir = os.path.join(state.proj_dir[1:], MODELS_DIR, f"{dtime}_{eks_model_name}")
+
+                ensemble_file = create_ensemble_directory(
+                    ensemble_dir=eks_dir,
+                    model_dirs=model_abs_paths,
+                )
+
+                if os.path.exists(ensemble_file):
+                    st.text(f"Ensemble created!")
+
+                st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
+
+
+def create_ensemble_directory(ensemble_dir: str, model_dirs: list):
+
+    # create a folder for the ensemble
+    os.makedirs(ensemble_dir, exist_ok=True)
+
+    # save model paths in a text file
+    text_file_path = os.path.join(ensemble_dir, ENSEMBLE_MEMBER_FILENAME)
+    with open(text_file_path, 'w') as file:
+        file.writelines(f"{path}\n" for path in model_dirs)
+
+    return text_file_path

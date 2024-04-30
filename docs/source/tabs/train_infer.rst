@@ -10,26 +10,34 @@ This tab is the interface for training models and running inference on new video
 
 The left side-bar displays your current labeling progress, and contains a drop-down menu showing
 all previously trained models.
-The "Train Networks" and "Predict on New Videos" columns are for training and inference,
+The main workflows are:
+
+* :ref:`Train networks<tab_train_infer__train>`
+* :ref:`Predict on new videos<tab_train_infer__infer>`
+* :ref:`Create an ensemble of models<tab_train_infer__ensemble>`
+
+"Train Networks" and "Predict on New Videos" columns are for training and inference,
 and detailed below.
 
-Train Networks
+.. _tab_train_infer__train:
+
+Train networks
 ==============
 
 Training options
 ----------------
 
 From the drop-down "Expand to adjust training parameters" menu,
-optionally change the max training epochs,
-the model seed (different seeds will lead to different model outputs that are useful for ensembling),
-and the types of unsupervised losses used for the semi-supervised models.
+optionally change the following:
 
-.. .. image:: https://imgur.com/LiylXxc.png
-    :width: 400
-
-The PCA Multiview option will only appear if your data have more than one view;
-the Pose PCA option will only appear if you selected keypoints for the Pose PCA loss during
-project creation.
+* Max training epochs (default is 300)
+* Model seed; different seeds will lead to different model outputs that are useful for ensembling.
+  Enter either a single integer (e.g. ``0``) to train one model of each type (see below), or a
+  list of comma-separated integers (e.g. ``0,1,2``) to train multiple models of each type.
+* Losses used for the semi-supervised models.
+  The PCA Multiview option will only appear if your data have more than one view;
+  the Pose PCA option will only appear if you selected keypoints for the Pose PCA loss during
+  project creation.
 
 Select models to train
 ----------------------
@@ -62,7 +70,7 @@ Once training is complete for all models you will see
 
 .. _tab_train_infer__infer:
 
-Predict on New Videos
+Predict on new videos
 =====================
 
 First, select the model you would like to use for inference from the drop-down menu.
@@ -70,19 +78,17 @@ First, select the model you would like to use for inference from the drop-down m
 Select videos
 -------------
 
-You have three options for video selection:
+You have two options for video selection:
 
 * **Upload new**:
   upload a new video to the app.
   To do so, drag and drop the video file(s) using the provided interface.
   You will see an upload progress bar.
   If your video is larger than the 200MB default limit, see the :ref:`FAQs<faq_upload_limit>`.
-* **Select video(s) previously uploaded to the TRAIN/INFER tab**:
-  any video previously uploaded to this tab will be available in the drop down menu; you may
-  select multiple videos.
-* **Select video(s) previously uploaded to the EXTRACT FRAMES tab**:
-  any video previously uploaded in the EXTRACT FRAMES tab for labeling will be available in the
-  drop down menu; you may select multiple videos.
+* **Select previously uploaded video(s)**:
+  any video previously uploaded to this tab (located in the ``videos_infer`` directory) or the
+  Extract Frames tab (located in the ``videos`` directory) will be available in the drop down menu;
+  you may select multiple videos.
 
 Video handling options
 ----------------------
@@ -111,3 +117,73 @@ Once inference is complete for all videos you will see the
 "waiting for existing inference to finish" warning disappear.
 
 See :ref:`Accessing your data <directory_structure>` for the location of inference results.
+
+
+.. _tab_train_infer__ensemble:
+
+Create an ensemble of models
+============================
+
+Ensembling is a classical machine learning technique that combines predictions from multiple
+models to provide enhanced performance.
+We offer the `Ensemble Kalman Smoother (EKS) <https://github.com/paninski-lab/eks>`_,
+a Bayesian ensembling technique that combines model predictions with a latent smoothing model.
+
+To use EKS, you must first create an ensemble of models.
+Then, if you run inference using the ensemble, EKS will automatically be run on the ensemble
+output.
+The steps are outlined in more detail below.
+
+Select models for ensembling
+----------------------------
+Select a set of previously trained models to create the ensemble.
+We recommend an ensemble size of 4-5 models for a good trade-off between computational efficiency
+and accuracy.
+An ensemble can be composed in many ways;
+one way would be to include models of the same type (supervised, semi-supervised, etc.) using
+different random seeds;
+another way would be to include models of different types (e.g. one supervised, one
+semi-supervised, etc.); a combination of these approaches would work too!
+
+Add ensemble name
+-----------------
+Give your ensemble a name. This text will be appended to the date and time to form the final
+ensemble name (just like the other models), to prevent overwriting previous models/ensembles.
+
+Create ensemble
+---------------
+Click the "Create ensemble" button; you will see a brief success message.
+The newly-created ensemble directory will contain a text file that points to the model directories
+of the individual ensemble members.
+
+Running the Ensemble Kalman Smoother post-processor
+---------------------------------------------------
+Now that the ensemble has been created, you can run inference on videos.
+Navigate back to the :ref:`Predict on new videos <tab_train_infer__infer>` part of this tab.
+You should now see your ensemble in the drop-down menu of models.
+
+.. note::
+
+    If your model is not in the drop-down menu, click on the three vertical dots in the top right
+    of the tab (next to the "Deploy" button) and click "Rerun".
+
+You can now treat the ensemble as any other model: select one or more videos to run inference on,
+select any video labeling options you like, and then click "Run inference".
+Upon doing so you will see multiple progress bars appear, one for each model/video combination:
+
+.. image:: https://imgur.com/dGktgCm.png
+    :width: 400
+
+Inference and labeled video creation will be skipped for any ensemble member that has already
+performed these tasks.
+
+After inference and labeled video creation are completed for each ensemble member, a new progress
+bar will appear for the EKS model.
+You will see the progress of the EKS fitting process, as well as the labeled video creation if you
+have selected one of those options.
+
+The outputs of EKS will be stored just like the inference outputs of a single model.
+This means that you may inspect the EKS traces in the
+:ref:`Video Diagnostics tab<tab_video_diagnostics>`
+and view the labeled video (if you have selected one of these options) in the
+:ref:`Video Player tab<tab_video_player>`.

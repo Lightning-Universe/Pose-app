@@ -104,3 +104,15 @@ Model training
     You can find the relevant parameters to adjust
     `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html>`_
     (this link takes you to another set of docs specifically for Lightning Pose).
+
+
+Post-processing
+---------------
+
+.. _faq_post_processing:
+
+.. dropdown:: Does the Lightning Pose app perform post-processing of the predictions?
+
+    We offer the `Ensemble Kalman Smoother (EKS) <https://github.com/paninski-lab/eks>`_
+    post-processor, which we have found superior to other forms of post-processing.
+    To run EKS, see the :ref:`Create an ensemble of models<tab_train_infer__ensemble>` section.

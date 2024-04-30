@@ -33,6 +33,10 @@ seen from two views ("top" and "bottom").
 If you are using more than one view, we recommend listing all keypoints from one view first,
 then all keypoints from the next view, etc.
 
+.. note::
+
+    Keypoint names cannot contain spaces or dashes (underscores are ok).
+
 .. image:: https://imgur.com/m0a6TRy.png
 
 You will then be prompted to select a subset of keypoints for the Pose PCA loss.
