@@ -348,7 +348,7 @@ class LitPose(LightningWork):
             ckpt_file=None,
             data_module=data_module,
             trainer=None,
-            metrics=False,
+            metrics=True,
         )
 
         if make_labeled_video_full:
