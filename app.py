@@ -94,16 +94,6 @@ class LitPoseApp(LightningFlow):
             database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
-        # start label studio
-        self.label_studio.run(action="start_label_studio")
-
-        # import mirror-mouse-example dataset
-        if not os.environ.get("TESTING_LAI"):
-            self.import_demo_dataset(
-                src_dir=os.path.join(LIGHTNING_POSE_DIR, "data", "mirror-mouse-example"),
-                dst_dir=os.path.join(self.data_dir[1:], "mirror-mouse-example")
-            )
-
     def import_demo_dataset(self, src_dir, dst_dir):
 
         src_dir_abs = os.path.join(os.path.dirname(__file__), src_dir)
@@ -272,6 +262,7 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         # start background services (run only once)
         # -------------------------------------------------------------
+        self.label_studio.run(action="start_label_studio")
         self.start_fiftyone()
         if self.project_ui.model_dir is not None:
             # find previously trained models for project, expose to training and diagnostics UIs
@@ -281,6 +272,13 @@ class LitPoseApp(LightningFlow):
             self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
             self.streamlit_frame.run(action="initialize")
             self.streamlit_video.run(action="initialize")
+
+        # import mirror-mouse-example dataset
+        if not os.environ.get("TESTING_LAI"):
+            self.import_demo_dataset(
+                src_dir=os.path.join(LIGHTNING_POSE_DIR, "data", "mirror-mouse-example"),
+                dst_dir=os.path.join(self.data_dir[1:], "mirror-mouse-example")
+            )
 
         # -------------------------------------------------------------
         # update project data (user has clicked button in project UI)
