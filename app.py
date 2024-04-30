@@ -5,6 +5,7 @@ To run from the command line (inside the conda environment named "lai" here):
 
 """
 
+import json
 from lightning.app import CloudCompute, LightningApp, LightningFlow
 import logging
 import numpy as np
@@ -94,44 +95,73 @@ class LitPoseApp(LightningFlow):
             database_dir=os.path.join(self.data_dir, LABELSTUDIO_DB_DIR),
         )
 
-    def import_demo_dataset(self, src_dir, dst_dir):
+        self.import_demo_count = 0
 
-        src_dir_abs = os.path.join(os.path.dirname(__file__), src_dir)
-        proj_dir_abs = os.path.join(os.path.dirname(__file__), dst_dir)
-        if os.path.isdir(proj_dir_abs):
+    def import_demo_dataset(self, src_dir_abs, dst_dir_abs):
+
+        """NOTE
+        This is an ugly solution. Previously this function was called from the app constructor,
+        which required label studio to be started inside the constructor as well. This led to 
+        issues with ports. Therefore this import needs to happen in the app's run method.
+        However, this means that various parts of this function will execute several times before
+        it is finished. Furthermore, this function runs *every* time the app is called.
+        """
+
+        if self.import_demo_count > 0:
+            return
+
+        proj_dir_abs = dst_dir_abs
+        project_name = os.path.basename(dst_dir_abs)
+
+        # check to see if the demo dataset has already been imported
+        label_studio_exports = os.path.join(
+            os.path.dirname(dst_dir_abs), LABELSTUDIO_DB_DIR, "export",
+        )
+        projects = {}
+        if os.path.isdir(label_studio_exports):
+            files = os.listdir(label_studio_exports)
+            for f in files:
+                if f.endswith("info.json"):
+                    json_file = os.path.join(label_studio_exports, f)
+                    d = json.load(open(json_file, "r"))        
+                    project_name = d["project"]["title"]
+                    n_labels = d["project"]["task_number"]
+                    projects[project_name] = n_labels
+        
+        if project_name in projects.keys() and projects[project_name] == 90:
+            self.import_demo_count += 1
             return
 
         _logger.info("Importing demo dataset; this will only take a minute")
-
-        project_name = os.path.basename(dst_dir)
 
         # -------------------------------
         # copy data
         # -------------------------------
         # copy full example data directory over
-        shutil.copytree(src_dir_abs, proj_dir_abs)
+        if not os.path.isdir(proj_dir_abs):
+            shutil.copytree(src_dir_abs, proj_dir_abs)
 
         # copy config file
         config_file_dst = os.path.join(proj_dir_abs, f"model_config_{project_name}.yaml")
-        shutil.copyfile(
-            os.path.join(LIGHTNING_POSE_DIR, "scripts", "configs", f"config_{project_name}.yaml"),
-            config_file_dst,
-        )
+        if not os.path.isfile(config_file_dst):
+            shutil.copyfile(
+                os.path.join(
+                    LIGHTNING_POSE_DIR, "scripts", "configs", f"config_{project_name}.yaml"
+                ),
+                config_file_dst,
+            )
 
         # make csv file for label studio
-        n_frames = len(os.listdir(os.path.join(proj_dir_abs, LABELED_DATA_DIR)))
-        idxs_selected = np.arange(1, n_frames - 2)  # we've stored mock context frames
-        n_digits = 2
-        extension = "png"
-        frames_to_label = np.sort(np.array(
-            ["img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected]
-        ))
-        np.savetxt(
-            os.path.join(proj_dir_abs, LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME),
-            frames_to_label,
-            delimiter=",",
-            fmt="%s",
-        )
+        csv_file_ls = os.path.join(proj_dir_abs, LABELED_DATA_DIR, SELECTED_FRAMES_FILENAME)
+        if not os.path.isfile(csv_file_ls):
+            n_frames = len(os.listdir(os.path.join(proj_dir_abs, LABELED_DATA_DIR)))
+            idxs_selected = np.arange(1, n_frames - 2)  # we've stored mock context frames
+            n_digits = 2
+            extension = "png"
+            frames_to_label = np.sort(np.array(
+                ["img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected]
+            ))
+            np.savetxt(csv_file_ls, frames_to_label, delimiter=",", fmt="%s")
 
         # make models dir
         os.makedirs(os.path.join(proj_dir_abs, MODELS_DIR), exist_ok=True)
@@ -168,9 +198,12 @@ class LitPoseApp(LightningFlow):
 
         csv_file = os.path.join(proj_dir_abs, COLLECTED_DATA_FILENAME)
         df = pd.read_csv(csv_file, index_col=0, header=[0, 1, 2])
-        df.drop('obs_top', axis=1, level=1, inplace=True)
-        df.drop('obsHigh_bot', axis=1, level=1, inplace=True)
-        df.drop('obsLow_bot', axis=1, level=1, inplace=True)
+        if 'obs_top' in df.columns.get_level_values(1):
+            df.drop('obs_top', axis=1, level=1, inplace=True)
+        if 'obsHigh_bot' in df.columns.get_level_values(1):
+            df.drop('obsHigh_bot', axis=1, level=1, inplace=True)
+        if 'obsLow_bot' in df.columns.get_level_values(1):
+            df.drop('obsLow_bot', axis=1, level=1, inplace=True)
         df.to_csv(csv_file)
 
         # -------------------------------
@@ -220,6 +253,8 @@ class LitPoseApp(LightningFlow):
         self.label_studio.counts["import_existing_annotations"] = 0
 
         del project_ui_demo
+
+        self.import_demo_count += 1
 
     def start_tensorboard(self, logdir):
         """run tensorboard"""
@@ -276,8 +311,10 @@ class LitPoseApp(LightningFlow):
         # import mirror-mouse-example dataset
         if not os.environ.get("TESTING_LAI"):
             self.import_demo_dataset(
-                src_dir=os.path.join(LIGHTNING_POSE_DIR, "data", "mirror-mouse-example"),
-                dst_dir=os.path.join(self.data_dir[1:], "mirror-mouse-example")
+                src_dir_abs=os.path.join(
+                    os.path.dirname(__file__), LIGHTNING_POSE_DIR, "data", "mirror-mouse-example"),
+                dst_dir_abs=os.path.join(
+                    os.path.dirname(__file__), self.data_dir[1:], "mirror-mouse-example"),
             )
 
         # -------------------------------------------------------------
