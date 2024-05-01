@@ -8,7 +8,7 @@ The Extract Frames tab allows you to select frames for labeling using various me
 
 * :ref:`Upload videos and automatically extract random frames <upload_video_random>`
 * :ref:`Upload zipped files of frames <upload_zipped_frames>`
-* :ref:`Automatically extract frames using a given model <active_learning>`
+* :ref:`Automatically extract frames using a given model (active learning) <active_learning>`
 
 .. _upload_video_random:
 
@@ -116,8 +116,8 @@ Once all frames have been extracted you will see "Proceed to the next tab to lab
 
 .. _active_learning:
 
-Automatically extract frames using a given model
-================================================
+Automatically extract frames using a given model (active learning)
+==================================================================
 
 .. note::
 
