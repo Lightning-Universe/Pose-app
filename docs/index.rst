@@ -17,5 +17,6 @@ The app runs in the cloud using `Lightning.ai <https://lightning.ai>`_.
 
    source/getting_started
    source/using_the_app
+   source/user_guides
    source/accessing_your_data
    source/faqs

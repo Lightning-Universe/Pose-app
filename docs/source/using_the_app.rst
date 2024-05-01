@@ -13,6 +13,9 @@ The app allows you to
 Additionally, the app comes with an example dataset if you want to explore, without needing to
 label your own data.
 
+The following docs detail how to launch the app and describe the individual tabs;
+for more information on specific workflows, see the :ref:`User guides<user_guides>`.
+
 **Launch the app**
 
 Once you have opened the Lightning Pose App Studio, you will see the following:
