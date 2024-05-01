@@ -46,6 +46,11 @@ General
 
         lightning run app <app_name.py> --env STREAMLIT_SERVER_MAX_UPLOAD_SIZE=500
 
+    In general we recommend uploading shorter snippets of video to extract frames for labeling.
+    If you are attempting to run inference a some large videos (or even a large number of shorter
+    videos) we recommend
+    :ref:`running inference from the command line using a provided script<guide_inference_on_large_videos>`.
+
 
 Data labeling
 -------------
