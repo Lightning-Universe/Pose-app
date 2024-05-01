@@ -919,7 +919,11 @@ def _render_streamlit_fn(state: AppState):
 
         st_submit_button_train = st.button(
             "Train models", 
-            disabled=state.run_script_train or state.n_labeled_frames < MIN_TRAIN_FRAMES
+            disabled=(
+                state.n_labeled_frames < MIN_TRAIN_FRAMES
+                or state.run_script_train
+                or state.run_script_infer
+            ),
         )
 
         # give user training updates
@@ -1083,7 +1087,11 @@ def _render_streamlit_fn(state: AppState):
 
             st_submit_button_infer = st.button(
                 "Run inference",
-                disabled=len(st_videos) == 0 or state.run_script_infer,
+                disabled=(
+                    len(st_videos) == 0
+                    or state.run_script_train
+                    or state.run_script_infer
+                ),
             )
             if state.run_script_infer:
                 # cannot directly call keys()?
@@ -1159,7 +1167,7 @@ def _render_streamlit_fn(state: AppState):
                     len(selected_models) < 2
                     or state.run_script_train
                     or state.run_script_infer
-                )
+                ),
             )
 
             if st_submit_button_eks:
