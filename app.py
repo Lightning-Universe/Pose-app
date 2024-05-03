@@ -481,10 +481,10 @@ class LitPoseApp(LightningFlow):
         train_status_tab = {"name": "Train Status", "content": self.tensorboard}
 
         # diagnostics tabs
-        st_frame_tab = {"name": "Labeled Diagnostics", "content": self.streamlit_frame.work}
+        st_frame_tab = {"name": "Image Diagnostics", "content": self.streamlit_frame.work}
         st_video_tab = {"name": "Video Diagnostics", "content": self.streamlit_video.work}
         st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
-        fo_tab = {"name": "Fiftyone", "content": self.fiftyone}
+        fo_tab = {"name": "Image Viewer", "content": self.fiftyone}
 
         if self.extract_ui.proj_dir:
             return [
