@@ -846,7 +846,21 @@ def _render_streamlit_fn(state: AppState):
         expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
-            "Set the max training epochs (all models)", value=state.max_epochs_default)
+            "Set the max training epochs (all models)", value=state.max_epochs_default,
+            help=
+                "#What is an epoch? An epoch refers to one complete pass through the entire "
+                "training dataset. During an epoch, the model is trained on every sample in the "
+                "dataset exactly once. "
+                "With what value should I start? To train a full model, we recommend starting " 
+                "with the default - 300. To get a baseline understanding of how the model "
+                "performs, we recommend 50 epochs as the minimum number to get a valid model "
+                "to check."
+                "What are the trade-offs for increasing or decreasing that number? "
+                "Increasing epochs may enhance convergence and accuracy but raise the risk of "
+                "overfitting. Conversely, fewer epochs might speed up training but risk "
+                "underfitting. Balancing epochs is crucial to minimize both underfitting "
+                "and overfitting."
+            )
 
         st_rng_seed_data_pt = expander.text_input(
             "Set the seed(s) for all models (int or comma-separated string)",
