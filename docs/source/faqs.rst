@@ -110,6 +110,22 @@ Model training
     `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html>`_
     (this link takes you to another set of docs specifically for Lightning Pose).
 
+.. dropdown:: What is and how many epochs should I use for training?
+    **What is an epoch?**
+    An epoch refers to one complete pass through the entire training dataset. During an epoch, 
+    the model is trained on every sample in the dataset exactly once. Find more info 
+    `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html#model-training-parameters>`
+    **With what value should I start?**
+    To train a full model, we recommend starting with the default - 300. To get a baseline
+    understanding of how the model performs, we recommend 50 epochs as the minimum number to get
+    a valid model to check.    
+    **What are the trade-offs for increasing or decreasing that number?**
+    Increasing epochs may enhance convergence and accuracy but raise the risk of overfitting. 
+    Conversely, fewer epochs might speed up training but risk underfitting. Balancing epochs is
+    crucial to minimize both underfitting and overfitting.
+
+
+
 
 Post-processing
 ---------------
