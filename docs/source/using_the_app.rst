@@ -77,7 +77,7 @@ Click on the links below to find more information about specific tabs.
    tabs/label_frames
    tabs/train_infer
    tabs/train_status
-   tabs/labeled_diagnostics
+   tabs/image_diagnostics
    tabs/fiftyone
    tabs/video_diagnostics
    tabs/video_player

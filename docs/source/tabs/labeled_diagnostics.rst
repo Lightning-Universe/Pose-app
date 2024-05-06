@@ -1,7 +1,7 @@
-.. _tab_labeled_diagnostics:
+.. _tab_image_diagnostics:
 
 ###################
-Labeled Diagnostics
+Image Diagnostics
 ###################
 
 This tab compares various metrics on labeled data across multiple models.
