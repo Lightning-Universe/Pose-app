@@ -560,6 +560,11 @@ def _render_streamlit_fn(state: AppState):
             "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
             unsafe_allow_html=True,
         )
+        st.markdown(
+            "Ensemble Kalman Smooter (EKS) [documentation]"
+            "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",
+            unsafe_allow_html=True,
+        )
 
     st.header("Manage Lightning Pose projects")
 

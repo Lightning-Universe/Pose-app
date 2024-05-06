@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import zipfile
+import time
 
 import cv2
 import numpy as np
@@ -42,6 +43,10 @@ VIDEO_MODEL_STR = "Automatically extract frames using a given model"
 
 VIDEO_SELECT_NEW = "Upload video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
+
+
+PROCEED_STR = "Please proceed to the next tab to label frames."
+PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
 class ExtractFramesWork(LightningWork):
 
@@ -529,10 +534,8 @@ def _render_streamlit_fn(state: AppState):
             st_videos = st.multiselect(
                 "Select video files",
                 list_train, 
-                help="Videos in the 'videos_infer' directory have been previously uploaded "
-                        "for inference. "
-                        "Videos in the 'videos' directory have been previously uploaded for "
-                        "frame extraction.",
+                help= "Videos in the 'videos' directory have been previously uploaded for "
+                      "frame extraction.",
                 format_func=lambda x: "/".join(x.split("/")[-1:]),
             )
 
@@ -590,9 +593,10 @@ def _render_streamlit_fn(state: AppState):
             st.warning("waiting for existing extraction to finish")
 
         if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
-            proceed_str = "Please proceed to the next tab to label frames."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            with st.empty():
+                proceed_message = st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
+                time.sleep(5) 
+                proceed_message.empty() 
 
         # Lightning way of returning the parameters
         if st_submit_button:
@@ -654,10 +658,13 @@ def _render_streamlit_fn(state: AppState):
             and not st_submit_button_frames
             and not state.run_script_zipped_frames
         ):
-            proceed_str = "Please proceed to the next tab to label frames."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
-
+            # proceed_str = "Please proceed to the next tab to label frames."
+            # proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+            # st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            with st.empty():
+                proceed_message = st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
+                time.sleep(5)  
+                proceed_message.empty() 
         # Lightning way of returning the parameters
         if st_submit_button_frames:
 
@@ -762,9 +769,17 @@ def _render_streamlit_fn(state: AppState):
 
             if state.st_submits > 0 and not st_submit_button_model_frames \
                     and not state.run_script_video_model:
-                proceed_str = "Please proceed to the next tab to label frames."
-                proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-                st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+                # proceed_str = "Please proceed to the next tab to label frames."
+                # proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+                # st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+                with st.empty():
+                    proceed_message = st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
+                    time.sleep(5)  
+                    proceed_message.empty() 
+
+
+                #st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+
 
             # Lightning way of returning the parameters
             if st_submit_button_model_frames:
