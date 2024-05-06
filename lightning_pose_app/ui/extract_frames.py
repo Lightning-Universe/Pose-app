@@ -41,12 +41,15 @@ VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
 ZIPPED_FRAMES_STR = "Upload zipped files of frames"
 VIDEO_MODEL_STR = "Automatically extract frames using a given model"
 
+#Options for loading videos
 VIDEO_SELECT_NEW = "Upload video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
-
+#options for process message in extract frames tab  
 PROCEED_STR = "Please proceed to the next tab to label frames."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+
+
 
 class ExtractFramesWork(LightningWork):
 
@@ -251,7 +254,7 @@ class ExtractFramesWork(LightningWork):
 
 class ExtractFramesUI(LightningFlow):
     """UI to manage projects - create, load, modify."""
-
+    
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -276,6 +279,7 @@ class ExtractFramesUI(LightningFlow):
         self.st_frame_range = [0, 1]  # limits for frame selection
         self.st_n_frames_per_video = None
         self.model_dir = None  # this will be used for extracting frames given a model
+        self.last_execution_time = time.time()
 
     @property
     def st_video_files(self):
@@ -591,12 +595,11 @@ def _render_streamlit_fn(state: AppState):
                     st.text(status)
                 st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
             st.warning("waiting for existing extraction to finish")
+            state.last_execution_time = time.time()
 
         if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
-            with st.empty():
-                proceed_message = st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
-                time.sleep(5) 
-                proceed_message.empty() 
+            if time.time() - state.last_execution_time < 10:
+                st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
         # Lightning way of returning the parameters
         if st_submit_button:
@@ -653,18 +656,16 @@ def _render_streamlit_fn(state: AppState):
             disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
         )
 
+        state.last_execution_time = time.time()
+
         if (
             state.st_submits > 0
             and not st_submit_button_frames
             and not state.run_script_zipped_frames
         ):
-            # proceed_str = "Please proceed to the next tab to label frames."
-            # proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            # st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
-            with st.empty():
-                proceed_message = st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
-                time.sleep(5)  
-                proceed_message.empty() 
+            if time.time() - state.last_execution_time < 10:
+                st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
+
         # Lightning way of returning the parameters
         if st_submit_button_frames:
 
@@ -766,20 +767,12 @@ def _render_streamlit_fn(state: AppState):
                         st.text(status)
                     st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
                 st.warning("waiting for existing extraction to finish")
+                state.last_execution_time = time.time()
 
             if state.st_submits > 0 and not st_submit_button_model_frames \
                     and not state.run_script_video_model:
-                # proceed_str = "Please proceed to the next tab to label frames."
-                # proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-                # st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
-                with st.empty():
-                    proceed_message = st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
-                    time.sleep(5)  
-                    proceed_message.empty() 
-
-
-                #st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
-
+                if time.time() - state.last_execution_time < 10:
+                    st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
             # Lightning way of returning the parameters
             if st_submit_button_model_frames:

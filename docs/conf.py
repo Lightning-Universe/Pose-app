@@ -47,24 +47,3 @@ html_favicon = "https://github.com/danbider/lightning-pose/raw/main/docs/images/
 
 # user starts in dark mode
 default_dark_mode = True
-
-# LaTeX options
-latex_elements = {
-    # The paper size ('letterpaper' or 'a4paper').
-    'papersize': 'letterpaper',
-
-    # The font size ('10pt', '11pt' or '12pt').
-    'pointsize': '10pt',
-
-    # Additional stuff for the LaTeX preamble.
-    'preamble': r'''
-        \usepackage{amsmath,amsfonts,amssymb,amsthm}
-    ''',
-}
-
-# Configure LaTeX document
-latex_documents = [
-    ('index.rst', 'ProjectName.tex', 'Project Documentation',
-     'Author Name', 'manual'),
-]
-

@@ -561,7 +561,7 @@ def _render_streamlit_fn(state: AppState):
             unsafe_allow_html=True,
         )
         st.markdown(
-            "Ensemble Kalman Smooter (EKS) [documentation]"
+            "Ensemble Kalman Smoother (EKS) [documentation]"
             "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",
             unsafe_allow_html=True,
         )

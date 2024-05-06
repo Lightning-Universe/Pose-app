@@ -110,7 +110,10 @@ Model training
     `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html>`_
     (this link takes you to another set of docs specifically for Lightning Pose).
 
+.. _faq_epoch:
+
 .. dropdown:: What is and how many epochs should I use for training?
+
     **What is an epoch?**
     An epoch refers to one complete pass through the entire training dataset. During an epoch, 
     the model is trained on every sample in the dataset exactly once. Find more info 

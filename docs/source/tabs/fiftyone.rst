@@ -1,8 +1,8 @@
 .. _tab_fiftyone:
 
-########
+############
 Image Viewer
-########
+############
 
 In the Image viewer tab we use `FiftyOne <https://voxel51.com/fiftyone/>`_ which is a powerful diagnostic tool that allows you to plot
 predictions from each model you train directly on images, with corresponding ground truth labels.

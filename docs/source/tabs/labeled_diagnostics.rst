@@ -1,4 +1,4 @@
-.. _tab_image_diagnostics:
+.. _tab_labeled_diagnostics:
 
 ###################
 Image Diagnostics
