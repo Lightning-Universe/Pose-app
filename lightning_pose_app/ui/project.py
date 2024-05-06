@@ -565,7 +565,7 @@ def _render_streamlit_fn(state: AppState):
             "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",
             unsafe_allow_html=True,
         )
-    #comment
+
     st.header("Manage Lightning Pose projects")
 
     st_mode = st.radio(
