@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Optional
+import time
 
 import lightning.pytorch as pl
 import numpy as np
@@ -58,6 +59,10 @@ VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
 VIDEO_SELECT_NEW = "Upload new video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
+
+#options for process message in train models tab
+PROCEED_STR = "Training complete; see diagnostics in the following tabs."
+PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
 MIN_TRAIN_FRAMES = 20
 
@@ -317,8 +322,8 @@ class LitPose(LightningWork):
 
             # put results into new dataframe
             df_eks = populate_output_dataframe(
-                keypoint_df, 
-                keypoint_name, 
+                keypoint_df,
+                keypoint_name,
                 df_eks,
             )
 
@@ -514,6 +519,7 @@ class TrainUI(LightningFlow):
         self.st_inference_videos = []
         self.st_label_short = True
         self.st_label_full = False
+        self.last_execution_time = time.time()
 
         # ------------------------
         # Ensembling
@@ -843,10 +849,12 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
+     
         expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
-            "Set the max training epochs (all models)", value=state.max_epochs_default)
+            "Set the max training epochs (all models)", value=state.max_epochs_default
+        )
 
         st_rng_seed_data_pt = expander.text_input(
             "Set the seed(s) for all models (int or comma-separated string)",
@@ -918,7 +926,7 @@ def _render_streamlit_fn(state: AppState):
         }
 
         st_submit_button_train = st.button(
-            "Train models", 
+            "Train models",
             disabled=(
                 state.n_labeled_frames < MIN_TRAIN_FRAMES
                 or state.run_script_train
@@ -947,6 +955,7 @@ def _render_streamlit_fn(state: AppState):
                         f"model: {m} (rng={rng})\n\n"
                         f"{status_ or status}: {int(p)}\% complete"
                     )
+            state.last_execution_time = time.time()
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) \
@@ -961,9 +970,8 @@ def _render_streamlit_fn(state: AppState):
         if state.submit_count_train > 0 \
                 and not state.run_script_train \
                 and not st_submit_button_train:
-            proceed_str = "Training complete; see diagnostics in the following tabs."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            if time.time() - state.last_execution_time < 10:
+                st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
         if st_submit_button_train:
 
@@ -1173,8 +1181,8 @@ def _render_streamlit_fn(state: AppState):
             if st_submit_button_eks:
 
                 model_abs_paths = [
-                   os.path.join(state.proj_dir, MODELS_DIR, model_name)
-                   for model_name in selected_models
+                    os.path.join(state.proj_dir, MODELS_DIR, model_name)
+                    for model_name in selected_models
                 ]
 
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
@@ -1186,7 +1194,7 @@ def _render_streamlit_fn(state: AppState):
                 )
 
                 if os.path.exists(ensemble_file):
-                    st.text(f"Ensemble created!")
+                    st.text("Ensemble created!")
 
                 st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
 

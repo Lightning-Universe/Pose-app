@@ -560,6 +560,11 @@ def _render_streamlit_fn(state: AppState):
             "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
             unsafe_allow_html=True,
         )
+        st.markdown(
+            "Ensemble Kalman Smoother (EKS) [documentation]"
+            "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",  # noqa
+            unsafe_allow_html=True,
+        )
 
     st.header("Manage Lightning Pose projects")
 
@@ -576,7 +581,7 @@ def _render_streamlit_fn(state: AppState):
 
     if st_mode == LOAD_STR:
         st_project_name = st.selectbox(
-            "Select existing project", 
+            "Select existing project",
             sorted(state.initialized_projects),
         )
     else:
@@ -957,12 +962,12 @@ def _render_streamlit_fn(state: AppState):
 
         if state.st_project_loaded:
             st_submit_button = st.button(
-                "Update project", 
+                "Update project",
                 disabled=need_update_pcamv or state.st_project_loaded,
             )
         else:
             st_submit_button = st.button(
-                "Create project", 
+                "Create project",
                 disabled=need_update_pcamv or state.st_project_loaded,
             )
         if state.st_submits > 0:

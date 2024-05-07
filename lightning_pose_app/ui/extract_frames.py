@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import zipfile
+import time
 
 import cv2
 import numpy as np
@@ -39,6 +40,14 @@ _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
 ZIPPED_FRAMES_STR = "Upload zipped files of frames"
 VIDEO_MODEL_STR = "Automatically extract frames using a given model"
+
+# Options for loading videos
+VIDEO_SELECT_NEW = "Upload video(s)"
+VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
+
+# options for process message in extract frames tab
+PROCEED_STR = "Please proceed to the next tab to label frames."
+PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
 
 class ExtractFramesWork(LightningWork):
@@ -269,6 +278,7 @@ class ExtractFramesUI(LightningFlow):
         self.st_frame_range = [0, 1]  # limits for frame selection
         self.st_n_frames_per_video = None
         self.model_dir = None  # this will be used for extracting frames given a model
+        self.last_execution_time = time.time()
 
     @property
     def st_video_files(self):
@@ -464,45 +474,73 @@ def _render_streamlit_fn(state: AppState):
         video_dir = os.path.join(state.proj_dir[1:], VIDEOS_TMP_DIR)
         os.makedirs(video_dir, exist_ok=True)
 
-        # initialize the file uploader
-        uploaded_files = st.file_uploader(
-            "Select video files",
-            type=["mp4", "avi"],
-            accept_multiple_files=True,
+        # allow user to select video through uploading or already-uploaded video
+        video_select_option = st.radio(
+            "Video selection",
+            options=[
+                VIDEO_SELECT_NEW,
+                VIDEO_SELECT_UPLOADED,
+            ],
         )
 
-        if len(uploaded_files) > 0:
-            col1, col2, col3 = st.columns(spec=3, gap="medium")
-            col1.markdown("**Video Name**")
-            col2.markdown("**Video Duration**")
-            col3.markdown("**Number of Frames**")
+        if video_select_option == VIDEO_SELECT_NEW:
+            # initialize the file uploader
+            uploaded_files = st.file_uploader(
+                "Select video files",
+                type=["mp4", "avi"],
+                accept_multiple_files=True,
+            )
 
-        # for each of the uploaded files
-        st_videos = []
-        for uploaded_file in uploaded_files:
-            # read it
-            bytes_data = uploaded_file.read()
-            # name it
-            filename = uploaded_file.name.replace(" ", "_")
-            filepath = os.path.join(video_dir, filename)
-            st_videos.append(filepath)
-            if not state.run_script_video_random:
-                # write the content of the file to the path, but not while processing
-                with open(filepath, "wb") as f:
-                    f.write(bytes_data)
+            if len(uploaded_files) > 0:
+                col1, col2, col3 = st.columns(spec=3, gap="medium")
+                col1.markdown("**Video Name**")
+                col2.markdown("**Video Duration**")
+                col3.markdown("**Number of Frames**")
 
-                # calculate video duration and frame count
-                cap = cv2.VideoCapture(filepath)
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                duration = float(frame_count) / float(fps)
+            # for each of the uploaded files
+            st_videos = []
+            for uploaded_file in uploaded_files:
+                # read it
+                bytes_data = uploaded_file.read()
+                # name it
+                filename = uploaded_file.name.replace(" ", "_")
+                filepath = os.path.join(video_dir, filename)
+                st_videos.append(filepath)
+                if not state.run_script_video_random:
+                    # write the content of the file to the path, but not while processing
+                    with open(filepath, "wb") as f:
+                        f.write(bytes_data)
 
-                col1.write(uploaded_file.name)
-                col2.write(f"{duration:.2f} seconds")
-                col3.write(str(frame_count))
+                    # calculate video duration and frame count
+                    cap = cv2.VideoCapture(filepath)
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    duration = float(frame_count) / float(fps)
 
-                # relese video
-                cap.release()
+                    col1.write(uploaded_file.name)
+                    col2.write(f"{duration:.2f} seconds")
+                    col3.write(str(frame_count))
+
+                    # relese video
+                    cap.release()
+
+        elif video_select_option == VIDEO_SELECT_UPLOADED:
+
+            uploaded_video_dir_train = os.path.join(state.proj_dir[1:], VIDEOS_DIR)
+            list_train = []
+            if os.path.isdir(uploaded_video_dir_train):
+                list_train = [
+                    os.path.join(uploaded_video_dir_train, vid)
+                    for vid in os.listdir(uploaded_video_dir_train)
+                ]
+
+            st_videos = st.multiselect(
+                "Select video files",
+                list_train,
+                help="Videos in the 'videos' directory have been previously uploaded for "
+                     "frame extraction.",
+                format_func=lambda x: "/".join(x.split("/")[-1:]),
+            )
 
         # insert an empty element to create empty space
         st.markdown("###")
@@ -556,11 +594,11 @@ def _render_streamlit_fn(state: AppState):
                     st.text(status)
                 st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
             st.warning("waiting for existing extraction to finish")
+            state.last_execution_time = time.time()
 
         if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
-            proceed_str = "Please proceed to the next tab to label frames."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            if time.time() - state.last_execution_time < 10:
+                st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
         # Lightning way of returning the parameters
         if st_submit_button:
@@ -622,15 +660,14 @@ def _render_streamlit_fn(state: AppState):
             and not st_submit_button_frames
             and not state.run_script_zipped_frames
         ):
-            proceed_str = "Please proceed to the next tab to label frames."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            if time.time() - state.last_execution_time < 10:
+                st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
         # Lightning way of returning the parameters
         if st_submit_button_frames:
 
             state.st_submits += 1
-
+            state.last_execution_time = time.time()
             state.st_frame_files_ = st_videos
             state.st_extract_status = {s: 'initialized' for s in st_videos}
             st.text("Request submitted!")
@@ -727,12 +764,12 @@ def _render_streamlit_fn(state: AppState):
                         st.text(status)
                     st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
                 st.warning("waiting for existing extraction to finish")
+                state.last_execution_time = time.time()
 
             if state.st_submits > 0 and not st_submit_button_model_frames \
                     and not state.run_script_video_model:
-                proceed_str = "Please proceed to the next tab to label frames."
-                proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-                st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+                if time.time() - state.last_execution_time < 10:
+                    st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
             # Lightning way of returning the parameters
             if st_submit_button_model_frames:
