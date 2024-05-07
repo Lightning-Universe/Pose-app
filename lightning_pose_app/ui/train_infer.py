@@ -843,8 +843,7 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-        proceed_str = "Training complete; see diagnostics in the following tabs."
-        proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
+        
         expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
