@@ -30,7 +30,6 @@ extensions = [
     'sphinx_copybutton',  # add copy button to code blocks
     'sphinx_design',  # dropdowns
     'sphinx_rtd_dark_mode',
-    'sphinx.builders.latex',
 ]
 
 templates_path = ['_templates']
