@@ -20,10 +20,13 @@ def build_xml(bodypart_names):
     view_str += "\n<View>"
     view_str += "\n<Header value=\"Select keypoint name with the cursor/number button, " \
                 "then click on the image.\"/>"
-    view_str += "\n<Text name=\"text1\" value=\"Important: Click Submit after you have labeled " \
-                "all visible keypoints in this image.\"/>"
-    view_str += "\n<Text name=\"text2\" value=\"Also useful: Press H for hand tool, " \
-                "CTRL+ to zoom in and CTRL- to zoom out\"/>"
+    view_str += "\n<Text name=\"text1\" value=\"Save annotations: " \
+                "click Submit (or CTRL+ENTER)\"/>"
+    view_str += "\n<Text name=\"text2\" value=\"Manipulate image: press H for hand tool, " \
+                "\nCTRL+ to zoom in and CTRL- to zoom out\"/>"
+    view_str += "\n<Text name=\"text3\" value=\"Next frame: SHIFT+DOWN, then SHIFT+RIGHT\"/>"
+    view_str += "\n<Text name=\"text4\" value=\"To copy keypoints to another frame: hold CTRL " \
+                "and select all keypoints; CTRL+c to copy; move to new frame; CTRL+v to paste\"/>"
     view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\" strokeWidth=\"3\">"  # indent 2
     for keypoint, color in zip(bodypart_names, colors_to_use):
         view_str += f"\n    <Label value=\"{keypoint}\" />"  # indent 4
