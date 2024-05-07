@@ -41,14 +41,13 @@ VIDEO_RANDOM_STR = "Upload videos and automatically extract random frames"
 ZIPPED_FRAMES_STR = "Upload zipped files of frames"
 VIDEO_MODEL_STR = "Automatically extract frames using a given model"
 
-#Options for loading videos
+# Options for loading videos
 VIDEO_SELECT_NEW = "Upload video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
-#options for process message in extract frames tab  
+# options for process message in extract frames tab
 PROCEED_STR = "Please proceed to the next tab to label frames."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-
 
 
 class ExtractFramesWork(LightningWork):
@@ -254,7 +253,7 @@ class ExtractFramesWork(LightningWork):
 
 class ExtractFramesUI(LightningFlow):
     """UI to manage projects - create, load, modify."""
-    
+
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -537,9 +536,9 @@ def _render_streamlit_fn(state: AppState):
 
             st_videos = st.multiselect(
                 "Select video files",
-                list_train, 
-                help= "Videos in the 'videos' directory have been previously uploaded for "
-                      "frame extraction.",
+                list_train,
+                help="Videos in the 'videos' directory have been previously uploaded for "
+                     "frame extraction.",
                 format_func=lambda x: "/".join(x.split("/")[-1:]),
             )
 
@@ -664,10 +663,9 @@ def _render_streamlit_fn(state: AppState):
             if time.time() - state.last_execution_time < 10:
                 st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
-
         # Lightning way of returning the parameters
         if st_submit_button_frames:
-            
+
             state.st_submits += 1
             state.last_execution_time = time.time()
             state.st_frame_files_ = st_videos

@@ -60,7 +60,7 @@ VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 VIDEO_SELECT_NEW = "Upload new video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
-#options for process message in train models tab  
+#options for process message in train models tab
 PROCEED_STR = "Training complete; see diagnostics in the following tabs."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
@@ -322,8 +322,8 @@ class LitPose(LightningWork):
 
             # put results into new dataframe
             df_eks = populate_output_dataframe(
-                keypoint_df, 
-                keypoint_name, 
+                keypoint_df,
+                keypoint_name,
                 df_eks,
             )
 
@@ -849,7 +849,7 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-        
+     
         expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
@@ -926,7 +926,7 @@ def _render_streamlit_fn(state: AppState):
         }
 
         st_submit_button_train = st.button(
-            "Train models", 
+            "Train models",
             disabled=(
                 state.n_labeled_frames < MIN_TRAIN_FRAMES
                 or state.run_script_train
@@ -1181,8 +1181,8 @@ def _render_streamlit_fn(state: AppState):
             if st_submit_button_eks:
 
                 model_abs_paths = [
-                   os.path.join(state.proj_dir, MODELS_DIR, model_name)
-                   for model_name in selected_models
+                    os.path.join(state.proj_dir, MODELS_DIR, model_name)
+                    for model_name in selected_models
                 ]
 
                 dtime = datetime.today().strftime("%Y-%m-%d/%H-%M-%S")
@@ -1194,7 +1194,7 @@ def _render_streamlit_fn(state: AppState):
                 )
 
                 if os.path.exists(ensemble_file):
-                    st.text(f"Ensemble created!")
+                    st.text("Ensemble created!")
 
                 st_autorefresh(interval=2000, key="refresh_eks_ui_submitted")
 
