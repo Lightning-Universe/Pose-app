@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Optional
+import time
 
 import lightning.pytorch as pl
 import numpy as np
@@ -58,6 +59,10 @@ VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
 VIDEO_SELECT_NEW = "Upload new video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
+
+#options for process message in train models tab  
+PROCEED_STR = "Training complete; see diagnostics in the following tabs."
+PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
 MIN_TRAIN_FRAMES = 20
 
@@ -514,6 +519,7 @@ class TrainUI(LightningFlow):
         self.st_inference_videos = []
         self.st_label_short = True
         self.st_label_full = False
+        self.last_execution_time = time.time()
 
         # ------------------------
         # Ensembling
@@ -949,6 +955,7 @@ def _render_streamlit_fn(state: AppState):
                         f"model: {m} (rng={rng})\n\n"
                         f"{status_ or status}: {int(p)}\% complete"
                     )
+            state.last_execution_time = time.time()
 
         if st_submit_button_train:
             if (st_loss_pcamv + st_loss_pcasv + st_loss_temp == 0) \
@@ -963,9 +970,8 @@ def _render_streamlit_fn(state: AppState):
         if state.submit_count_train > 0 \
                 and not state.run_script_train \
                 and not st_submit_button_train:
-            proceed_str = "Training complete; see diagnostics in the following tabs."
-            proceed_fmt = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
-            st.markdown(proceed_fmt % proceed_str, unsafe_allow_html=True)
+            if time.time() - state.last_execution_time < 10:
+                st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
         if st_submit_button_train:
 

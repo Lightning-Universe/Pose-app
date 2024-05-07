@@ -656,8 +656,6 @@ def _render_streamlit_fn(state: AppState):
             disabled=len(st_videos) == 0 or state.run_script_zipped_frames,
         )
 
-        state.last_execution_time = time.time()
-
         if (
             state.st_submits > 0
             and not st_submit_button_frames
@@ -666,11 +664,12 @@ def _render_streamlit_fn(state: AppState):
             if time.time() - state.last_execution_time < 10:
                 st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
 
+
         # Lightning way of returning the parameters
         if st_submit_button_frames:
-
+            
             state.st_submits += 1
-
+            state.last_execution_time = time.time()
             state.st_frame_files_ = st_videos
             state.st_extract_status = {s: 'initialized' for s in st_videos}
             st.text("Request submitted!")
