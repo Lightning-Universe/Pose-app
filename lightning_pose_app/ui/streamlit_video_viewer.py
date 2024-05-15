@@ -1,10 +1,12 @@
 import os
+import zipfile
+from io import BytesIO
 
 import streamlit as st
 from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 
-from lightning_pose_app import MODELS_DIR
+from lightning_pose_app import MODELS_DIR, MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.utilities import StreamlitFrontend, abspath
 
 
@@ -59,6 +61,17 @@ def extract_video_name(full_path):
     return video_name
 
 
+def list_results_files(video_name, model_dir, selected_model):
+    """List results files for a given video."""
+    results_files = {}
+    results_dir = os.path.join(model_dir, selected_model, MODEL_VIDEO_PREDS_INFER_DIR)
+    for file_name in os.listdir(results_dir):
+        if video_name in file_name and file_name.endswith(".csv"):
+            full_path = os.path.join(results_dir, file_name)
+            results_files[file_name] = full_path
+    return results_files
+
+
 def _render_streamlit_fn(state: AppState):
 
     # don't proceed if no project has been selected
@@ -102,5 +115,51 @@ def _render_streamlit_fn(state: AppState):
         st.markdown(custom_css, unsafe_allow_html=True)
 
         st.video(video_bytes)
+        st.caption(
+            "To download the video, click the three dots on the right side and select Download"
+        )
+        # Add a section to download results files
+        st.header("Download Results Files")
+        video_name = extract_video_name(selected_video)
+        video_name_org = video_name.replace('.labeled', '')
+        results_files = list_results_files(video_name_org, model_dir, selected_model)
+
+        if results_files:
+            selected_result_files = st.multiselect(
+                "Select results files to download", list(results_files.keys())
+            )
+            if selected_result_files:
+                if len(selected_result_files) == 1:
+                    selected_result_file = results_files[selected_result_files[0]]
+                    new_file_name = f"{selected_model}_{video_name_org}_{selected_result_files[0]}"
+                    with open(selected_result_file, "rb") as file:
+                        st.download_button(
+                            label="Download File",
+                            data=file,
+                            file_name=new_file_name
+                        )
+                else:
+                    st.warning(
+                        "If you select more than one file, they will be downloaded "
+                        "together as a ZIP folder"
+                    )
+                    # Create a zip file
+                    zip_buffer = BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                        for result_file_name in selected_result_files:
+                            result_file_path = results_files[result_file_name]
+                            new_file_name = f"{selected_model}_{video_name_org}_{result_file_name}"
+                            with open(result_file_path, "rb") as file:
+                                zip_file.writestr(new_file_name, file.read())
+                    zip_buffer.seek(0)
+                    zip_file_name = f"results_{selected_model}_{video_name_org}.zip"
+                    st.download_button(
+                        label="Download Files",
+                        data=zip_buffer,
+                        file_name=zip_file_name,
+                        mime="application/zip"
+                    )
+        else:
+            st.write("No results files available for this video.")
     else:
         st.write("No video to preview")
