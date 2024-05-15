@@ -584,6 +584,11 @@ def _render_streamlit_fn(state: AppState):
             "Select existing project",
             sorted(state.initialized_projects),
         )
+    elif st_mode == DELETE_STR:
+        st_project_name = st.selectbox(
+            "Select existing project",
+            sorted(state.initialized_projects),
+        )
     else:
         st_project_name = st.text_input(
             "Enter project name (must be at least 3 characters)",
