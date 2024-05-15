@@ -6,12 +6,15 @@ import time
 
 import cv2
 import numpy as np
+import pandas as pd 
+import re
 import streamlit as st
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.state import AppState
 from streamlit_autorefresh import st_autorefresh
 from typing import Optional
+
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -32,6 +35,7 @@ from lightning_pose_app.backend.extract_frames import (
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
+    get_frame_number,
 )
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
@@ -156,6 +160,42 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done = True
 
+
+    def find_contextual_frames(self, frame_numbers):
+        sorted_nums = sorted(frame_numbers)
+        result_frames = []
+        temp_frames = []
+        context_type = "no context"
+
+        for i in range(1, len(sorted_nums)):
+            if sorted_nums[i] == sorted_nums[i - 1] + 1:
+                temp_frames.append(sorted_nums[i - 1])
+                # Continue adding frames if they're consecutive
+                if i == len(sorted_nums) - 1:  # If it's the last element, add it too
+                    temp_frames.append(sorted_nums[i])
+            else:
+                if len(temp_frames) > 0:
+                    temp_frames.append(sorted_nums[i - 1])  # Include the last consecutive frame
+                if len(temp_frames) >= 5:
+                    context_type = "context found"
+                    if len(temp_frames) == 5:
+                        result_frames.append(temp_frames[2])  # Middle frame of exactly five
+                    else:
+                        result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+                temp_frames = []  # Reset for next group
+
+        if temp_frames and len(temp_frames) >= 5:  # Check the last group if loop ended
+            if len(temp_frames) == 5:
+                result_frames.append(temp_frames[2])  # Middle frame of exactly five
+            else:
+                result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+
+        if context_type == "no context":
+            return sorted_nums, context_type  # No qualifying groups, return all numbers
+        else:
+            return result_frames, context_type  # Return qualifying frames based on context
+
+ 
     def _unzip_frames(
         self,
         video_file: str,
@@ -195,7 +235,47 @@ class ExtractFramesWork(LightningWork):
         # unzip file in tmp directory
         with zipfile.ZipFile(video_file_abs) as z:
             unzipped_dir = video_file_abs.replace(".zip", "")
-            z.extractall(path=unzipped_dir)
+            z.extractall(path=unzipped_dir)    
+            #create a list all images in folder
+            filenames = [os.path.basename(file_info.filename) for file_info in z.infolist() if file_info.filename.endswith('.png')]
+
+        # Handle nested directories by moving all files to the base unzipped_dir
+        for root, dirs, files in os.walk(unzipped_dir):
+            for file in files:
+                if file.endswith('.png'):  # Assuming we only care about PNG files
+                    file_path = os.path.join(root, file)
+                    if root != unzipped_dir:  # If the file is in a subfolder
+                        shutil.move(file_path, unzipped_dir)
+
+        # Optionally clean up empty directories
+        for root, dirs, files in os.walk(unzipped_dir, topdown=False):
+            for dir in dirs:
+                dir_path = os.path.join(root, dir)
+                if not os.listdir(dir_path):  # Directory is empty
+                    os.rmdir(dir_path)
+
+        # Process filenames with get_frame_number and handle contexts
+        frame_details = [get_frame_number(filename) for filename in filenames]
+        frame_numbers = [details[0] for details in frame_details]
+        csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
+        frames, context_type = self.find_contextual_frames(frame_numbers)
+
+        print("context_type", context_type)
+        if not csv_exists:
+            if context_type == "no context":
+                frames_to_label = np.array([
+                    f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details
+                ])
+            else:
+                frames_to_label = np.array([
+                    f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details if num in frames
+                ])
+            np.savetxt(
+                os.path.join(unzipped_dir, SELECTED_FRAMES_FILENAME),
+                frames_to_label,
+                delimiter=",",
+                fmt="%s"
+            )
 
         # save all contents to data directory
         # don't use copytree as the destination dir may already exist
@@ -215,7 +295,7 @@ class ExtractFramesWork(LightningWork):
             dst = os.path.join(save_dir, file)
             shutil.copyfile(src, dst)
 
-        # TODO:
+        # TODO: DONE
         # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
         #   make this file
 
@@ -662,6 +742,7 @@ def _render_streamlit_fn(state: AppState):
         ):
             if time.time() - state.last_execution_time < 10:
                 st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
+                shutil.rmtree(frames_dir)
 
         # Lightning way of returning the parameters
         if st_submit_button_frames:
