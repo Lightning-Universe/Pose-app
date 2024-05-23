@@ -3,8 +3,6 @@ import os
 import shutil
 import zipfile
 import time
-from itertools import groupby
-from operator import itemgetter
 
 import cv2
 import numpy as np
