@@ -357,6 +357,11 @@ class ProjectUI(LightningFlow):
 
                 # flag finish coping all files
                 finished_copy_files = True
+            
+            elif self.st_existing_project_format == "SLEAP":
+                pass
+
+            #TODO:
 
 ##################new code form here###############
             elif self.st_existing_project_format == "SLEAP":
@@ -638,44 +643,6 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
     return df_all
 
 
-def collect_sleap_labels(sleap_dir: str) -> pd.DataFrame:
-    """Collect video-specific labels from SLEAP project and save in a single pandas DataFrame."""
-
-    sleap_files = glob.glob(os.path.join(sleap_dir, "*.slp"))
-    dfs = []
-
-    for sleap_file in sleap_files:
-        with h5py.File(sleap_file, 'r') as f:
-            tracks = f['tracks'][:]
-            frame_inds = f['frame_inds'][:]
-            instances = f['instances'][:]
-
-            points_x = f['points_x'][:]
-            points_y = f['points_y'][:]
-            points_score = f['points_score'][:]
-            video_filenames = f['videos/filename'][:]
-
-        data = []
-        for track, frame_idx, instance in zip(tracks, frame_inds, instances):
-            video_filename = video_filenames[instance['video']].decode('utf-8')
-            for point_x, point_y, point_score in zip(points_x[instance['points']],
-                                                     points_y[instance['points']],
-                                                     points_score[instance['points']]):
-                data.append([
-                    video_filename,
-                    frame_idx,
-                    point_x,
-                    point_y,
-                    point_score if point_score is not None else 1.0  # Default confidence to 1.0 if not present
-                ])
-
-        df_tmp = pd.DataFrame(data, columns=['video_name', 'frame', 'x', 'y', 'confidence'])
-        dfs.append(df_tmp)
-
-    df_all = pd.concat(dfs, ignore_index=True)
-    return df_all
-
-
 def _render_streamlit_fn(state: AppState):
 
     # ----------------------------------------------------
@@ -834,7 +801,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_prev_format = st.radio(
             "Select uploaded project format",
-            options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
+            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: SLEAP, MARS?
             help="Select the file format that the project is stored at."
             " If DLC selected make sure the zipped folder has meet all reqierments"
         )

@@ -83,40 +83,21 @@ def _render_streamlit_fn(state: AppState):
     with st.sidebar:
         st.write("Select the model and then the associated video you wish to inspect")
         trained_models = get_models(model_dir)  # create a list of all models
-        selected_model = st.selectbox("Step 1: Select a model", trained_models)
+        selected_model = st.selectbox("**Step 1:** Select a model", trained_models)
         st.divider()
         # Labeled videos
         mp4_files = list_labeled_mp4_files(model_dir, selected_model)
         selected_video = st.selectbox(
-            "Step 2: Select a video", mp4_files, format_func=extract_video_name,
+            "**Step 2:** Select a video", mp4_files, format_func=extract_video_name,
         )
-
-    if selected_video:
-        # read and show the predictions labeled video
-        video_file = open(selected_video, "rb")
-        video_bytes = video_file.read()
-        custom_css = """
-        <style>
-        video {
-            width: 100% !important;
-            height: 50% !important;
-        }
-        </style>
-        """
-        st.markdown(custom_css, unsafe_allow_html=True)
-        st.video(video_bytes)
-        st.caption(
-            "To download the video, click the three dots on the right side and select Download"
-        )
-
+        st.divider()
         # Add a section to download results files
-        st.header("Download Results Files")
         video_name = extract_video_name(selected_video)
         results_files = list_results_files(video_name, model_dir, selected_model)
 
         if results_files:
             selected_result_files = st.multiselect(
-                "Select results files to download", list(results_files.keys())
+                "**Step 3:** Select results files to download", list(results_files.keys())
             )
             if selected_result_files:
                 if len(selected_result_files) == 1:
@@ -151,5 +132,23 @@ def _render_streamlit_fn(state: AppState):
                     )
         else:
             st.write("No results files available for this video.")
+
+    if selected_video:
+        # read and show the predictions labeled video
+        video_file = open(selected_video, "rb")
+        video_bytes = video_file.read()
+        custom_css = """
+        <style>
+        video {
+            width: 75% !important;
+            height: 50% !important;
+        }
+        </style>
+        """
+        st.markdown(custom_css, unsafe_allow_html=True)
+        st.video(video_bytes)
+        st.caption(
+            "To download the video, click the three dots on the right side and select Download"
+        )
     else:
         st.write("No video to preview")
