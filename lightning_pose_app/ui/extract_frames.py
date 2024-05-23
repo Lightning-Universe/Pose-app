@@ -3,6 +3,8 @@ import os
 import shutil
 import zipfile
 import time
+from itertools import groupby
+from operator import itemgetter
 
 import cv2
 import numpy as np
@@ -181,27 +183,28 @@ class ExtractFramesWork(LightningWork):
                     if len(temp_frames) == 5:
                         result_frames.append(temp_frames[2])  # Middle frame of exactly five
                     else:
-                        result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+                        # All but the first two and last two frames
+                        result_frames.extend(temp_frames[2:-2])  
                 temp_frames = []  # Reset for next group
 
         if temp_frames and len(temp_frames) >= 5:  # Check the last group if loop ended
             if len(temp_frames) == 5:
                 result_frames.append(temp_frames[2])  # Middle frame of exactly five
             else:
-                result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+                # All but the first two and last two frames
+                result_frames.extend(temp_frames[2:-2])  
 
         if context_type == "no context":
             return sorted_nums, context_type  # No qualifying groups, return all numbers
         else:
             return result_frames, context_type  # Return qualifying frames based on context
 
- 
+
     def _unzip_frames(
         self,
         video_file: str,
         proj_dir: str,
     ) -> None:
-
         _logger.info(f"============== unzipping frames from {video_file} ================")
 
         # set flag for parent app
@@ -235,9 +238,13 @@ class ExtractFramesWork(LightningWork):
         # unzip file in tmp directory
         with zipfile.ZipFile(video_file_abs) as z:
             unzipped_dir = video_file_abs.replace(".zip", "")
-            z.extractall(path=unzipped_dir)    
-            #create a list all images in folder
-            filenames = [os.path.basename(file_info.filename) for file_info in z.infolist() if file_info.filename.endswith('.png')]
+            z.extractall(path=unzipped_dir)
+            # create a list all images in folder
+            filenames = [
+                os.path.basename(file_info.filename)
+                for file_info in z.infolist()
+                if file_info.filename.endswith('.png')
+            ]
 
         # Handle nested directories by moving all files to the base unzipped_dir
         for root, dirs, files in os.walk(unzipped_dir):
@@ -268,7 +275,9 @@ class ExtractFramesWork(LightningWork):
                 ])
             else:
                 frames_to_label = np.array([
-                    f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details if num in frames
+                    f"{prefix}{num:08d}.{ext}"
+                    for num, prefix, ext in frame_details
+                    if num in frames
                 ])
             np.savetxt(
                 os.path.join(unzipped_dir, SELECTED_FRAMES_FILENAME),
