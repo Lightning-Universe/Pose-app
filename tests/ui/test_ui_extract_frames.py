@@ -12,8 +12,11 @@ from lightning_pose_app import (
     VIDEOS_DIR,
     VIDEOS_TMP_DIR,
 )
-from lightning_pose_app.backend.extract_frames import export_frames
-
+from lightning_pose_app.backend.extract_frames import (
+    export_frames,
+    find_contextual_frames,
+)
+    
 
 def test_extract_frames_work(
     video_file, video_file_pred_df, video_file_pca_singleview_df, tmpdir,
@@ -208,6 +211,12 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
 
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_per_video
+
+    # -------------------
+    # test find_contextual_frames
+    # -------------------
+     
+
 
     # -------------------
     # unzip frames

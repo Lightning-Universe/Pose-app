@@ -3,6 +3,8 @@ import os
 import shutil
 import zipfile
 import time
+from itertools import groupby
+from operator import itemgetter
 
 import cv2
 import numpy as np
@@ -30,6 +32,7 @@ from lightning_pose_app.backend.extract_frames import (
     export_frames,
     select_frame_idxs_kmeans,
     select_frame_idxs_model,
+    find_contextual_frames,
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
@@ -163,38 +166,17 @@ class ExtractFramesWork(LightningWork):
     def find_contextual_frames(self, frame_numbers):
         sorted_nums = sorted(frame_numbers)
         result_frames = []
-        temp_frames = []
-        context_type = "no context"
 
-        for i in range(1, len(sorted_nums)):
-            if sorted_nums[i] == sorted_nums[i - 1] + 1:
-                temp_frames.append(sorted_nums[i - 1])
-                # Continue adding frames if they're consecutive
-                if i == len(sorted_nums) - 1:  # If it's the last element, add it too
-                    temp_frames.append(sorted_nums[i])
-            else:
-                if len(temp_frames) > 0:
-                    temp_frames.append(sorted_nums[i - 1])  # Include the last consecutive frame
-                if len(temp_frames) >= 5:
-                    context_type = "context found"
-                    if len(temp_frames) == 5:
-                        result_frames.append(temp_frames[2])  # Middle frame of exactly five
-                    else:
-                        # All but the first two and last two frames
-                        result_frames.extend(temp_frames[2:-2])  
-                temp_frames = []  # Reset for next group
-
-        if temp_frames and len(temp_frames) >= 5:  # Check the last group if loop ended
-            if len(temp_frames) == 5:
-                result_frames.append(temp_frames[2])  # Middle frame of exactly five
-            else:
-                # All but the first two and last two frames
-                result_frames.extend(temp_frames[2:-2])  
-
-        if context_type == "no context":
-            return sorted_nums, context_type  # No qualifying groups, return all numbers
+        # Group consecutive frame numbers
+        groups = [list(map(itemgetter(1), group)) for key, group in groupby(enumerate(sorted_nums), lambda x: x[0] - x[1])]
+        if any(len(temp_frames) < 5 for temp_frames in groups):
+            is_context = False
+            result_frames = sorted_nums
         else:
-            return result_frames, context_type  # Return qualifying frames based on context
+            is_context = True
+            for temp_frames in groups: 
+                result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+        return result_frames, is_context    
 
 
     def _unzip_frames(
@@ -257,16 +239,32 @@ class ExtractFramesWork(LightningWork):
                 dir_path = os.path.join(root, dir)
                 if not os.listdir(dir_path):  # Directory is empty
                     os.rmdir(dir_path)
+        
+        # Process and rename filenames
+        correct_imgnames = []
+        for filename in filenames:
+            frame_number = get_frame_number(filename)[0]  # Assuming get_frame_number returns a tuple
+            new_filename = f"img{frame_number:08d}.png"
+            src_path = os.path.join(unzipped_dir, filename)
+            dst_path = os.path.join(unzipped_dir, new_filename)
+            if filename != new_filename:
+                os.rename(src_path, dst_path)
+                _logger.warning(f"Renamed '{filename}' to '{new_filename}'")
+            correct_imgnames.append(new_filename)
+
+        if not correct_imgnames:
+            _logger.error("No valid frame files found. Aborting frame extraction.")
+            return
 
         # Process filenames with get_frame_number and handle contexts
-        frame_details = [get_frame_number(filename) for filename in filenames]
+        frame_details = [get_frame_number(filename) for filename in correct_imgnames]
         frame_numbers = [details[0] for details in frame_details]
         csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
-        frames, context_type = self.find_contextual_frames(frame_numbers)
+        frames, is_context = self.find_contextual_frames(frame_numbers)
 
-        print("context_type", context_type)
+
         if not csv_exists:
-            if context_type == "no context":
+            if not is_context:
                 frames_to_label = np.array([
                     f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details
                 ])
