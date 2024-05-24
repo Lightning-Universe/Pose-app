@@ -11,6 +11,9 @@ from scipy.stats import zscore
 from sklearn.decomposition import PCA
 from tqdm import tqdm
 from typing import Optional
+from itertools import groupby
+from operator import itemgetter
+
 
 from lightning_pose_app.backend.video import (
     compute_motion_energy_from_predection_df,
@@ -270,20 +273,20 @@ def select_frame_idxs_model(
     return np.array(idxs_selected)
 
 
-def find_contextual_frames(self, frame_numbers):
-        sorted_nums = sorted(frame_numbers)
-        result_frames = []
+def find_contextual_frames(frame_numbers):
+    sorted_nums = sorted(frame_numbers)
+    result_frames = []
 
-        # Group consecutive frame numbers
-        groups = [list(map(itemgetter(1), group)) for key, group in groupby(enumerate(sorted_nums), lambda x: x[0] - x[1])]
-        if any(len(temp_frames) < 5 for temp_frames in groups):
-            is_context = False
-            result_frames = sorted_nums
-        else:
-            is_context = True
-            for temp_frames in groups: 
-                result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
-        return result_frames, is_context
+    # Group consecutive frame numbers
+    groups = [list(map(itemgetter(1), group)) for key, group in groupby(enumerate(sorted_nums), lambda x: x[0] - x[1])]
+    if any(len(temp_frames) < 5 for temp_frames in groups):
+        is_context = False
+        result_frames = sorted_nums
+    else:
+        is_context = True
+        for temp_frames in groups: 
+            result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+    return result_frames, is_context
 
 
 def export_frames(

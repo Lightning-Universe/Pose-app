@@ -3,6 +3,10 @@ import numpy as np
 import os
 import pandas as pd
 import shutil
+import pytest
+from itertools import groupby
+from operator import itemgetter
+
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -142,6 +146,7 @@ def test_extract_frames_work(
     new_video_name = new_vid_name + "_NEW1"
     src = new_video_path
     dst = os.path.join(tmpdir, new_video_name, "intermediate_subdir")
+    os.makedirs(dst, exist_ok=True) 
     # os.makedirs(os.path.dirname(dst), exist_ok=True)  # need to create for path purposes
     shutil.copytree(src, dst)
     new_video_path = os.path.join(tmpdir, new_video_name)
@@ -175,11 +180,11 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
 
     from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 
+    flow = ExtractFramesUI()
+
     video_name = "test_vid_copy"
     video_file_ = video_name + ".mp4"
     video_file = os.path.join(tmp_proj_dir, VIDEOS_TMP_DIR, video_file_)
-
-    flow = ExtractFramesUI()
 
     # set attributes
     flow.proj_dir = tmp_proj_dir
@@ -215,15 +220,34 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     # -------------------
     # test find_contextual_frames
     # -------------------
-     
+    test_cases = [
+        {
+            "input": [1, 4, 7, 2, 3, 9, 130],
+            "expected_output": [1, 2, 3, 4, 7, 9, 130],
+            "expected_is_context": False
+        },
+        {
+            "input": [1, 2, 3, 4, 5, 11, 12, 13, 14],
+            "expected_output": [1, 2, 3, 4, 5, 11, 12, 13, 14],
+            "expected_is_context": False
+        },
+        {
+            "input": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104, 120, 121, 122, 123, 124],
+            "expected_output": [3, 4, 5, 6, 7, 8, 102, 122],
+            "expected_is_context": True
+        },
+        {
+            "input": [11, 12, 13, 14, 15, 16, 17],
+            "expected_output": [13, 14, 15],
+            "expected_is_context": True
+        }
+    ]
 
+    for case in test_cases:
+        result, is_context = find_contextual_frames(case["input"])
+        assert result == case["expected_output"], f"Failed for input: {case['input']}"
+        assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
 
-    # -------------------
-    # unzip frames
-    # -------------------
-    # TODO
-
-    # -----------------
-    # cleanup
-    # -----------------
+    
+    
     del flow
