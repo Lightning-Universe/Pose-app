@@ -15,7 +15,6 @@ from lightning_pose_app import (
 )
 from lightning_pose_app.backend.extract_frames import (
     export_frames,
-    find_contextual_frames,
 )
 
 

@@ -7,10 +7,6 @@ from lightning_pose_app import (
     MODELS_DIR,
 )
 
-from lightning_pose_app.backend.extract_frames import (
-    find_contextual_frames,
-)
-
 
 def test_read_nth_frames(video_file):
 
@@ -228,10 +224,11 @@ def test_export_frames(video_file, tmpdir):
     )
     assert len(os.listdir(save_dir_2)) == 5 * len(idxs)
 
-    # -------------------
-    # test find_contextual_frames
-    # -------------------
+
 def test_find_contextual_frames():
+
+    from lightning_pose_app.backend.extract_frames import find_contextual_frames
+
     test_cases = [
         {
             "input": [1, 4, 7, 2, 3, 9, 130],
