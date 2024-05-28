@@ -3,8 +3,6 @@ import os
 import shutil
 import zipfile
 import time
-from itertools import groupby
-from operator import itemgetter
 
 import cv2
 import numpy as np
@@ -159,28 +157,6 @@ class ExtractFramesWork(LightningWork):
 
         # set flag for parent app
         self.work_is_done = True
-
-    # def find_contextual_frames(self, frame_numbers):
-    #     sorted_nums = sorted(frame_numbers)
-    #     result_frames = []
-
-    #     # Group consecutive frame numbers
-    #     groups = [
-    #         list(map(itemgetter(1), group))
-    #         for key, group in groupby(
-    #             enumerate(sorted_nums),
-    #             lambda x: x[0] - x[1]
-    #         )
-    #     ]
-    #     if any(len(temp_frames) < 5 for temp_frames in groups):
-    #         is_context = False
-    #         result_frames = sorted_nums
-    #     else:
-    #         is_context = True
-    #         for temp_frames in groups:
-    #             # take all frames but the first two and last two
-    #             result_frames.extend(temp_frames[2:-2])
-    #     return result_frames, is_context
 
     def _unzip_frames(
         self,
