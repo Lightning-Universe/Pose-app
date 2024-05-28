@@ -278,14 +278,21 @@ def find_contextual_frames(frame_numbers):
     result_frames = []
 
     # Group consecutive frame numbers
-    groups = [list(map(itemgetter(1), group)) for key, group in groupby(enumerate(sorted_nums), lambda x: x[0] - x[1])]
+    groups = [
+        list(map(itemgetter(1), group))
+        for key, group in groupby(
+            enumerate(sorted_nums),
+            lambda x: x[0] - x[1]
+        )
+    ]
     if any(len(temp_frames) < 5 for temp_frames in groups):
         is_context = False
         result_frames = sorted_nums
     else:
         is_context = True
-        for temp_frames in groups: 
-            result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
+        for temp_frames in groups:
+            # take all frames but the first two and last two
+            result_frames.extend(temp_frames[2:-2])
     return result_frames, is_context
 
 

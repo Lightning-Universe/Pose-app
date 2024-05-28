@@ -160,27 +160,27 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done = True
 
-    def find_contextual_frames(self, frame_numbers):
-        sorted_nums = sorted(frame_numbers)
-        result_frames = []
+    # def find_contextual_frames(self, frame_numbers):
+    #     sorted_nums = sorted(frame_numbers)
+    #     result_frames = []
 
-        # Group consecutive frame numbers
-        groups = [
-            list(map(itemgetter(1), group))
-            for key, group in groupby(
-                enumerate(sorted_nums),
-                lambda x: x[0] - x[1]
-            )
-        ]
-        if any(len(temp_frames) < 5 for temp_frames in groups):
-            is_context = False
-            result_frames = sorted_nums
-        else:
-            is_context = True
-            for temp_frames in groups:
-                # take all frames but the first two and last two
-                result_frames.extend(temp_frames[2:-2])
-        return result_frames, is_context
+    #     # Group consecutive frame numbers
+    #     groups = [
+    #         list(map(itemgetter(1), group))
+    #         for key, group in groupby(
+    #             enumerate(sorted_nums),
+    #             lambda x: x[0] - x[1]
+    #         )
+    #     ]
+    #     if any(len(temp_frames) < 5 for temp_frames in groups):
+    #         is_context = False
+    #         result_frames = sorted_nums
+    #     else:
+    #         is_context = True
+    #         for temp_frames in groups:
+    #             # take all frames but the first two and last two
+    #             result_frames.extend(temp_frames[2:-2])
+    #     return result_frames, is_context
 
     def _unzip_frames(
         self,
@@ -253,10 +253,10 @@ class ExtractFramesWork(LightningWork):
             dst_path = os.path.join(unzipped_dir, new_filename)
             if filename != new_filename:
                 os.rename(src_path, dst_path)
-                _logger.warning(f"Renamed '{filename}' to '{new_filename}'")
+                _logger.info(f"Renamed '{filename}' to '{new_filename}'")
             correct_imgnames.append(new_filename)
 
-        if not correct_imgnames:
+        if len(correct_imgnames)==0:
             _logger.error("No valid frame files found. Aborting frame extraction.")
             return
 
@@ -264,7 +264,7 @@ class ExtractFramesWork(LightningWork):
         frame_details = [get_frame_number(filename) for filename in correct_imgnames]
         frame_numbers = [details[0] for details in frame_details]
         csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
-        frames, is_context = self.find_contextual_frames(frame_numbers)
+        frames, is_context = find_contextual_frames(frame_numbers)
 
         if not csv_exists:
             if not is_context:

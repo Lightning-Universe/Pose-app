@@ -214,38 +214,4 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_per_video
 
-    # -------------------
-    # test find_contextual_frames
-    # -------------------
-    test_cases = [
-        {
-            "input": [1, 4, 7, 2, 3, 9, 130],
-            "expected_output": [1, 2, 3, 4, 7, 9, 130],
-            "expected_is_context": False
-        },
-        {
-            "input": [1, 2, 3, 4, 5, 11, 12, 13, 14],
-            "expected_output": [1, 2, 3, 4, 5, 11, 12, 13, 14],
-            "expected_is_context": False
-        },
-        {
-            "input": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104,
-                120, 121, 122, 123, 124
-            ],
-            "expected_output": [3, 4, 5, 6, 7, 8, 102, 122],
-            "expected_is_context": True
-        },
-        {
-            "input": [11, 12, 13, 14, 15, 16, 17],
-            "expected_output": [13, 14, 15],
-            "expected_is_context": True
-        }
-    ]
-
-    for case in test_cases:
-        result, is_context = find_contextual_frames(case["input"])
-        assert result == case["expected_output"], f"Failed for input: {case['input']}"
-        assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
-
-
     del flow
