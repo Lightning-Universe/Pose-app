@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import shutil
 
+
 from lightning_pose_app import (
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
@@ -12,7 +13,9 @@ from lightning_pose_app import (
     VIDEOS_DIR,
     VIDEOS_TMP_DIR,
 )
-from lightning_pose_app.backend.extract_frames import export_frames
+from lightning_pose_app.backend.extract_frames import (
+    export_frames,
+)
 
 
 def test_extract_frames_work(
@@ -139,7 +142,8 @@ def test_extract_frames_work(
     new_video_name = new_vid_name + "_NEW1"
     src = new_video_path
     dst = os.path.join(tmpdir, new_video_name, "intermediate_subdir")
-    # os.makedirs(os.path.dirname(dst), exist_ok=True)  # need to create for path purposes
+    #os.makedirs(dst, exist_ok=True)
+    #os.makedirs(os.path.dirname(dst), exist_ok=True)  # need to create for path purposes
     shutil.copytree(src, dst)
     new_video_path = os.path.join(tmpdir, new_video_name)
     zipped_file = new_video_path + ".zip"
@@ -172,11 +176,11 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
 
     from lightning_pose_app.ui.extract_frames import ExtractFramesUI
 
+    flow = ExtractFramesUI()
+
     video_name = "test_vid_copy"
     video_file_ = video_name + ".mp4"
     video_file = os.path.join(tmp_proj_dir, VIDEOS_TMP_DIR, video_file_)
-
-    flow = ExtractFramesUI()
 
     # set attributes
     flow.proj_dir = tmp_proj_dir
@@ -209,12 +213,4 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_per_video
 
-    # -------------------
-    # unzip frames
-    # -------------------
-    # TODO
-
-    # -----------------
-    # cleanup
-    # -----------------
     del flow

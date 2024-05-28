@@ -28,10 +28,12 @@ from lightning_pose_app.backend.extract_frames import (
     export_frames,
     select_frame_idxs_kmeans,
     select_frame_idxs_model,
+    find_contextual_frames,
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
+    get_frame_number,
 )
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
@@ -161,7 +163,6 @@ class ExtractFramesWork(LightningWork):
         video_file: str,
         proj_dir: str,
     ) -> None:
-
         _logger.info(f"============== unzipping frames from {video_file} ================")
 
         # set flag for parent app
@@ -197,6 +198,68 @@ class ExtractFramesWork(LightningWork):
             unzipped_dir = video_file_abs.replace(".zip", "")
             z.extractall(path=unzipped_dir)
 
+            # create a list all images in folder
+            filenames = [
+                os.path.basename(file_info.filename)
+                for file_info in z.infolist()
+                if file_info.filename.endswith('.png')
+            ]
+
+        # Handle nested directories by moving all files to the base unzipped_dir
+        for root, dirs, files in os.walk(unzipped_dir):
+            for file in files:
+                if file.endswith('.png'):  # Assuming we only care about PNG files
+                    file_path = os.path.join(root, file)
+                    if root != unzipped_dir:  # If the file is in a subfolder
+                        shutil.move(file_path, unzipped_dir)
+
+        # Optionally clean up empty directories
+        for root, dirs, files in os.walk(unzipped_dir, topdown=False):
+            for dir in dirs:
+                dir_path = os.path.join(root, dir)
+                if not os.listdir(dir_path):  # Directory is empty
+                    os.rmdir(dir_path)
+
+        # Process and rename filenames
+        correct_imgnames = []
+        for filename in filenames:
+            frame_number = get_frame_number(filename)[0]
+            new_filename = f"img{frame_number:08d}.png"
+            src_path = os.path.join(unzipped_dir, filename)
+            dst_path = os.path.join(unzipped_dir, new_filename)
+            if filename != new_filename:
+                os.rename(src_path, dst_path)
+                _logger.info(f"Renamed '{filename}' to '{new_filename}'")
+            correct_imgnames.append(new_filename)
+
+        if len(correct_imgnames)==0:
+            _logger.error("No valid frame files found. Aborting frame extraction.")
+            return
+
+        # Process filenames with get_frame_number and handle contexts
+        frame_details = [get_frame_number(filename) for filename in correct_imgnames]
+        frame_numbers = [details[0] for details in frame_details]
+        csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
+        frames, is_context = find_contextual_frames(frame_numbers)
+
+        if not csv_exists:
+            if not is_context:
+                frames_to_label = np.array([
+                    f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details
+                ])
+            else:
+                frames_to_label = np.array([
+                    f"{prefix}{num:08d}.{ext}"
+                    for num, prefix, ext in frame_details
+                    if num in frames
+                ])
+            np.savetxt(
+                os.path.join(unzipped_dir, SELECTED_FRAMES_FILENAME),
+                frames_to_label,
+                delimiter=",",
+                fmt="%s"
+            )
+
         # save all contents to data directory
         # don't use copytree as the destination dir may already exist
         while SELECTED_FRAMES_FILENAME not in os.listdir(unzipped_dir):
@@ -214,20 +277,6 @@ class ExtractFramesWork(LightningWork):
             src = os.path.join(unzipped_dir, file)
             dst = os.path.join(save_dir, file)
             shutil.copyfile(src, dst)
-
-        # TODO:
-        # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
-        #   make this file
-
-        # # save csv file inside same output directory
-        # frames_to_label = np.array([
-        #     "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
-        # np.savetxt(
-        #     os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
-        #     np.sort(frames_to_label),
-        #     delimiter=",",
-        #     fmt="%s"
-        # )
 
         # set flag for parent app
         self.work_is_done = True
@@ -662,6 +711,7 @@ def _render_streamlit_fn(state: AppState):
         ):
             if time.time() - state.last_execution_time < 10:
                 st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
+                shutil.rmtree(frames_dir)
 
         # Lightning way of returning the parameters
         if st_submit_button_frames:

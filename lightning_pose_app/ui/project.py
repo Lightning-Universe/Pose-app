@@ -356,6 +356,11 @@ class ProjectUI(LightningFlow):
 
                 # flag finish coping all files
                 finished_copy_files = True
+
+            elif self.st_existing_project_format == "SLEAP":
+                pass
+            # TODO: add here sleap file proccessing flow
+
             else:
                 raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
 
@@ -584,6 +589,11 @@ def _render_streamlit_fn(state: AppState):
             "Select existing project",
             sorted(state.initialized_projects),
         )
+    elif st_mode == DELETE_STR:
+        st_project_name = st.selectbox(
+            "Select existing project",
+            sorted(state.initialized_projects),
+        )
     else:
         st_project_name = st.text_input(
             "Enter project name (must be at least 3 characters)",
@@ -685,7 +695,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_prev_format = st.radio(
             "Select uploaded project format",
-            options=["DLC", "Lightning Pose"],  # TODO: SLEAP, MARS?
+            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: SLEAP, MARS?
             help="Select the file format that the project is stored at."
             " If DLC selected make sure the zipped folder has meet all reqierments"
         )

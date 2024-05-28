@@ -223,3 +223,38 @@ def test_export_frames(video_file, tmpdir):
         context_frames=2,
     )
     assert len(os.listdir(save_dir_2)) == 5 * len(idxs)
+
+
+def test_find_contextual_frames():
+
+    from lightning_pose_app.backend.extract_frames import find_contextual_frames
+
+    test_cases = [
+        {
+            "input": [1, 4, 7, 2, 3, 9, 130],
+            "expected_output": [1, 2, 3, 4, 7, 9, 130],
+            "expected_is_context": False
+        },
+        {
+            "input": [1, 2, 3, 4, 5, 11, 12, 13, 14],
+            "expected_output": [1, 2, 3, 4, 5, 11, 12, 13, 14],
+            "expected_is_context": False
+        },
+        {
+            "input": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104,
+                120, 121, 122, 123, 124
+            ],
+            "expected_output": [3, 4, 5, 6, 7, 8, 102, 122],
+            "expected_is_context": True
+        },
+        {
+            "input": [11, 12, 13, 14, 15, 16, 17],
+            "expected_output": [13, 14, 15],
+            "expected_is_context": True
+        }
+    ]
+
+    for case in test_cases:
+        result, is_context = find_contextual_frames(case["input"])
+        assert result == case["expected_output"], f"Failed for input: {case['input']}"
+        assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
