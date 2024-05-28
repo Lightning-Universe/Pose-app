@@ -357,116 +357,11 @@ class ProjectUI(LightningFlow):
 
                 # flag finish coping all files
                 finished_copy_files = True
-            
+
             elif self.st_existing_project_format == "SLEAP":
                 pass
+            # TODO: add here sleap file proccessing flow
 
-            #TODO:
-
-##################new code form here###############
-            elif self.st_existing_project_format == "SLEAP":
-                # SLEAP conversion logic
-                temp_dir = unzipped_dir
-                sleap_dir = temp_dir
-
-                # Identify the SLEAP file (assuming it has a .slp extension)
-                sleap_file = None
-                for root, dirs, files in os.walk(sleap_dir):
-                    for file in files:
-                        if file.endswith(".slp"):
-                            sleap_file = os.path.join(root, file)
-                            break
-                    if sleap_file:
-                        break
-
-                if not sleap_file:
-                    raise FileNotFoundError("No SLEAP .slp file found in the provided directory.")
-
-                output_csv = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
-                sleap_videos_dir = sleap_dir
-                lightning_pose_videos_dir = os.path.join(self.proj_dir_abs, VIDEOS_DIR)
-
-                # Read the SLEAP HDF5 file
-                with h5py.File(sleap_file, 'r') as f:
-                    tracks = f['tracks'][:]
-                    frame_inds = f['frame_inds'][:]
-                    instances = f['instances'][:]
-
-                    points_x = f['points_x'][:]
-                    points_y = f['points_y'][:]
-                    points_score = f['points_score'][:]
-                    video_filenames = f['videos/filename'][:]
-
-                # Extract necessary data from the labels
-                data = []
-                for track, frame_idx, instance in zip(tracks, frame_inds, instances):
-                    video_filename = video_filenames[instance['video']].decode('utf-8')
-                    for point_x, point_y, point_score in zip(points_x[instance['points']],
-                                                            points_y[instance['points']],
-                                                            points_score[instance['points']]):
-                        data.append([
-                            video_filename,
-                            frame_idx,
-                            point_x,
-                            point_y,
-                            point_score if point_score is not None else 1.0  # Default confidence to 1.0 if not present
-                        ])
-
-                # Create DataFrame
-                df_all = pd.DataFrame(data, columns=['video_name', 'frame', 'x', 'y', 'confidence'])
-
-                # Save the transformed data to a new CSV file
-                df_all.to_csv(output_csv, index=False)
-                print(f"Transformed data saved to {output_csv}")
-
-                # Copy videos from SLEAP directory to Lightning Pose directory
-                if not os.path.exists(lightning_pose_videos_dir):
-                    os.makedirs(lightning_pose_videos_dir)
-                
-                for video_file in os.listdir(sleap_videos_dir):
-                    if video_file.endswith(('.mp4', '.avi')):
-                        full_file_name = os.path.join(sleap_videos_dir, video_file)
-                        if os.path.isfile(full_file_name):
-                            shutil.copy(full_file_name, lightning_pose_videos_dir)
-                            print(f"Copied {video_file} to {lightning_pose_videos_dir}")
-
-                # Clean up the temporary directory if created
-                if temp_dir:
-                    shutil.rmtree(temp_dir)
-
-                # flag finish copying all files
-                finished_copy_files = True
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
             else:
                 raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
 

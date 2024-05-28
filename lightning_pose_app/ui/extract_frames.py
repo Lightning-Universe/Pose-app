@@ -8,8 +8,6 @@ from operator import itemgetter
 
 import cv2
 import numpy as np
-import pandas as pd 
-import re
 import streamlit as st
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
@@ -162,22 +160,27 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done = True
 
-
     def find_contextual_frames(self, frame_numbers):
         sorted_nums = sorted(frame_numbers)
         result_frames = []
 
         # Group consecutive frame numbers
-        groups = [list(map(itemgetter(1), group)) for key, group in groupby(enumerate(sorted_nums), lambda x: x[0] - x[1])]
+        groups = [
+            list(map(itemgetter(1), group))
+            for key, group in groupby(
+                enumerate(sorted_nums),
+                lambda x: x[0] - x[1]
+            )
+        ]
         if any(len(temp_frames) < 5 for temp_frames in groups):
             is_context = False
             result_frames = sorted_nums
         else:
             is_context = True
-            for temp_frames in groups: 
-                result_frames.extend(temp_frames[2:-2])  # All but the first two and last two frames
-        return result_frames, is_context    
-
+            for temp_frames in groups:
+                # take all frames but the first two and last two
+                result_frames.extend(temp_frames[2:-2])
+        return result_frames, is_context
 
     def _unzip_frames(
         self,
@@ -218,6 +221,7 @@ class ExtractFramesWork(LightningWork):
         with zipfile.ZipFile(video_file_abs) as z:
             unzipped_dir = video_file_abs.replace(".zip", "")
             z.extractall(path=unzipped_dir)
+
             # create a list all images in folder
             filenames = [
                 os.path.basename(file_info.filename)
@@ -239,11 +243,11 @@ class ExtractFramesWork(LightningWork):
                 dir_path = os.path.join(root, dir)
                 if not os.listdir(dir_path):  # Directory is empty
                     os.rmdir(dir_path)
-        
+
         # Process and rename filenames
         correct_imgnames = []
         for filename in filenames:
-            frame_number = get_frame_number(filename)[0]  # Assuming get_frame_number returns a tuple
+            frame_number = get_frame_number(filename)[0]
             new_filename = f"img{frame_number:08d}.png"
             src_path = os.path.join(unzipped_dir, filename)
             dst_path = os.path.join(unzipped_dir, new_filename)
@@ -261,7 +265,6 @@ class ExtractFramesWork(LightningWork):
         frame_numbers = [details[0] for details in frame_details]
         csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
         frames, is_context = self.find_contextual_frames(frame_numbers)
-
 
         if not csv_exists:
             if not is_context:
@@ -298,20 +301,6 @@ class ExtractFramesWork(LightningWork):
             src = os.path.join(unzipped_dir, file)
             dst = os.path.join(save_dir, file)
             shutil.copyfile(src, dst)
-
-        # TODO: DONE
-        # - if SELECTED_FRAMES_FILENAME does not exist, assume all frames are for labeling and
-        #   make this file
-
-        # # save csv file inside same output directory
-        # frames_to_label = np.array([
-        #     "img%s.%s" % (str(idx).zfill(n_digits), extension) for idx in idxs_selected])
-        # np.savetxt(
-        #     os.path.join(save_dir, SELECTED_FRAMES_FILENAME),
-        #     np.sort(frames_to_label),
-        #     delimiter=",",
-        #     fmt="%s"
-        # )
 
         # set flag for parent app
         self.work_is_done = True
