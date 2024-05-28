@@ -3,9 +3,6 @@ import numpy as np
 import os
 import pandas as pd
 import shutil
-import pytest
-from itertools import groupby
-from operator import itemgetter
 
 
 from lightning_pose_app import (
@@ -20,7 +17,7 @@ from lightning_pose_app.backend.extract_frames import (
     export_frames,
     find_contextual_frames,
 )
-    
+
 
 def test_extract_frames_work(
     video_file, video_file_pred_df, video_file_pca_singleview_df, tmpdir,
@@ -146,7 +143,7 @@ def test_extract_frames_work(
     new_video_name = new_vid_name + "_NEW1"
     src = new_video_path
     dst = os.path.join(tmpdir, new_video_name, "intermediate_subdir")
-    os.makedirs(dst, exist_ok=True) 
+    os.makedirs(dst, exist_ok=True)
     # os.makedirs(os.path.dirname(dst), exist_ok=True)  # need to create for path purposes
     shutil.copytree(src, dst)
     new_video_path = os.path.join(tmpdir, new_video_name)
@@ -232,7 +229,9 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
             "expected_is_context": False
         },
         {
-            "input": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104, 120, 121, 122, 123, 124],
+            "input": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104,
+                120, 121, 122, 123, 124
+            ],
             "expected_output": [3, 4, 5, 6, 7, 8, 102, 122],
             "expected_is_context": True
         },
@@ -248,6 +247,5 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
         assert result == case["expected_output"], f"Failed for input: {case['input']}"
         assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
 
-    
-    
+
     del flow
