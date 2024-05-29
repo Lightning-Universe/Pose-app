@@ -163,6 +163,7 @@ class ExtractFramesWork(LightningWork):
         video_file: str,
         proj_dir: str,
     ) -> None:
+
         _logger.info(f"============== unzipping frames from {video_file} ================")
 
         # set flag for parent app
@@ -173,9 +174,6 @@ class ExtractFramesWork(LightningWork):
             data_dir = abspath(data_dir_rel)
         else:
             data_dir = data_dir_rel
-        # TODO
-        # n_digits = 8
-        # extension = "png"
 
         # check: does file exist?
         if not os.path.exists(video_file):
@@ -205,22 +203,22 @@ class ExtractFramesWork(LightningWork):
                 if file_info.filename.endswith('.png')
             ]
 
-        # Handle nested directories by moving all files to the base unzipped_dir
+        # handle nested directories by moving all files to the base unzipped_dir
         for root, dirs, files in os.walk(unzipped_dir):
             for file in files:
-                if file.endswith('.png'):  # Assuming we only care about PNG files
+                if file.endswith('.png') or file.endswith(SELECTED_FRAMES_FILENAME):
                     file_path = os.path.join(root, file)
-                    if root != unzipped_dir:  # If the file is in a subfolder
+                    if root != unzipped_dir:  # if the file is in a subfolder
                         shutil.move(file_path, unzipped_dir)
 
-        # Optionally clean up empty directories
+        # optionally clean up empty directories
         for root, dirs, files in os.walk(unzipped_dir, topdown=False):
             for dir in dirs:
                 dir_path = os.path.join(root, dir)
-                if not os.listdir(dir_path):  # Directory is empty
+                if len(os.listdir(dir_path)) == 0:  # directory is empty
                     os.rmdir(dir_path)
 
-        # Process and rename filenames
+        # process and rename filenames
         correct_imgnames = []
         for filename in filenames:
             frame_number = get_frame_number(filename)[0]
@@ -232,11 +230,11 @@ class ExtractFramesWork(LightningWork):
                 _logger.info(f"Renamed '{filename}' to '{new_filename}'")
             correct_imgnames.append(new_filename)
 
-        if len(correct_imgnames)==0:
+        if len(correct_imgnames) == 0:
             _logger.error("No valid frame files found. Aborting frame extraction.")
             return
 
-        # Process filenames with get_frame_number and handle contexts
+        # process filenames with get_frame_number and handle contexts
         frame_details = [get_frame_number(filename) for filename in correct_imgnames]
         frame_numbers = [details[0] for details in frame_details]
         csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
@@ -262,16 +260,6 @@ class ExtractFramesWork(LightningWork):
 
         # save all contents to data directory
         # don't use copytree as the destination dir may already exist
-        while SELECTED_FRAMES_FILENAME not in os.listdir(unzipped_dir):
-            contents = os.listdir(unzipped_dir)
-            if len(contents) != 1:
-                print(
-                    "Error unzipping frames, "
-                    "the zip file may only contain frames from a single video"
-                )
-                return
-            else:
-                unzipped_dir = os.path.join(unzipped_dir, contents[0])
         files = os.listdir(unzipped_dir)
         for file in files:
             src = os.path.join(unzipped_dir, file)

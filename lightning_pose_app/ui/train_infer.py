@@ -57,10 +57,11 @@ VIDEO_LABEL_NONE = "Do not run inference on videos after training"
 VIDEO_LABEL_INFER = "Run inference on videos"
 VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 
+# options for uploading videos
 VIDEO_SELECT_NEW = "Upload new video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
-#options for process message in train models tab
+# options for process message in train models tab
 PROCEED_STR = "Training complete; see diagnostics in the following tabs."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
