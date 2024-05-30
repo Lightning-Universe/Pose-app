@@ -142,8 +142,6 @@ def test_extract_frames_work(
     new_video_name = new_vid_name + "_NEW1"
     src = new_video_path
     dst = os.path.join(tmpdir, new_video_name, "intermediate_subdir")
-    #os.makedirs(dst, exist_ok=True)
-    #os.makedirs(os.path.dirname(dst), exist_ok=True)  # need to create for path purposes
     shutil.copytree(src, dst)
     new_video_path = os.path.join(tmpdir, new_video_name)
     zipped_file = new_video_path + ".zip"

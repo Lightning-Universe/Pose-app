@@ -3,28 +3,21 @@ import json
 import h5py
 import pandas as pd
 import numpy as np
-import shutil
-import cv2
 from PIL import Image
 import io
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
     LABELED_DATA_DIR,
-    LABELSTUDIO_DB_DIR,
-    LABELSTUDIO_METADATA_FILENAME,
-    MODELS_DIR,
-    SELECTED_FRAMES_FILENAME,
     VIDEOS_DIR,
 )
 
-from lightning_pose_app.utilities import (
-    StreamlitFrontend,
-    abspath,
-    compute_batch_sizes,
-    compute_resize_dims,
-    update_config,
-)
+# from lightning_pose_app.utilities import (
+#     StreamlitFrontend,
+#     abspath,
+#     compute_batch_sizes,
+#     compute_resize_dims,
+# )
 
 
 def extract_frames_from_pkg_slp(file_path, base_output_dir):
@@ -42,7 +35,9 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
         # Extract and save images for each video
         for video_group, video_filename in video_names.items():
-            output_dir = os.path.join(base_output_dir, LABELED_DATA_DIR, os.path.basename(video_filename).split('.')[0])
+            output_dir = os.path.join(
+                base_output_dir, LABELED_DATA_DIR, os.path.basename(video_filename).split('.')[0]
+            )
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
@@ -56,12 +51,6 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                     img.save(f"{output_dir}/{frame_name}")
                     frame_names.append(frame_name)
                     print(f"Saved frame {frame_number} as {frame_name}")
-
-                # Create the selected_frames.csv file without the header
-                selected_frames_csv_path = os.path.join(output_dir, SELECTED_FRAMES_FILENAME)
-                with open(selected_frames_csv_path, 'w') as f:
-                    for frame_name in frame_names:
-                        f.write(f"{frame_name}\n")
 
 
 # Function to extract data and create the required DataFrame for multiple videos
@@ -85,11 +74,18 @@ def extract_labels_from_pkg_slp(file_path):
         for video_group, video_filename in video_names.items():
             if video_group in hdf_file and 'frames' in hdf_file:
                 frames_dataset = hdf_file['frames']
-                frame_references = {frame['frame_id']: frame['frame_idx'] for frame in frames_dataset if frame['video'] == int(video_group.replace('video', ''))}
+                frame_references = {
+                    frame['frame_id']: frame['frame_idx']
+                    for frame in frames_dataset
+                    if frame['video'] == int(video_group.replace('video', ''))
+                }
 
                 # Correct frame references for the current video group
                 frame_numbers = hdf_file[f'{video_group}/frame_numbers'][:]
-                frame_id_to_number = {frame_id: frame_numbers[idx] for idx, frame_id in enumerate(frame_references.keys())}
+                frame_id_to_number = {
+                    frame_id: frame_numbers[idx]
+                    for idx, frame_id in enumerate(frame_references.keys())
+                }
 
                 # Extract instances and points
                 points_dataset = hdf_file['points']
@@ -111,7 +107,7 @@ def extract_labels_from_pkg_slp(file_path):
                         for kp in points:
                             x, y = kp['x'], kp['y']
                             if np.isnan(x) or np.isnan(y):
-                                x, y = 0, 0  # Replace invalid values with 0 or handle appropriately
+                                x, y = None, None
                             keypoints_flat.extend([x, y])
 
                         data.append([frame_idx] + keypoints_flat)
@@ -125,15 +121,26 @@ def extract_labels_from_pkg_slp(file_path):
                     instance_names = [node['name'] for node in nodes]
 
                     keypoints = [f'{name}' for name in instance_names]
-                    columns = ['frame'] + [f'{kp}_x' for kp in keypoints] + [f'{kp}_y' for kp in keypoints]
-                    scorer_row = ['scorer'] + ['lightning tracker'] * (len(columns) - 1)
+                    columns = [
+                        'frame'
+                    ] + [
+                        f'{kp}_x' for kp in keypoints
+                    ] + [
+                        f'{kp}_y' for kp in keypoints
+                    ]
+                    scorer_row = ['scorer'] + ['lightning_tracker'] * (len(columns) - 1)
                     bodyparts_row = ['bodyparts'] + [f'{kp}' for kp in keypoints for _ in (0, 1)]
                     coords_row = ['coords'] + ['x', 'y'] * len(keypoints)
 
                     labels_df = pd.DataFrame(data, columns=columns)
                     video_base_name = os.path.basename(video_filename).split('.')[0]
-                    labels_df['frame'] = labels_df['frame'].apply(lambda x: f"labeled-data/{video_base_name}/img{str(int(x)).zfill(8)}.png")
-
+                    labels_df['frame'] = labels_df['frame'].apply(
+                        lambda x: (
+                            f"labeled-data/{video_base_name}/"
+                            f"img{str(int(x)).zfill(8)}.png"
+                        )
+                    )
+                    labels_df = labels_df.groupby('frame', as_index=False).first()
                     data_frames.append(labels_df)
 
     if data_frames:
@@ -141,24 +148,28 @@ def extract_labels_from_pkg_slp(file_path):
         combined_df = pd.concat(data_frames, ignore_index=True)
 
         # Add the scorer, bodyparts, and coords rows at the top
-        header_df = pd.DataFrame([scorer_row, bodyparts_row, coords_row], columns=combined_df.columns)
+        header_df = pd.DataFrame(
+            [scorer_row, bodyparts_row, coords_row],
+            columns=combined_df.columns
+        )
         final_df = pd.concat([header_df, combined_df], ignore_index=True)
         final_df.columns = [None] * len(final_df.columns)  # Set header to None
+
         return final_df
-    else:
-        return pd.DataFrame()
+
 
 def get_keypoints_from_pkg_slp(file_path):
     keypoints = []
-    
+
     with h5py.File(file_path, 'r') as hdf_file:
         # Extract instance names from metadata JSON
         metadata_json = hdf_file['metadata'].attrs['json']
         metadata_dict = json.loads(metadata_json)
         nodes = metadata_dict['nodes']
         keypoints = [node['name'] for node in nodes]
-    
+
     return keypoints
+
 
 def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose") -> list:
     if project_type not in ["DLC", "Lightning Pose"]:

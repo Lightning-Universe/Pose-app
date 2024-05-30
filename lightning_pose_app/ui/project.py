@@ -293,17 +293,6 @@ class ProjectUI(LightningFlow):
         if self.count_upload_existing > 0:
             return
 
-        # # extract all files to tmp directory
-        # if not os.path.exists(self.st_upload_existing_project_zippath):
-        #     _logger.error(
-        #         f"Could not find zipped project file at {self.st_upload_existing_project_zippath};"
-        #         f" aborting"
-        #     )
-        #     return
-        # with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
-        #     unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
-        #     z.extractall(path=unzipped_dir)
-
         def contains_videos(file_or_dir):
             if os.path.isfile(file_or_dir):
                 return False
@@ -325,7 +314,8 @@ class ProjectUI(LightningFlow):
                 # Extract all files to a temporary directory
                 if not os.path.exists(self.st_upload_existing_project_zippath):
                     _logger.error(
-                        f"Could not find zipped project file at {self.st_upload_existing_project_zippath};"
+                        f"Could not find zipped project file at \
+                        {self.st_upload_existing_project_zippath};"
                         f" aborting"
                     )
                     return
@@ -333,7 +323,7 @@ class ProjectUI(LightningFlow):
                 with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
                     unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
                     z.extractall(path=unzipped_dir)
-                
+
                 if self.st_existing_project_format == "Lightning Pose":
                     top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
                     files_and_dirs = os.listdir(top_level_dir)
@@ -379,96 +369,60 @@ class ProjectUI(LightningFlow):
 
                     # flag finish coping all files
                     finished_copy_files = True
-                    
-                # create 'selected_frames.csv' file for each video subdirectory
-                # this is required to import frames into label studio, so that we don't confuse context
-                # frames with labeled frames
-                csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
-                df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
-                frames = np.array(df.index)
-                vids = np.unique([f.split('/')[1] for f in frames])
-                for vid in vids:
-                    frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
-                    save_dir = os.path.join(
-                        self.proj_dir_abs, LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
-                    np.savetxt(
-                        save_dir,
-                        np.sort(frames_to_label),
-                        delimiter=",",
-                        fmt="%s"
-                    )
+
+                # remove zipped file from project folder
+                if finished_copy_files:
+                    if os.path.exists(self.st_upload_existing_project_zippath):
+                        os.remove(self.st_upload_existing_project_zippath)
+                    if os.path.isdir(unzipped_dir):
+                        shutil.rmtree(unzipped_dir)
 
             elif self.st_existing_project_format == "SLEAP":
-                
                 if not os.path.exists(self.st_upload_existing_project_slp):
                     _logger.error(
-                        f"Could not find zipped project file at {self.st_upload_existing_project_slp};"
+                        f"Could not find SLEAP project file at \
+                        {self.st_upload_existing_project_slp};"
                         f" aborting"
                     )
                     return
 
                 file_path = self.st_upload_existing_project_slp
-                project_name = os.path.basename(file_path).replace('.pkg.slp', '')
-                project_dir = os.path.join(self.proj_dir_abs, project_name)
-                os.makedirs(project_dir, exist_ok=True)
+                os.makedirs(self.proj_dir_abs, exist_ok=True)
 
                 # Extract and save CollectedData.csv
                 csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
                 df = extract_labels_from_pkg_slp(file_path)
                 df.to_csv(csv_file, index=False, header=False)
-                extract_frames_from_pkg_slp(file_path, project_dir)
 
-                # Ensure the directory structure matches DLC requirements
-                labeled_data_dir = os.path.join(self.proj_dir_abs, 'labeled-data')
+                # Extract frames from the slp file - labele data folder been created in the process
+                extract_frames_from_pkg_slp(file_path, self.proj_dir_abs)
+
+                # Create a videos folder for future use
                 videos_dir = os.path.join(self.proj_dir_abs, 'videos')
-                os.makedirs(labeled_data_dir, exist_ok=True)
                 os.makedirs(videos_dir, exist_ok=True)
-
-                # Move the extracted labeled-data and videos directories to the project root
-                for subdir in ['labeled-data', 'videos']:
-                    src = os.path.join(project_dir, subdir)
-                    if os.path.exists(src):
-                        dst = os.path.join(self.proj_dir_abs, subdir)
-                        if os.path.exists(dst):
-                            shutil.rmtree(dst)
-                        shutil.move(src, dst)
-                
-                if os.path.exists(self.st_upload_existing_project_slp):
-                    os.remove(self.st_upload_existing_project_slp)
-                if os.path.isdir(project_dir):
-                    shutil.rmtree(project_dir)
 
             else:
                 raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
 
-            # remove zipped file from project folder
-            if finished_copy_files:
-                if os.path.exists(self.st_upload_existing_project_zippath):
-                    os.remove(self.st_upload_existing_project_zippath)
-                if os.path.isdir(unzipped_dir):
-                    shutil.rmtree(unzipped_dir)
-                
-
         except Exception as e:
             print(f"An error occurred: {e}")
 
-        # # create 'selected_frames.csv' file for each video subdirectory
-        # # this is required to import frames into label studio, so that we don't confuse context
-        # # frames with labeled frames
-        # csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
-        # df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
-        # frames = np.array(df.index)
-        # vids = np.unique([f.split('/')[1] for f in frames])
-        # for vid in vids:
-        #     frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
-        #     save_dir = os.path.join(
-        #         self.proj_dir_abs, LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
-        #     np.savetxt(
-        #         save_dir,
-        #         np.sort(frames_to_label),
-        #         delimiter=",",
-        #         fmt="%s"
-        #     )
+        # create 'selected_frames.csv' file for each video subdirectory
+        # frames with labeled frames
+        csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
+        df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
+        frames = np.array(df.index)
+        vids = np.unique([f.split('/')[1] for f in frames])
+        for vid in vids:
+            frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
+            save_dir = os.path.join(
+                self.proj_dir_abs, LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
+            np.savetxt(
+                save_dir,
+                np.sort(frames_to_label),
+                delimiter=",",
+                fmt="%s"
+            )
 
         # update config file with frame shapes
         self._update_frame_shapes()
@@ -511,9 +465,6 @@ class ProjectUI(LightningFlow):
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-
-
 
 
 def _render_streamlit_fn(state: AppState):
@@ -704,14 +655,17 @@ def _render_streamlit_fn(state: AppState):
                 state.st_upload_existing_project_zippath = filepath
                 enter_data = True
                 st_mode = CREATE_STR
-            
+
         elif state.st_existing_project_format == "SLEAP":
             uploaded_file = st.file_uploader(
-            "Upload project in .pkg.slp file", type="pkg.slp", accept_multiple_files=False,key="uploader2")
+                "Upload project in .pkg.slp file",
+                type="pkg.slp",
+                accept_multiple_files=False,
+                key="uploader2"
+            )
+
         if uploaded_file is not None:
-            # read it
             bytes_data = uploaded_file.read()
-            # name it
             filename = uploaded_file.name
             filename_temp = filename.replace(".pkg.slp", '_temp.pkg.slp')
             filepath = os.path.join(os.getcwd(), "data", filename_temp)

@@ -60,7 +60,7 @@ VIDEO_LABEL_INFER_LABEL = "Run inference on videos and make labeled movie"
 VIDEO_SELECT_NEW = "Upload new video(s)"
 VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 
-#options for process message in train models tab
+# options for process message in train models tab
 PROCEED_STR = "Training complete; see diagnostics in the following tabs."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
@@ -849,7 +849,7 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-     
+
         expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
