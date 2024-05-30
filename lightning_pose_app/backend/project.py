@@ -12,13 +12,6 @@ from lightning_pose_app import (
     VIDEOS_DIR,
 )
 
-# from lightning_pose_app.utilities import (
-#     StreamlitFrontend,
-#     abspath,
-#     compute_batch_sizes,
-#     compute_resize_dims,
-# )
-
 
 def extract_frames_from_pkg_slp(file_path, base_output_dir):
     with h5py.File(file_path, 'r') as hdf_file:
