@@ -828,16 +828,10 @@ def _render_streamlit_fn(state: AppState):
                 disabled=not enter_data,
                 value=value,
             )
-            # ensure no spaces, dashes, or parentheses
-            st_keypoints = keypoints.replace(
-                " ", "_"
-            ).replace(
-                "-", "_"
-            ).replace(
-                ")", "_",
-            ).replace(
-                "(", "_",
-            ).strip().split("\n")
+            # ensure no spaces, dashes, parentheses, etc.
+            for c in " {}[]()>#+-!$":
+                keypoints = keypoints.replace(c, "_")
+            st_keypoints = keypoints.strip().split("\n")
             if len(st_keypoints) == 1 and st_keypoints[0] == "":
                 st_keypoints = []
             st_n_keypoints = len(st_keypoints)
