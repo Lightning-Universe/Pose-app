@@ -12,7 +12,7 @@ from lightning_pose_app import (
     VIDEOS_DIR,
 )
 
-# New code
+
 def extract_frames_from_pkg_slp(file_path, base_output_dir):
     with h5py.File(file_path, 'r') as hdf_file:
         # Identify video names
