@@ -101,7 +101,7 @@ class LitPoseApp(LightningFlow):
 
         """NOTE
         This is an ugly solution. Previously this function was called from the app constructor,
-        which required label studio to be started inside the constructor as well. This led to 
+        which required label studio to be started inside the constructor as well. This led to
         issues with ports. Therefore this import needs to happen in the app's run method.
         However, this means that various parts of this function will execute several times before
         it is finished. Furthermore, this function runs *every* time the app is called.
@@ -124,14 +124,14 @@ class LitPoseApp(LightningFlow):
                 if f.endswith("info.json"):
                     try:
                         json_file = os.path.join(label_studio_exports, f)
-                        d = json.load(open(json_file, "r"))        
+                        d = json.load(open(json_file, "r"))
                         project_name_curr = d["project"]["title"]
                         n_labels_curr = d["project"]["task_number"]
                         projects[project_name_curr] = n_labels_curr
                     except Exception:
                         # sometimes there is a json read error, not sure why
                         continue
-        
+
         if project_name in projects.keys() and projects[project_name] >= 90:
             self.import_demo_count += 1
             return
@@ -373,6 +373,11 @@ class LitPoseApp(LightningFlow):
                     self.train_ui.config_dict = self.project_ui.config_dict
                     # update label studio object
                     self.label_studio.keypoints = self.project_ui.st_keypoints
+                    # count labeled frames
+                    self.project_ui.run(
+                        action="compute_labeled_frame_fraction", timer=self.label_studio.time)
+                    self.train_ui.n_labeled_frames = self.project_ui.n_labeled_frames
+                    self.train_ui.n_total_frames = self.project_ui.n_total_frames
                     # allow app to advance
                     self.project_ui.count += 1
                     self.project_ui.run_script = False
@@ -431,7 +436,15 @@ class LitPoseApp(LightningFlow):
         # periodically check labeling task and export new labels
         # -------------------------------------------------------------
         if self.project_ui.count > 0 and run_while_training and run_while_inferring:
-            t_elapsed = 15  # seconds
+            # with large datasets, the check_labeling_task_and_export can take >15 s
+            if self.project_ui.n_labeled_frames is None or self.project_ui.n_total_frames < 500:
+                t_elapsed = 15  # seconds
+            elif self.project_ui.n_total_frames < 1000:
+                t_elapsed = 30
+            elif self.project_ui.n_total_frames < 2000:
+                t_elapsed = 60
+            else:
+                t_elapsed = 60
             t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
             if self.schedule(f"* * * * * {t_elapsed_list}"):
                 # only true for a single flow execution every n seconds; capture event in state var
