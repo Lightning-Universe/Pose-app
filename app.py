@@ -308,10 +308,11 @@ class LitPoseApp(LightningFlow):
             # find previously trained models for project, expose to training and diagnostics UIs
             # timer to force later runs
             self.update_trained_models_list(timer=self.train_ui.submit_count_train)
-            # only launch once we know which project we're working on
-            self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
-            self.streamlit_frame.run(action="initialize")
-            self.streamlit_video.run(action="initialize")
+            # only launch once we know which project we're working on, and we're not deleting
+            if self.extract_ui.proj_dir and not self.project_ui.st_delete_project:
+                self.start_tensorboard(logdir=self.project_ui.model_dir[1:])
+                self.streamlit_frame.run(action="initialize")
+                self.streamlit_video.run(action="initialize")
 
         # import mirror-mouse-example dataset
         if not os.environ.get("TESTING_LAI"):
@@ -335,7 +336,9 @@ class LitPoseApp(LightningFlow):
             self.streamlit_video_player.proj_dir = self.project_ui.proj_dir
             self.label_studio.run(
                 action="update_paths",
-                proj_dir=self.project_ui.proj_dir, proj_name=self.project_ui.st_project_name)
+                proj_dir=self.project_ui.proj_dir, 
+                proj_name=self.project_ui.st_project_name,
+            )
 
             # create/load/delete project
             if self.project_ui.st_create_new_project and self.project_ui.count == 0:
@@ -361,7 +364,12 @@ class LitPoseApp(LightningFlow):
                     self.project_ui.run_script = False
             elif self.project_ui.st_delete_project:
                 self.extract_ui.proj_dir = None  # stop tabs from opening
+                self.label_studio.run(action="delete_project")
                 self.project_ui.run(action="delete_project")
+                self.train_ui.proj_dir = None
+                self.streamlit_frame.proj_dir = None
+                self.streamlit_video.proj_dir = None
+                self.streamlit_video_player.proj_dir = None
                 self.project_ui.run_script = False
             else:
                 # project already created
@@ -486,7 +494,7 @@ class LitPoseApp(LightningFlow):
         st_video_player_tab = {"name": "Video Player", "content": self.streamlit_video_player}
         fo_tab = {"name": "Image Viewer", "content": self.fiftyone}
 
-        if self.extract_ui.proj_dir:
+        if self.extract_ui.proj_dir and not self.project_ui.st_delete_project:
             return [
                 project_tab,
                 extract_tab,

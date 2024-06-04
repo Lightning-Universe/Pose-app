@@ -403,12 +403,48 @@ class ProjectUI(LightningFlow):
         if os.path.exists(self.proj_dir_abs):
             shutil.rmtree(self.proj_dir_abs)
 
-        # TODO: how to delete from label studio db?
-
         # update project info
-        self.st_project_name = ""
-        self.st_delete_project = False
+        self.run(action="reset_project")
         self.run(action="find_initialized_projects")
+
+    def _reset_project(self):
+
+        self.proj_dir = None
+        self.config_name = None
+        self.config_file = None
+        self.config_dict = None
+        self.model_dir = None
+        self.trained_models = []
+        self.n_labeled_frames = 0
+        self.n_total_frames = 0
+
+        # UI info
+        self.run_script = False
+        self.update_models = False
+        self.count = 0  # counter for external app
+        self.count_upload_existing = 0
+        self.st_submits = 0  # counter for this streamlit app
+        self.st_submits_delete = 0  # counter for this streamlit app
+        self.initialized_projects = []
+
+        self.st_project_name = None
+        self.st_reset_project_name = False
+        self.st_create_new_project = False
+        self.st_delete_project = False
+        self.st_upload_existing_project = False
+        self.st_existing_project_format = None
+        self.st_upload_existing_project_zippath = None
+        self.st_error_flag = False
+        self.st_error_msg = ""
+        self.st_project_loaded = False
+        self.st_new_vals = None
+
+        # config data
+        self.st_n_views = 0
+        self.st_keypoints_ = []
+        self.st_n_keypoints = 0
+        self.st_pcasv_columns = []
+        self.st_pcamv_columns = []
 
     def run(self, action, **kwargs):
 
@@ -430,6 +466,8 @@ class ProjectUI(LightningFlow):
             self._upload_existing_project(**kwargs)
         elif action == "delete_project":
             self._delete_project(**kwargs)
+        elif action == "reset_project":
+            self._reset_project(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
@@ -686,7 +724,8 @@ def _render_streamlit_fn(state: AppState):
     else:
         # cannot enter data until project name has been entered
         enter_data = False
-
+    st.text(state.st_delete_project)
+    st.text(st_mode)
     # ----------------------------------------------------
     # upload existing project
     # ----------------------------------------------------

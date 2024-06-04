@@ -55,6 +55,12 @@ def get_project(label_studio_client, id):
 
 
 @retry
+def delete_project(label_studio_client, id):
+    status = label_studio_client.delete_project(id=id)
+    return status
+
+
+@retry
 def create_data_source(label_studio_project, json):
     label_studio_project.make_request('POST', '/api/storages/localfiles', json=json)
 
