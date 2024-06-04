@@ -15,6 +15,7 @@ import shutil
 import sys
 import time
 import yaml
+import zipfile
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,

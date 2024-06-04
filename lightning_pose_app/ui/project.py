@@ -292,6 +292,7 @@ class ProjectUI(LightningFlow):
         # only run once
         if self.count_upload_existing > 0:
             return
+        
 
         def contains_videos(file_or_dir):
             if os.path.isfile(file_or_dir):
@@ -310,8 +311,8 @@ class ProjectUI(LightningFlow):
 
         finished_copy_files = False
         try:
-            if self.st_existing_project_format in ["Lightning Pose", "DLC"]:
-                # Extract all files to a temporary directory
+            if self.st_existing_project_format == "Lightning Pose":
+
                 if not os.path.exists(self.st_upload_existing_project_zippath):
                     _logger.error(
                         f"Could not find zipped project file at \
@@ -324,58 +325,78 @@ class ProjectUI(LightningFlow):
                     unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
                     z.extractall(path=unzipped_dir)
 
-                if self.st_existing_project_format == "Lightning Pose":
-                    top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
-                    files_and_dirs = os.listdir(top_level_dir)
-                    for file_or_dir in files_and_dirs:
-                        src = os.path.join(top_level_dir, file_or_dir)
-                        if file_or_dir.endswith(".csv"):
-                            # copy labels csv file
-                            dst = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
-                            shutil.copyfile(src, dst)
-                        elif contains_videos(src):
-                            # copy videos over, make sure they are in proper format
-                            dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
-                            copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
-                        else:
-                            # copy other files
-                            dst = os.path.join(self.proj_dir_abs, file_or_dir)
-                            if os.path.isdir(src):
-                                shutil.copytree(src, dst)
-                            else:
-                                shutil.copyfile(src, dst)
-
-                    # flag finish coping all files
-                    finished_copy_files = True
-
-                elif self.st_existing_project_format == "DLC":
-
-                    # copy files
-                    files_and_dirs = os.listdir(unzipped_dir)
-                    req_dlc_dirs = ["labeled-data", "videos"]
-                    for d in req_dlc_dirs:
-                        assert d in files_and_dirs, \
-                            f"zipped DLC directory must include folder named {d}"
-                        src = os.path.join(unzipped_dir, d)
-                        dst = os.path.join(self.proj_dir_abs, d)
-                        if d == "labeled-data":
+                top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
+                files_and_dirs = os.listdir(top_level_dir)
+                for file_or_dir in files_and_dirs:
+                    src = os.path.join(top_level_dir, file_or_dir)
+                    if file_or_dir.endswith(".csv"):
+                        # copy labels csv file
+                        dst = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
+                        shutil.copyfile(src, dst)
+                    elif contains_videos(src):
+                        # copy videos over, make sure they are in proper format
+                        dst_dir = os.path.join(self.proj_dir_abs, file_or_dir)
+                        copy_and_reformat_video_directory(src_dir=src, dst_dir=dst_dir)
+                    else:
+                        # copy other files
+                        dst = os.path.join(self.proj_dir_abs, file_or_dir)
+                        if os.path.isdir(src):
                             shutil.copytree(src, dst)
                         else:
-                            copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
+                            shutil.copyfile(src, dst)
 
-                    # create single csv file of labels out of video-specific label files
-                    df_all = collect_dlc_labels(self.proj_dir_abs)
-                    df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
+                # flag finish coping all files
+                finished_copy_files = True
 
-                    # flag finish coping all files
-                    finished_copy_files = True
+            elif self.st_existing_project_format == "DLC":
 
-                # remove zipped file from project folder
-                if finished_copy_files:
-                    if os.path.exists(self.st_upload_existing_project_zippath):
-                        os.remove(self.st_upload_existing_project_zippath)
-                    if os.path.isdir(unzipped_dir):
-                        shutil.rmtree(unzipped_dir)
+                if not os.path.exists(self.st_upload_existing_project_zippath):
+                    _logger.error(
+                        f"Could not find zipped project file at \
+                        {self.st_upload_existing_project_zippath};"
+                        f" aborting"
+                    )
+                    return
+
+                with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
+                    unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
+                    z.extractall(path=unzipped_dir)
+                    print("Extracted dlc project")
+                
+                # copy files
+                top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
+                files_and_dirs = os.listdir(top_level_dir)
+                req_dlc_dirs = ["labeled-data", "videos"]
+                for d in req_dlc_dirs:
+                    assert d in files_and_dirs, \
+                        f"zipped DLC directory must include folder named {d}"
+                    src = os.path.join(top_level_dir, d)
+                    print("SRC",src)
+                    dst = os.path.join(self.proj_dir_abs, d)
+                    print("DST",dst)
+                    if d == "labeled-data":
+                        shutil.copytree(src, dst)
+                        print(os.listdir(dst))
+                        print("in copy files")
+                    else:
+                        copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
+
+                # create single csv file of labels out of video-specific label files
+                df_all = collect_dlc_labels(self.proj_dir_abs)
+                csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
+                _logger.debug(f"Attempting to save collected data to {csv_file}")
+                df_all.to_csv(csv_file)
+                #df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
+
+                # flag finish coping all files
+                finished_copy_files = True
+
+            # remove zipped file from project folder
+            if finished_copy_files:
+                if os.path.exists(self.st_upload_existing_project_zippath):
+                    os.remove(self.st_upload_existing_project_zippath)
+                if os.path.isdir(unzipped_dir):
+                    shutil.rmtree(unzipped_dir)
 
             elif self.st_existing_project_format == "SLEAP":
                 if not os.path.exists(self.st_upload_existing_project_slp):
@@ -408,6 +429,7 @@ class ProjectUI(LightningFlow):
             print(f"An error occurred: {e}")
 
         # create 'selected_frames.csv' file for each video subdirectory
+        # this is required to import frames into label studio, so that we don't confuse context
         # frames with labeled frames
         csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
         df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
@@ -417,6 +439,7 @@ class ProjectUI(LightningFlow):
             frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
             save_dir = os.path.join(
                 self.proj_dir_abs, LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
+            _logger.debug(f"Saving selected frames to {save_dir}")
             np.savetxt(
                 save_dir,
                 np.sort(frames_to_label),
@@ -621,6 +644,7 @@ def _render_streamlit_fn(state: AppState):
     # upload existing project
     # ----------------------------------------------------
     # initialize the file uploader
+    
     if st_project_name and st_mode == UPLOAD_STR:
 
         st_prev_format = st.radio(
@@ -664,21 +688,21 @@ def _render_streamlit_fn(state: AppState):
                 key="uploader2"
             )
 
-        if uploaded_file is not None:
-            bytes_data = uploaded_file.read()
-            filename = uploaded_file.name
-            filename_temp = filename.replace(".pkg.slp", '_temp.pkg.slp')
-            filepath = os.path.join(os.getcwd(), "data", filename_temp)
-            # write the content of the file to the path if it doesn't already exist
-            if not os.path.exists(filepath):
-                with open(filepath, "wb") as f:
-                    f.write(bytes_data)
+            if uploaded_file is not None:
+                bytes_data = uploaded_file.read()
+                filename = uploaded_file.name
+                filename_temp = filename.replace(".pkg.slp", '_temp.pkg.slp')
+                filepath = os.path.join(os.getcwd(), "data", filename_temp)
+                # write the content of the file to the path if it doesn't already exist
+                if not os.path.exists(filepath):
+                    with open(filepath, "wb") as f:
+                        f.write(bytes_data)
 
-            st_keypoints = get_keypoints_from_pkg_slp(filepath)
+                st_keypoints = get_keypoints_from_pkg_slp(filepath)
 
-            state.st_upload_existing_project_slp = filepath
-            enter_data = True
-            st_mode = CREATE_STR
+                state.st_upload_existing_project_slp = filepath
+                enter_data = True
+                st_mode = CREATE_STR
 
         st.caption(
             "If your zip file is larger than the 200MB limit, see the [FAQ]"

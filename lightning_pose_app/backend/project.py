@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 import io
+import zipfile
+# new commit
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
@@ -13,19 +15,24 @@ from lightning_pose_app import (
 )
 
 
-def extract_frames_from_pkg_slp(file_path, base_output_dir):
-    with h5py.File(file_path, 'r') as hdf_file:
-        # Identify video names
-        video_names = {}
-        for video_group_name in hdf_file.keys():
-            if video_group_name.startswith('video'):
-                source_video_path = f'{video_group_name}/source_video'
-                if source_video_path in hdf_file:
-                    source_video_json = hdf_file[source_video_path].attrs['json']
-                    source_video_dict = json.loads(source_video_json)
-                    video_filename = source_video_dict['backend']['filename']
-                    video_names[video_group_name] = video_filename
+def extract_video_names_from_pkg_slp(hdf_file: str) -> dict:
+    video_names = {}
+    for video_group_name in hdf_file.keys():
+        if video_group_name.startswith('video'):
+            source_video_path = f'{video_group_name}/source_video'
+            if source_video_path in hdf_file:
+                source_video_json = hdf_file[source_video_path].attrs['json']
+                source_video_dict = json.loads(source_video_json)
+                video_filename = source_video_dict['backend']['filename']
+                video_names[video_group_name] = video_filename
+    return video_names
 
+
+def extract_frames_from_pkg_slp(file_path: str, base_output_dir: str):
+    # Extract frames from pkg.slp file to an output folder
+    with h5py.File(file_path, 'r') as hdf_file:
+
+        video_names = extract_video_names_from_pkg_slp(hdf_file)
         # Extract and save images for each video
         for video_group, video_filename in video_names.items():
             output_dir = os.path.join(
@@ -46,22 +53,14 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                     print(f"Saved frame {frame_number} as {frame_name}")
 
 
-# Function to extract data and create the required DataFrame for multiple videos
-def extract_labels_from_pkg_slp(file_path):
+def extract_labels_from_pkg_slp(file_path: str) -> pd.DataFrame:
+    # Function to extract data and create the required DataFrame for multiple videos
     data_frames = []
     scorer_row, bodyparts_row, coords_row = None, None, None
 
     with h5py.File(file_path, 'r') as hdf_file:
-        # Identify video names
-        video_names = {}
-        for video_group_name in hdf_file.keys():
-            if video_group_name.startswith('video'):
-                source_video_path = f'{video_group_name}/source_video'
-                if source_video_path in hdf_file:
-                    source_video_json = hdf_file[source_video_path].attrs['json']
-                    source_video_dict = json.loads(source_video_json)
-                    video_filename = source_video_dict['backend']['filename']
-                    video_names[video_group_name] = video_filename
+
+        video_names = extract_video_names_from_pkg_slp(hdf_file)
 
         # Extract data for each video
         for video_group, video_filename in video_names.items():
@@ -151,7 +150,7 @@ def extract_labels_from_pkg_slp(file_path):
         return final_df
 
 
-def get_keypoints_from_pkg_slp(file_path):
+def get_keypoints_from_pkg_slp(file_path: str) -> list:
     keypoints = []
 
     with h5py.File(file_path, 'r') as hdf_file:
