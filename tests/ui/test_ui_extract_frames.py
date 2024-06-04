@@ -211,4 +211,7 @@ def test_extract_frames_ui(root_dir, tmp_proj_dir):
     df = pd.read_csv(idx_file_abs, header=None)
     assert df.shape[0] == n_frames_per_video
 
+    # -----------------
+    # cleanup
+    # -----------------
     del flow
