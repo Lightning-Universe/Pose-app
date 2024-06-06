@@ -237,26 +237,34 @@ class LitLabelStudio(LightningFlow):
     def _delete_project(self, **kwargs):
         """Delete a project from the label studio database."""
 
-        # build script command
-        script_path = os.path.join(
-            os.getcwd(), "lightning_pose_app", "label_studio", "delete_project.py")
-        build_command = f"python {script_path} " \
-                        f"--label_studio_url {self.label_studio_url} " \
-                        f"--proj_dir {abspath(self.proj_dir)} " \
-                        f"--api_key {self.user_token} "
-        print("------------------------ HERE1 ------------------------")
-        # run command to update label studio tasks
-        self.label_studio.run(
-            build_command,
-            venv_name=label_studio_venv,
-            wait_for_exit=True,
-            env={"LOG_LEVEL": log_level},
-            timer=self.time,
-        )
-        print("------------------------ HERE2 ------------------------")
         # reset paths
         self.keypoints = None
         self._update_paths(proj_dir=None, proj_name=None)
+
+        # NOTE:
+        # the below will delete the project from the label studio database
+        # this is commented out to force users to do this manually as an added safey measure
+
+        # # build script command
+        # script_path = os.path.join(
+        #     os.getcwd(), "lightning_pose_app", "label_studio", "delete_project.py")
+        # build_command = f"python {script_path} " \
+        #                 f"--label_studio_url {self.label_studio_url} " \
+        #                 f"--proj_dir {abspath(self.proj_dir)} " \
+        #                 f"--api_key {self.user_token} "
+        #
+        # # run command to update label studio tasks
+        # self.label_studio.run(
+        #     build_command,
+        #     venv_name=label_studio_venv,
+        #     wait_for_exit=True,
+        #     env={"LOG_LEVEL": log_level},
+        #     timer=self.time,
+        # )
+        #
+        # # reset paths
+        # self.keypoints = None
+        # self._update_paths(proj_dir=None, proj_name=None)
 
     def run(self, action=None, **kwargs):
 

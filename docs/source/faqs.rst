@@ -116,8 +116,8 @@ Model training
 
     **What is an epoch?**
     An epoch refers to one complete pass through the entire training dataset. During an epoch, 
-    the model is trained on every sample in the dataset exactly once. Find more info 
-    `here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html#model-training-parameters>`_
+    the model is trained on every sample in the dataset exactly once. Find more
+    `info here <https://lightning-pose.readthedocs.io/en/latest/source/user_guide/config_file.html#model-training-parameters>`_
     (this link takes you to another set of docs specifically for Lightning Pose).
 
     **With what value should I start?**
