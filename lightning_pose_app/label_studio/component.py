@@ -244,7 +244,7 @@ class LitLabelStudio(LightningFlow):
                         f"--label_studio_url {self.label_studio_url} " \
                         f"--proj_dir {abspath(self.proj_dir)} " \
                         f"--api_key {self.user_token} "
-
+        print("------------------------ HERE1 ------------------------")
         # run command to update label studio tasks
         self.label_studio.run(
             build_command,
@@ -253,7 +253,7 @@ class LitLabelStudio(LightningFlow):
             env={"LOG_LEVEL": log_level},
             timer=self.time,
         )
-
+        print("------------------------ HERE2 ------------------------")
         # reset paths
         self.keypoints = None
         self._update_paths(proj_dir=None, proj_name=None)

@@ -148,7 +148,6 @@ class LitPoseApp(LightningFlow):
         # copy config file
         config_file_dst = os.path.join(proj_dir_abs, f"model_config_{project_name}.yaml")
         if not os.path.isfile(config_file_dst):
-            print(project_name)
             shutil.copyfile(
                 os.path.join(
                     LIGHTNING_POSE_DIR, "scripts", "configs", f"config_{project_name}.yaml"
@@ -364,12 +363,12 @@ class LitPoseApp(LightningFlow):
                     self.project_ui.run_script = False
             elif self.project_ui.st_delete_project:
                 self.extract_ui.proj_dir = None  # stop tabs from opening
-                self.label_studio.run(action="delete_project")
-                self.project_ui.run(action="delete_project")
                 self.train_ui.proj_dir = None
                 self.streamlit_frame.proj_dir = None
                 self.streamlit_video.proj_dir = None
                 self.streamlit_video_player.proj_dir = None
+                self.label_studio.run(action="delete_project")
+                self.project_ui.run(action="delete_project")
                 self.project_ui.run_script = False
             else:
                 # project already created

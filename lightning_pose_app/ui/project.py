@@ -419,7 +419,7 @@ class ProjectUI(LightningFlow):
         self.n_total_frames = 0
 
         # UI info
-        self.run_script = False
+        # self.run_script = False
         self.update_models = False
         self.count = 0  # counter for external app
         self.count_upload_existing = 0
@@ -627,6 +627,7 @@ def _render_streamlit_fn(state: AppState):
             "Select existing project",
             sorted(state.initialized_projects),
         )
+        state.st_delete_project = False  # extra insurance, keep this!
     elif st_mode == DELETE_STR:
         st_project_name = st.selectbox(
             "Select existing project",
@@ -638,6 +639,7 @@ def _render_streamlit_fn(state: AppState):
             value="" if (not state.st_project_loaded or state.st_reset_project_name)
             else state.st_project_name
         )
+        state.st_delete_project = False  # extra insurance, keep this!
 
     # ----------------------------------------------------
     # determine project status - load existing, create new
@@ -724,8 +726,7 @@ def _render_streamlit_fn(state: AppState):
     else:
         # cannot enter data until project name has been entered
         enter_data = False
-    st.text(state.st_delete_project)
-    st.text(st_mode)
+
     # ----------------------------------------------------
     # upload existing project
     # ----------------------------------------------------
