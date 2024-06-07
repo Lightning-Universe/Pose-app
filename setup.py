@@ -25,10 +25,10 @@ with open("README.md", "r") as fh:
 
 
 install_requires = [
-    "lightning[app]==2.1.3",
+    "lightning[app]==2.2.5",
     "ensemble-kalman-smoother",
     "numpy",
-    "opencv-python",
+    "opencv-python-headless",
     "pandas",
     "scikit-learn",
     "streamlit",
@@ -37,9 +37,9 @@ install_requires = [
     "tables",
     "tqdm",
     "watchdog",
-    "google-auth-oauthlib==0.7.1",  # freeze for compatibility between tensorboard and label-studio
-    "label-studio==1.9.1",
-    "label-studio-sdk==0.0.32",
+    "google-auth-oauthlib",
+    "label-studio==1.12.1",
+    "label-studio-sdk==0.0.34",  # freeze for compatibility with label-studio
 ]
 
 # additional requirements

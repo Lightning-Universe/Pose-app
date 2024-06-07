@@ -52,6 +52,13 @@ General
     :ref:`running inference from the command line using a provided script<guide_inference_on_large_videos>`.
 
 
+.. _faq_update_app:
+
+.. dropdown:: How do I update the app to the most recent version?
+
+    The process is outlined at the bottom of the :ref:`Getting started page <update_app>`.
+
+
 Data labeling
 -------------
 

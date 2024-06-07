@@ -8,6 +8,9 @@ There are several options for getting started with the Lightning Pose app:
 
 * :ref:`Install app from github <conda_from_source>` is for installation on a local machine or a fresh Lightning Studio. This option is mostly used for development purposes.
 
+The :ref:`bottom of this page <update_app>` also describes how to update an already-installed version of the app.
+
+
 .. _lightning_studio:
 
 Duplicate Lightning Studio with pre-installed app
@@ -95,3 +98,54 @@ you'll need an additional update for the FiftyOne package:
 .. code-block:: console
 
     pip install fiftyone-db-ubuntu2204
+
+
+.. _update_app:
+
+Update an already-installed app
+-------------------------------
+
+First, move into the ``Pose-app`` directory and pull the newest updates for 
+``Pose-app`` and ``lightning-pose`` from github:
+
+.. code-block:: console
+
+    cd Pose-app
+    git pull --recurse-submodules
+
+The ``git pull`` command will provide the most up-to-date app features.
+You might want to do this every month or so.
+
+Updating all of the app dependencies requires a few more steps, but generally does not need happen
+nearly as often.
+If you cloned/installed the app before July 2024, we recommend following this procedure.
+
+Update the ``lightning-pose`` dependencies:
+
+.. code-block:: console
+
+    pip install -U -r requirements_litpose.txt
+    pip install -U torchaudio
+
+.. note::
+
+    You will see various dependency issue errors arise after installing the packages in
+    ``requirements_litpose.txt`` - this is fine, we will deal with these below.
+
+Next, reinstall ``lightning-pose`` locally:
+
+.. code-block:: console
+
+    pip install -e lightning-pose
+
+Update the ``Pose-app`` dependencies and reinstall locally:
+
+.. code-block:: console
+
+    pip install -U -e .
+
+Finally, update the Lightning Studio SDK package:
+
+.. code-block:: console
+
+    pip install -U lightning-sdk
