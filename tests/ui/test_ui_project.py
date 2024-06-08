@@ -2,8 +2,12 @@ import os
 import shutil
 import yaml
 
-from lightning_pose_app import LIGHTNING_POSE_DIR, MODELS_DIR
-from lightning_pose_app import LABELSTUDIO_DB_DIR, LABELSTUDIO_METADATA_FILENAME
+from lightning_pose_app import (
+    LIGHTNING_POSE_DIR,
+    LABELSTUDIO_DB_DIR,
+    LABELSTUDIO_METADATA_FILENAME,
+    MODELS_DIR,
+)
 
 
 def test_project_ui(root_dir, tmp_proj_dir):

@@ -292,7 +292,6 @@ class ProjectUI(LightningFlow):
         # only run once
         if self.count_upload_existing > 0:
             return
-        
 
         def contains_videos(file_or_dir):
             if os.path.isfile(file_or_dir):
@@ -304,10 +303,14 @@ class ProjectUI(LightningFlow):
                 else:
                     return False
 
-        def find_top_level_dir(initial_path, target_file_name):
+        def find_top_level_dir(initial_path, target_file_name=None, target_dir=None):
             for root, dirs, files in os.walk(initial_path, topdown=True):
-                if target_file_name in files:
-                    return root
+                if target_dir:
+                    if target_dir in dirs:
+                        return root
+                else:
+                    if target_file_name in files:
+                        return root
 
         finished_copy_files = False
         try:
@@ -325,7 +328,10 @@ class ProjectUI(LightningFlow):
                     unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
                     z.extractall(path=unzipped_dir)
 
-                top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
+                top_level_dir = find_top_level_dir(
+                    unzipped_dir,
+                    target_file_name=COLLECTED_DATA_FILENAME
+                )
                 files_and_dirs = os.listdir(top_level_dir)
                 for file_or_dir in files_and_dirs:
                     src = os.path.join(top_level_dir, file_or_dir)
@@ -361,23 +367,18 @@ class ProjectUI(LightningFlow):
                 with zipfile.ZipFile(self.st_upload_existing_project_zippath) as z:
                     unzipped_dir = self.st_upload_existing_project_zippath.replace(".zip", "")
                     z.extractall(path=unzipped_dir)
-                    print("Extracted dlc project")
-                
+
                 # copy files
-                top_level_dir = find_top_level_dir(unzipped_dir, COLLECTED_DATA_FILENAME)
+                top_level_dir = find_top_level_dir(unzipped_dir, target_dir="labeled-data")
                 files_and_dirs = os.listdir(top_level_dir)
                 req_dlc_dirs = ["labeled-data", "videos"]
                 for d in req_dlc_dirs:
                     assert d in files_and_dirs, \
                         f"zipped DLC directory must include folder named {d}"
                     src = os.path.join(top_level_dir, d)
-                    print("SRC",src)
                     dst = os.path.join(self.proj_dir_abs, d)
-                    print("DST",dst)
                     if d == "labeled-data":
                         shutil.copytree(src, dst)
-                        print(os.listdir(dst))
-                        print("in copy files")
                     else:
                         copy_and_reformat_video_directory(src_dir=src, dst_dir=dst)
 
@@ -386,7 +387,7 @@ class ProjectUI(LightningFlow):
                 csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
                 _logger.debug(f"Attempting to save collected data to {csv_file}")
                 df_all.to_csv(csv_file)
-                #df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
+                # df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
 
                 # flag finish coping all files
                 finished_copy_files = True
@@ -644,7 +645,7 @@ def _render_streamlit_fn(state: AppState):
     # upload existing project
     # ----------------------------------------------------
     # initialize the file uploader
-    
+
     if st_project_name and st_mode == UPLOAD_STR:
 
         st_prev_format = st.radio(

@@ -6,13 +6,17 @@ import numpy as np
 from PIL import Image
 import io
 import zipfile
-# new commit
+import glob
+import logging
+
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
     LABELED_DATA_DIR,
     VIDEOS_DIR,
 )
+
+_logger = logging.getLogger('APP.BACKEND.PROJECT')
 
 
 def extract_video_names_from_pkg_slp(hdf_file: str) -> dict:
@@ -191,7 +195,10 @@ def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") 
     if project_type not in ["DLC", "Lightning Pose"]:
         raise NotImplementedError
 
-    expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR, COLLECTED_DATA_FILENAME]
+    if project_type == "DLC":
+        expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR]
+    else:
+        expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR, COLLECTED_DATA_FILENAME]
 
     error_flag = False
     error_msgs = []  # Collect error messages in a list
