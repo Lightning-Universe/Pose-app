@@ -850,7 +850,7 @@ def _render_streamlit_fn(state: AppState):
             #### Training options
             """
         )
-     
+
         expander = st.expander("Expand to adjust training parameters")
         # max epochs
         st_max_epochs = expander.text_input(
