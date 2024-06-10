@@ -9,15 +9,20 @@ General
 
 .. dropdown:: Can I import a pose estimation project in another format into the app?
 
-    We currently support conversion from DLC projects into Lightning Pose projects
+    We currently support conversion from DLC or SLEAP projects into Lightning Pose projects
     (if you would like support for another format,
     please `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_).
-    First, make sure that all videos in your DLC project are actual files, not symbolic links.
+
+    **For DLC**: First, make sure that all videos in your DLC project are actual files, not
+    symbolic links.
     Symlinked videos in the DLC project will not be uploaded.
     Next, compress your DLC project into a zip file - you will upload this into the app later.
-    Finally, when you run the app select "Create new project from source" and upload your zip file.
-    As of 07/2023 context datasets are not automatically created upon import; if this is a feature
-    you would like to see, please
+
+    **For SLEAP**: Make sure that you export both frames and keypoints in a ``.pkg.slp`` file.
+
+    Finally, when you run the app select “Create new project from source” and upload your zip file.
+    As of 07/2024 context datasets are not automatically created upon import;
+    if this is a feature you would like to see, please
     `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
 
 

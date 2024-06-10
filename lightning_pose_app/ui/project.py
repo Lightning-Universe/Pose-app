@@ -842,13 +842,15 @@ def _render_streamlit_fn(state: AppState):
             else:
                 value = "\n".join(st_keypoints)
             keypoints = st.text_area(
-                "Enter keypoint names (one per line, no spaces or dashes)\n\n"
+                "Enter keypoint names (one per line, no spaces, dashes, or parentheses)\n\n"
                 "The order here determines the labeling order",
                 disabled=not enter_data,
                 value=value,
             )
-            # ensure no spaces or dashes
-            st_keypoints = keypoints.replace(" ", "_").replace("-", "_").strip().split("\n")
+            # ensure no spaces, dashes, parentheses, etc.
+            for c in " {}[]()>#+-!$":
+                keypoints = keypoints.replace(c, "_")
+            st_keypoints = keypoints.strip().split("\n")
             if len(st_keypoints) == 1 and st_keypoints[0] == "":
                 st_keypoints = []
             st_n_keypoints = len(st_keypoints)

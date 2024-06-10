@@ -72,9 +72,11 @@ Create new project from source
 
 .. warning::
 
-    The app currently only supports conversion of DLC projects.
-    If you have another type of project that needs conversion support (SLEAP, DPK, etc.) please
+    The app currently supports conversion of DLC and SLEAP projects.
+    If you have another type of project that needs conversion support (DPK, MS COCO, etc.) please
     `raise an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
+
+**DeepLabCut**
 
 The standard DLC project directory looks like the following:
 
@@ -99,19 +101,26 @@ Once you have created this project copy, compress it into a zip file.
       ├── labeled-data/
       └── videos/
 
+**SLEAP**
+
+For SLEAP, all you need to do is export your project in the ``.pkg.slp`` format.
+
+**Next steps**
+
 In the Lightning Pose App project manager, select "Create new project from source" and give your
-project a name (can be the same as the DLC name or different).
-You will then select the uploaded project format, and upload your zip file.
+project a name (can be the same as the DLC/SLEAP name or different).
+You will then select the uploaded project format, and upload your zip/slp file.
 
 .. note::
 
-    If your zip file is larger than the 200MB limit, :ref:`see the FAQ <faq_upload_limit>`.
-    You may also replace many large video files with smaller video snippets for faster uploading.
+    If your file is larger than the 200MB limit, :ref:`see the FAQ <faq_upload_limit>`.
+    **For DLC**: you may also replace many large video files with smaller video snippets for faster
+    uploading.
     Whatever video files are in the ``videos`` directory will be used for unsupervised losses.
 
-Once the zip file upload is complete you will need to walk through the steps covered in
+Once the file upload is complete you will need to walk through the steps covered in
 :ref:`Create new project <create_new_project>` (though note the keypoint names are now provided).
-Once you click "Create project" your DLC project will be successfully converted!
+Once you click "Create project" your project will be successfully converted!
 If you have many hundreds or thousands of labeled images in your project it may take
 several minutes to upload all of the data into LabelStudio.
 
