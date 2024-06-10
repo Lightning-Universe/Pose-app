@@ -15,7 +15,6 @@ import shutil
 import sys
 import time
 import yaml
-import zipfile
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
@@ -336,7 +335,7 @@ class LitPoseApp(LightningFlow):
             self.streamlit_video_player.proj_dir = self.project_ui.proj_dir
             self.label_studio.run(
                 action="update_paths",
-                proj_dir=self.project_ui.proj_dir, 
+                proj_dir=self.project_ui.proj_dir,
                 proj_name=self.project_ui.st_project_name,
             )
 

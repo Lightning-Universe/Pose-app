@@ -6,6 +6,7 @@ import zipfile
 
 
 def test_extract_video_names_from_pkg_slp(root_dir, tmpdir):
+
     from lightning_pose_app.backend.project import extract_video_names_from_pkg_slp
 
     hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
@@ -19,6 +20,7 @@ def test_extract_video_names_from_pkg_slp(root_dir, tmpdir):
 
 
 def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
+
     from lightning_pose_app.backend.project import extract_frames_from_pkg_slp
 
     hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
@@ -48,6 +50,7 @@ def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
 
 
 def test_extract_labels_from_pkg_slp(root_dir):
+
     from lightning_pose_app.backend.project import extract_labels_from_pkg_slp
 
     hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
@@ -67,6 +70,7 @@ def test_extract_labels_from_pkg_slp(root_dir):
 
 
 def test_get_keypoints_from_pkg_slp(root_dir):
+
     from lightning_pose_app.backend.project import get_keypoints_from_pkg_slp
 
     hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
@@ -76,6 +80,7 @@ def test_get_keypoints_from_pkg_slp(root_dir):
 
 
 def test_collect_dlc_labels(tmpdir):
+
     from lightning_pose_app.backend.project import collect_dlc_labels
 
     labeled_data_dir = tmpdir.mkdir("labeled-data")
@@ -146,6 +151,7 @@ def create_test_zip_file(zip_path, file_structure=None, csv_content=None):
 
 
 def test_check_files_in_zipfile(tmpdir):
+
     from lightning_pose_app.backend.project import check_files_in_zipfile
 
     test_cases = [
@@ -228,6 +234,7 @@ def test_check_files_in_zipfile(tmpdir):
 
 
 def test_get_keypoints_from_zipfile(tmpdir, root_dir, tmp_proj_dir):
+
     from lightning_pose_app.backend.project import get_keypoints_from_zipfile
 
     proj_dir_abs = os.path.join(root_dir, tmp_proj_dir)
@@ -245,9 +252,10 @@ def test_get_keypoints_from_zipfile(tmpdir, root_dir, tmp_proj_dir):
     with zipfile.ZipFile(proj_zipped, 'w') as zipf:
         for root, dirs, files in os.walk(proj_dir_abs):
             for file in files:
-                zipf.write(os.path.join(root, file),
-                           os.path.relpath(os.path.join(root, file),
-                                           os.path.join(proj_dir_abs, '..')))
+                zipf.write(
+                    os.path.join(root, file),
+                    os.path.relpath(os.path.join(root, file), os.path.join(proj_dir_abs, '..')),
+                )
 
     # Run the function and check the keypoints
     keypoints_lp = get_keypoints_from_zipfile(proj_zipped, "Lightning Pose")

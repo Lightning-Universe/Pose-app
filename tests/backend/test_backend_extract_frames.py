@@ -241,8 +241,8 @@ def test_find_contextual_frames():
             "expected_is_context": False
         },
         {
-            "input": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104,
-                120, 121, 122, 123, 124
+            "input": [
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 101, 102, 103, 104, 120, 121, 122, 123, 124,
             ],
             "expected_output": [3, 4, 5, 6, 7, 8, 102, 122],
             "expected_is_context": True

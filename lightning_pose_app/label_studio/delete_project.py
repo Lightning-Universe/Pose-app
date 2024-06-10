@@ -1,7 +1,6 @@
 """Delete a label studio project."""
 
 import argparse
-import datetime
 import logging
 import os
 
@@ -43,4 +42,4 @@ _logger.debug("Fetched Project ID: %s, Project Title: %s" % (
 # delete project from label studio database
 _logger.info("Deleting LabelStudio project...")
 delete_project(label_studio_client=label_studio_client, id=metadata["id"])
-_logger.info(f"LabelStudio project deleted.")
+_logger.info("LabelStudio project deleted.")

@@ -160,7 +160,7 @@ def test_project_ui(root_dir, tmp_proj_dir):
     # -------------------
     # test upload existing
     # -------------------
-    # TODO: fill out tests for uploading an existing project
+    # TODO: tests for uploading existing project; also see tests/backend/test_backend_project.py
 
     # -------------------
     # test delete project
@@ -176,7 +176,7 @@ def test_project_ui(root_dir, tmp_proj_dir):
 
     flow.proj_dir = flow.proj_dir.replace(proj_name, copy_proj_name)
     flow.run(action="delete_project")
-    assert flow.st_project_name == ""
+    assert flow.st_project_name is None
     assert not os.path.exists(dst)
     assert copy_proj_name not in flow.initialized_projects
 
