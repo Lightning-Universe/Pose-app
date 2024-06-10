@@ -96,21 +96,20 @@ class LitLabelStudio(LightningFlow):
         self.proj_dir = proj_dir
         self.proj_name = proj_name
 
-        self.filenames["label_studio_config"] = os.path.join(
-            self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
-
-        self.filenames["label_studio_metadata"] = os.path.join(
-            self.proj_dir, LABELSTUDIO_METADATA_FILENAME)
-
-        self.filenames["label_studio_tasks"] = os.path.join(
-            self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
-
-        self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, LABELED_DATA_DIR)
-
-        self.filenames["collected_data"] = os.path.join(self.proj_dir, COLLECTED_DATA_FILENAME)
-
-        self.filenames["config_file"] = os.path.join(
-            self.proj_dir, f"model_config_{self.proj_name}.yaml")
+        if self.proj_dir is None or self.proj_name is None:
+            for key in self.filenames.keys():
+                self.filenames[key] = ""
+        else:
+            self.filenames["label_studio_config"] = os.path.join(
+                self.proj_dir, LABELSTUDIO_CONFIG_FILENAME)
+            self.filenames["label_studio_metadata"] = os.path.join(
+                self.proj_dir, LABELSTUDIO_METADATA_FILENAME)
+            self.filenames["label_studio_tasks"] = os.path.join(
+                self.proj_dir, LABELSTUDIO_TASKS_FILENAME)
+            self.filenames["labeled_data_dir"] = os.path.join(self.proj_dir, LABELED_DATA_DIR)
+            self.filenames["collected_data"] = os.path.join(self.proj_dir, COLLECTED_DATA_FILENAME)
+            self.filenames["config_file"] = os.path.join(
+                self.proj_dir, f"model_config_{self.proj_name}.yaml")
 
     def _create_new_project(self):
         """Create a label studio project."""
@@ -235,6 +234,38 @@ class LitLabelStudio(LightningFlow):
 
         self.counts["import_existing_annotations"] += 1
 
+    def _delete_project(self, **kwargs):
+        """Delete a project from the label studio database."""
+
+        # reset paths
+        self.keypoints = None
+        self._update_paths(proj_dir=None, proj_name=None)
+
+        # NOTE:
+        # the below will delete the project from the label studio database
+        # this is commented out to force users to do this manually as an added safey measure
+
+        # # build script command
+        # script_path = os.path.join(
+        #     os.getcwd(), "lightning_pose_app", "label_studio", "delete_project.py")
+        # build_command = f"python {script_path} " \
+        #                 f"--label_studio_url {self.label_studio_url} " \
+        #                 f"--proj_dir {abspath(self.proj_dir)} " \
+        #                 f"--api_key {self.user_token} "
+        #
+        # # run command to update label studio tasks
+        # self.label_studio.run(
+        #     build_command,
+        #     venv_name=label_studio_venv,
+        #     wait_for_exit=True,
+        #     env={"LOG_LEVEL": log_level},
+        #     timer=self.time,
+        # )
+        #
+        # # reset paths
+        # self.keypoints = None
+        # self._update_paths(proj_dir=None, proj_name=None)
+
     def run(self, action=None, **kwargs):
 
         if action == "start_label_studio":
@@ -251,6 +282,8 @@ class LitLabelStudio(LightningFlow):
             self._update_paths(**kwargs)
         elif action == "import_existing_annotations":
             self._import_existing_annotations(**kwargs)
+        elif action == "delete_project":
+            self._delete_project(**kwargs)
 
     def on_exit(self):
         # final save

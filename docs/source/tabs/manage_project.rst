@@ -17,6 +17,7 @@ Create new project
 ==================
 
 .. image:: https://imgur.com/HfrAmUW.png
+    :width: 600
 
 First, enter your project name (at least 3 characters).
 
@@ -67,6 +68,7 @@ Create new project from source
 ==============================
 
 .. image:: https://imgur.com/499rk2a.png
+    :width: 600
 
 .. warning::
 
@@ -119,10 +121,9 @@ Load existing project
 =====================
 
 .. image:: https://imgur.com/O8Jdd54.png
+    :width: 600
 
-Enter project name; you will see a list of available projects (like 'mirror-mouse' above) -
-you **must** select one of the available projects, or you will see an error message.
-Once you enter the project name click "Load project".
+Select one of the available projects, and click "Load project".
 
 You will see the previously entered project data appear (camera views, keypoint names, etc.).
 You can then navigate to other project tabs.
@@ -133,6 +134,26 @@ Delete existing project
 =======================
 
 .. image:: https://imgur.com/aEprJF3.png
+    :width: 600
 
-Enter a name from the list of available projects.
-When you click "Delete project" all project data will be deleted.
+Select one of the available projects, and click "Delete project".
+
+.. warning::
+
+    This action will delete your extracted frames, videos, and hand labels from the data directory.
+    **This is not a reversible action.**
+
+.. note::
+
+    This action will **not** delete your project from the LabelStudio database.
+    We require you to do this separately to ensure a copy of the data is not accidentally deleted.
+
+To delete the project from the LabelStudio database, you will need to load another project in
+order to display the other available app tabs.
+Navigate to the "Label Frames" tab, where you will see a collection of all available LabelStudio
+projects.
+
+* click the three dots on the upper right corner of the project you wish to delete
+* select "Settings" from the drop-down menu
+* click "Danger Zone" on the left-hand menu
+* click "Delete Project" - **this is not a reversible action**
