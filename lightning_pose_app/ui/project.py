@@ -369,7 +369,7 @@ class ProjectUI(LightningFlow):
                     z.extractall(path=unzipped_dir)
 
                 # copy files
-                top_level_dir = find_top_level_dir(unzipped_dir, target_dir="labeled-data")
+                top_level_dir = find_top_level_dir(unzipped_dir, target_dir=LABELED_DATA_DIR)
                 files_and_dirs = os.listdir(top_level_dir)
                 req_dlc_dirs = ["labeled-data", "videos"]
                 for d in req_dlc_dirs:
@@ -387,7 +387,6 @@ class ProjectUI(LightningFlow):
                 csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
                 _logger.debug(f"Attempting to save collected data to {csv_file}")
                 df_all.to_csv(csv_file)
-                # df_all.to_csv(os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME))
 
                 # flag finish coping all files
                 finished_copy_files = True

@@ -12,7 +12,7 @@ def test_extract_video_names_from_pkg_slp(root_dir, tmpdir):
     with h5py.File(hdf_file_path, 'r') as hdf_file:
         video_names = extract_video_names_from_pkg_slp(hdf_file)
         assert isinstance(video_names, dict)
-        assert len(video_names) > 0
+        assert len(video_names) == 2
         for key, value in video_names.items():
             assert key.startswith('video')
             assert value.endswith('.mp4')
@@ -24,6 +24,9 @@ def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
     hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
     base_output_dir = str(tmpdir)
 
+    print(f"Using HDF5 file: {hdf_file_path}")
+    print(f"Base output directory: {base_output_dir}")
+
     # Run the function
     extract_frames_from_pkg_slp(hdf_file_path, base_output_dir)
 
@@ -33,7 +36,12 @@ def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
         d for d in os.listdir(base_output_dir)
         if os.path.isdir(os.path.join(base_output_dir, d))
     ]
-    assert len(extracted_dirs) > 0
+
+    print(f"Extracted directories: {extracted_dirs}")
+
+    assert len(extracted_dirs) == 1
+    for extracted_dir in extracted_dirs:
+        assert os.path.basename(extracted_dir) == 'labeled-data', f"Expected directory name 'labeled-data', but got {os.path.basename(extracted_dir)}"
 
     # TODO: add more tests
 
@@ -217,12 +225,6 @@ def test_check_files_in_zipfile(tmpdir):
                 f"Failed: {case['description']} - error_msg mismatch"
             )
 
-
-def create_simple_test_zip_file(zip_path, csv_content):
-    with zipfile.ZipFile(zip_path, 'w') as zipf:
-        for csv_path, df in csv_content.items():
-            csv_buffer = df.to_csv()
-            zipf.writestr(csv_path, csv_buffer)
 
 
 def test_get_keypoints_from_zipfile(tmpdir, root_dir, tmp_proj_dir):
