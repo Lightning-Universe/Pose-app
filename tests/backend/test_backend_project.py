@@ -41,7 +41,8 @@ def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
 
     assert len(extracted_dirs) == 1
     for extracted_dir in extracted_dirs:
-        assert os.path.basename(extracted_dir) == 'labeled-data', f"Expected directory name 'labeled-data', but got {os.path.basename(extracted_dir)}"
+        assert os.path.basename(extracted_dir) == 'labeled-data', \
+            f"Expected directory name 'labeled-data', but got {os.path.basename(extracted_dir)}"
 
     # TODO: add more tests
 
@@ -224,7 +225,6 @@ def test_check_files_in_zipfile(tmpdir):
             assert error_msg.strip() == "<p style='font-family:sans-serif; color:Red;'></p>", (
                 f"Failed: {case['description']} - error_msg mismatch"
             )
-
 
 
 def test_get_keypoints_from_zipfile(tmpdir, root_dir, tmp_proj_dir):
