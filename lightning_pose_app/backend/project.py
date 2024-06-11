@@ -270,3 +270,53 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
     df_all = pd.concat(dfs)
 
     return df_all
+
+
+def zip_project_for_export(proj_dir: str) -> str:
+
+    project_name = os.path.basename(proj_dir)
+    zip_filename = f"{project_name}.zip"
+    zip_filepath = os.path.join(os.path.dirname(proj_dir), zip_filename)
+
+    if not os.path.exists(proj_dir):
+        raise FileNotFoundError(f"The project directory {proj_dir} does not exist.")
+
+    items_to_zip = [
+        os.path.join(proj_dir, LABELED_DATA_DIR),
+        os.path.join(proj_dir, COLLECTED_DATA_FILENAME),
+        os.path.join(proj_dir, f'model_config_{project_name}.yaml')
+    ]
+
+    with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for item in items_to_zip:
+            if os.path.exists(item):
+                if os.path.isdir(item):
+                    for root, _, files in os.walk(item):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            zipf.write(file_path, os.path.relpath(file_path, proj_dir))
+                else:
+                    zipf.write(item, os.path.relpath(item, proj_dir))
+            else:
+                raise FileNotFoundError(
+                    f"The item {item} does not exist in the project directory."
+                )
+
+    return zip_filepath
+
+
+def check_project_has_labels(proj_dir: str, project_name: str) -> list:
+
+    labeled_data_dir = os.path.join(proj_dir, LABELED_DATA_DIR)
+    collected_data_file = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
+    config_file = os.path.join(proj_dir, f'model_config_{project_name}.yaml')
+
+    missing_items = []
+    if not os.path.exists(labeled_data_dir):
+        missing_items.append('labeled-data directory')
+    if not os.path.exists(collected_data_file):
+        missing_items.append(COLLECTED_DATA_FILENAME)
+    if not os.path.exists(config_file):
+        missing_items.append(f'model_config_{project_name}.yaml')
+
+    return missing_items
