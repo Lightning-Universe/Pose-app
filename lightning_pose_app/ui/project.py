@@ -543,7 +543,9 @@ def _render_streamlit_fn(state: AppState):
         )
         st.write("## To move forward, you will need to complete all the steps in this tab.")
         st.write("##")
-        st.write("**Need further help? Check the documntation**")
+        st.write("**Need further help? Check the documentation**")
+        
+        
         with st.expander("Link to docs"):
             st.markdown(
                 "App [documentation]"
@@ -562,23 +564,21 @@ def _render_streamlit_fn(state: AppState):
             )
         st.divider()
         st.write("# Export project")
-        with st.expander("Expend to see export options"):
-            st_project_name = st.selectbox(
+        with st.expander("Expand to see export options"):
+            st_project_to_export_name = st.selectbox(
                 "Select a project to export",
-                sorted(state.initialized_projects),
-                help="Currectly there is an option only to export labeled frames and project "
-                     "config file. To export trained models go to the teamspace Drive and "
-                     "download it from there."
+                sorted(state.initialized_projects)
             )
             st.markdown(
-                "Click here to learn how to [Access your data]"
+                "Project exports only contain frames, labels, and the project config file." 
+                "To download trained models or the results files from video inference, see [here]"
                 "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#)",
                 unsafe_allow_html=True,
             )
 
-            if st_project_name:
-                proj_dir = os.path.join(abspath(state.data_dir), st_project_name)
-                missing_items = check_project_has_labels(proj_dir, st_project_name)
+            if st_project_to_export_name:
+                proj_dir = os.path.join(abspath(state.data_dir), st_project_to_export_name)
+                missing_items = check_project_has_labels(proj_dir, st_project_to_export_name)
 
                 if missing_items:
                     st.error(
