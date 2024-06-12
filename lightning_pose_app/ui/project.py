@@ -39,6 +39,8 @@ from lightning_pose_app.backend.project import (
     get_keypoints_from_zipfile,
     check_files_in_zipfile,
     collect_dlc_labels,
+    check_project_has_labels,
+    zip_project_for_export
 )
 
 _logger = logging.getLogger('APP.PROJECT')
@@ -541,26 +543,62 @@ def _render_streamlit_fn(state: AppState):
         )
         st.write("## To move forward, you will need to complete all the steps in this tab.")
         st.write("##")
-        st.markdown("**Need further help? Check the:**")
-        st.markdown(
-            "App [documentation]"
-            "(https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "Github [repository](https://github.com/Lightning-Universe/Pose-app.html#)",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "Lightning Pose [documentation]"
-            "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "Ensemble Kalman Smoother (EKS) [documentation]"
-            "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",  # noqa
-            unsafe_allow_html=True,
-        )
+        st.write("**Need further help? Check the documentation**")
+        
+        
+        with st.expander("Link to docs"):
+            st.markdown(
+                "App [documentation]"
+                "(https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "Lightning Pose [documentation]"
+                "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "Ensemble Kalman Smoother (EKS) [documentation]"
+                "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",  # noqa
+                unsafe_allow_html=True,
+            )
+        st.divider()
+        st.write("# Export project")
+        with st.expander("Expand to see export options"):
+            st_project_to_export_name = st.selectbox(
+                "Select a project to export",
+                sorted(state.initialized_projects)
+            )
+            st.markdown(
+                "Project exports only contain frames, labels, and the project config file." 
+                "To download trained models or the results files from video inference, see [here]"
+                "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#)",
+                unsafe_allow_html=True,
+            )
+
+            if st_project_to_export_name:
+                proj_dir = os.path.join(abspath(state.data_dir), st_project_to_export_name)
+                missing_items = check_project_has_labels(proj_dir, st_project_to_export_name)
+
+                if missing_items:
+                    st.error(
+                        "The project does not contain any labeled data. "
+                        "Please label some frames before attempting to download the project."
+                    )
+                else:
+                    try:
+                        zip_filepath = zip_project_for_export(proj_dir)
+                        # Add download botton
+                        with open(zip_filepath, "rb") as f:
+                            st.download_button(
+                                label="Download Project",
+                                data=f,
+                                file_name=os.path.basename(zip_filepath)
+                            )
+                        os.remove(zip_filepath)
+
+                    except FileNotFoundError as e:
+                        st.error(str(e))
 
     st.header("Manage Lightning Pose projects")
 
