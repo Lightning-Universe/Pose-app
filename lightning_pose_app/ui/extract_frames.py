@@ -13,7 +13,12 @@ from lightning.app.utilities.state import AppState
 from streamlit_autorefresh import st_autorefresh
 from typing import Optional
 
+import pandas as pd 
+import matplotlib.pyplot as plt
+from PIL import Image
+
 from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODELS_DIR,
@@ -35,6 +40,14 @@ from lightning_pose_app.utilities import (
     abspath,
     get_frame_number,
 )
+
+from lightning_pose_app.backend.project import (
+    get_frame_number,
+    get_frame_paths,
+    convert_csv_to_dict,
+    annotate_frames,
+)
+
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
@@ -269,6 +282,37 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done = True
 
+    def _save_annotated_frames(
+        self,
+        proj_dir: str,
+    ) -> None:
+        
+        _logger.info(f"============== checking frames ================")
+        self.work_is_done = False
+        
+        if not os.path.exists(proj_dir):
+            proj_dir = abspath(proj_dir)
+
+        labeled_data_path = os.path.join(proj_dir, LABELED_DATA_DIR)
+        # Create a new folder for the annotated frames
+        labeled_data_check_path = os.path.join(proj_dir, 'labeled-data-check')
+        # Convert CSV to dictionary
+        collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
+        annotations_dict = convert_csv_to_dict(collected_data_file_path)
+
+        # Copy and annotate frames
+        for frame_rel_path, data in annotations_dict.items():
+            frame_full_path = data['frame_full_path']
+            video = data['video']
+            frame_annotations = data['bodyparts']
+            _logger.info(f"Processing frame: {frame_full_path} for video: {video} with annotations: {frame_annotations}")
+
+            video_folder_path = os.path.join(labeled_data_check_path, video)
+            annotate_frames(frame_full_path, frame_annotations, video_folder_path)
+
+        self.work_is_done = True
+        _logger.info(f"============== completed saving annotated frames ================")
+
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames_using_kmeans":
             new_vid_file = copy_and_reformat_video(
@@ -284,6 +328,8 @@ class ExtractFramesWork(LightningWork):
             self._extract_frames(method="active", **kwargs)
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
+        elif action == "save_annotated_frames":
+            self._save_annotated_frames(**kwargs)
         else:
             pass
 
@@ -301,14 +347,16 @@ class ExtractFramesUI(LightningFlow):
         # works will be allocated once videos are uploaded
         self.works_dict = Dict()
         self.work_is_done_extract_frames = False
-
+        self.work_is_done_check_labels = False  # set this flag for the check labels flow
         # flag; used internally and externally
         self.run_script_video_random = False
         self.run_script_zipped_frames = False
         self.run_script_video_model = False
+        self.run_script_check_labels = False # flag for enable the streamlit button 
 
         # output from the UI
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
+        self.st_check_status = "none"
         self.st_video_files_ = []  # list of uploaded video files
         self.st_frame_files_ = []  # list of uploaded zipped frame files
         self.st_submits = 0
@@ -328,8 +376,8 @@ class ExtractFramesUI(LightningFlow):
     def _launch_works(
         self,
         action: str,
-        video_files: list,
-        work_kwargs: dict,
+        video_files: Optional[list] = None,
+        work_kwargs: dict = None,
         testing: bool = False
     ) -> None:
 
@@ -444,8 +492,44 @@ class ExtractFramesUI(LightningFlow):
             testing=testing,
         )
 
-        # set flag for parent app
         self.work_is_done_extract_frames = True
+
+    def _save_annotated_frames(
+        self,
+        testing: bool = False
+    ) -> None:
+        _logger.info(f"============== triggering save annotated frames ================")
+        self.work_is_done_check_labels = False
+
+        # Set prokect status and flag the worker when moving frames
+        video_key = "check_labels"  # keys cannot contain "."
+        if video_key not in self.works_dict.keys():
+            self.works_dict[video_key] = ExtractFramesWork(
+                cloud_compute=CloudCompute("default"),
+            )
+        status = self.st_check_status
+        if status == "initialized" or status == "active":
+            self.st_check_status = "active"
+            # extract frames for labeling (automatically reformats video for DALI)
+            self.works_dict[video_key].run(
+                action="save_annotated_frames",
+                proj_dir=self.proj_dir,
+            )
+            self.st_check_status = "complete"
+
+        # clean up works
+        while len(self.works_dict) > 0:
+            for video_key in list(self.works_dict):
+                if (video_key in self.works_dict.keys()) \
+                        and self.works_dict[video_key].work_is_done:
+                    # kill work
+                    _logger.info(f"killing work from {video_key}")
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
+                    del self.works_dict[video_key]
+
+        self.work_is_done_check_labels = True
+        _logger.info(f"============== completed save annotated frames ================")
 
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames":
@@ -454,10 +538,12 @@ class ExtractFramesUI(LightningFlow):
             self._extract_frames_using_model(**kwargs)
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
+        elif action == "save_annotated_frames":
+            _logger.info("Starting save_annotated_frames process.")
+            self._save_annotated_frames(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
 
 def find_models(model_dir):
     trained_models = []
@@ -636,7 +722,7 @@ def _render_streamlit_fn(state: AppState):
         if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
             if time.time() - state.last_execution_time < 10:
                 st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
-
+        
         # Lightning way of returning the parameters
         if st_submit_button:
 
@@ -825,3 +911,64 @@ def _render_streamlit_fn(state: AppState):
 
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+
+    st.divider()
+
+    st_expander = st.expander("Expand to check labels")
+    
+    with st_expander:
+        collected_data_csv = os.path.join(state.proj_dir[1:], COLLECTED_DATA_FILENAME)
+        st_start_check_labels = st.button(
+            "Check labels",
+            key="show_annotated_frames",
+            disabled=(not os.path.exists(collected_data_csv) or state.run_script_check_labels)
+        )
+
+        if st_start_check_labels:
+            # Check for path exist 
+            state.st_check_status = "initialized"
+            st.text("Request submitted!")
+            state.run_script_check_labels = True
+        
+        
+        labeled_data_check_path = os.path.join(state.proj_dir[1:], 'labeled-data-check')
+        
+        if os.path.exists(labeled_data_check_path):
+            if 'frame_index' not in st.session_state:
+                st.session_state.frame_index = 0
+        
+            
+
+            video_names = os.listdir(labeled_data_check_path)
+
+            if video_names:
+                selected_video = st.selectbox("Select video", video_names)
+                frame_paths = get_frame_paths(os.path.join(labeled_data_check_path, selected_video))
+
+                if frame_paths:
+                    st.session_state.frame_index = max(0, min(st.session_state.frame_index, len(frame_paths) - 1))
+
+                    current_frame_path = frame_paths[st.session_state.frame_index]
+
+                    if os.path.exists(current_frame_path):
+                        st.image(current_frame_path, use_column_width=True)
+                    else:
+                        st.write(f"Image not found: {current_frame_path}")
+                    
+                    
+                    st.markdown('<div class="center-buttons">', unsafe_allow_html=True)
+                    _, col_prev, col_next, _ = st.columns([2,1,1,1])
+                    with col_prev:
+                        if st.button("←"):
+                            if st.session_state.frame_index > 0:
+                                st.session_state.frame_index -= 1
+                    with col_next:
+                        if st.button("→"):
+                            if st.session_state.frame_index < len(frame_paths) - 1:
+                                st.session_state.frame_index += 1
+                else:
+                    st.write("No frames found in the selected video folder.")
+            else:
+                st.write("No annotated frames found.")
+        

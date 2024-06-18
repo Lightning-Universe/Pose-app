@@ -438,6 +438,11 @@ class LitPoseApp(LightningFlow):
                 self.extract_ui.run_script_video_model = False
                 self.label_studio.run(action="update_tasks", videos=self.extract_ui.st_video_files)
                 self.extract_ui.run_script_video_model = False
+        
+        #TODO: Add one more IF block
+        if self.extract_ui.proj_dir and self.extract_ui.run_script_check_labels: 
+            self.extract_ui.run(action="save_annotated_frames") # ANNOTETED FRAMES
+            self.extract_ui.run_script_check_labels = False
 
         # -------------------------------------------------------------
         # periodically check labeling task and export new labels

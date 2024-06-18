@@ -8,7 +8,7 @@ import io
 import zipfile
 import glob
 import logging
-
+import matplotlib.pyplot as plt
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
@@ -320,3 +320,110 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
         missing_items.append(f'model_config_{project_name}.yaml')
 
     return missing_items
+
+
+#### Check labels functions-----------------------------------------------------------------
+
+def get_frame_number(filename: str) -> int:
+    return int(filename.replace('img', '').replace('.png', ''))
+
+
+def get_frame_paths(video_folder_path: str):
+    return [os.path.join(video_folder_path, f) for f in os.listdir(video_folder_path) if f.endswith('.png')]
+
+# Adjust the convert_csv_to_dict function
+def convert_csv_to_dict(csv_path: str) -> dict:
+    proj_dir = os.path.dirname(csv_path)
+    try:
+        annotations = pd.read_csv(csv_path, header=[1, 2], index_col=0)
+        data_dict = {}
+        for index, row in annotations.iterrows():
+            frame_rel_path = index
+            video = os.path.basename(os.path.dirname(frame_rel_path))
+            frame_number = get_frame_number(os.path.basename(frame_rel_path))
+
+            bodyparts = {}
+            for bodypart in annotations.columns.levels[0]:
+                try:
+                    x = row[(bodypart, 'x')]
+                    y = row[(bodypart, 'y')]
+                    bodyparts[bodypart] = {'x': x, 'y': y}
+                except KeyError as e:
+                    print(f"Error extracting {bodypart} coordinates: {e}")
+
+            data_dict[frame_rel_path] = {
+                'frame_full_path': os.path.join(proj_dir, frame_rel_path),
+                'video': video,
+                'frame_number': frame_number,
+                'bodyparts': bodyparts
+            }
+        return data_dict
+    except Exception as e:
+        print(f"Error converting CSV to dictionary: {e}")
+    return {}
+
+
+def validate_annotations_dict(annotations_dict: dict):
+        for frame_path, data in annotations_dict.items():
+            for bodypart, coords in data['bodyparts'].items():
+                if 'x' not in coords or 'y' not in coords:
+                    st.write(f"Missing coordinates for {bodypart} in frame {frame_path}")
+                elif np.isnan(coords['x']) or np.isnan(coords['y']):
+                    print(f"Invalid coordinates for {bodypart} in frame {frame_path}: ({coords['x']}, {coords['y']})")
+
+# change name to annotate_frame
+def annotate_frames(image_path: str, annotations: dict, output_path: str):
+    try:
+        image = Image.open(image_path)
+        fig, ax = plt.subplots()
+
+        if image.mode == 'L':  # Grayscale
+            ax.imshow(image, cmap='gray')
+        else:
+            ax.imshow(image)
+
+        for label, coords in annotations.items():
+            try:
+                x = coords['x']
+                y = coords['y']
+                ax.plot(x, y, 'ro')  # Red dot marker
+                ax.text(x, y, label, color='white', fontsize=12, ha='right', va='bottom')
+            except ValueError as e:
+                print(f"Error plotting {label}: {e}")
+
+        ax.axis('off')
+
+        # Ensure the output directory exists
+        os.makedirs(output_path, exist_ok=True)
+
+        output_file = os.path.join(output_path, os.path.basename(image_path))
+        plt.savefig(output_file)
+        plt.close()
+        _logger.info(f"Annotated frame saved at: {output_file}")
+    except Exception as e:
+        _logger.error(f"Failed to plot annotations for {image_path}: {e}")
+
+
+# def save_annotated_frames(proj_dir: str) -> None:
+#     labeled_data_path = os.path.join(proj_dir, 'labeled-data')
+#     labeled_data_check_path = os.path.join(proj_dir, 'labeled-data-check')
+
+#     # Ensure the directory structure is created
+#     os.makedirs(labeled_data_check_path, exist_ok=True)
+
+#     # Convert CSV to dictionary
+#     collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
+#     annotations_dict = convert_csv_to_dict(proj_dir)
+
+#     # Copy and annotate frames
+#     for frame_full_path, data in annotations_dict.items():
+#         video = data['video']
+#         frame_annotations = data['bodyparts']
+
+#         video_folder_path = os.path.join(labeled_data_check_path, video)
+#         frame_full_path_abs = data['frame_full_path']
+
+#         if os.path.exists(frame_full_path_abs):  # Ensure the frame file exists before attempting to plot
+#             plot_frame_with_annotations(frame_full_path_abs, frame_annotations, video_folder_path)
+#         else:
+#             print(f"File not found: {frame_full_path_abs}")
