@@ -69,7 +69,7 @@ Next, create and activate a conda environment:
 
 .. code-block:: console
 
-    conda create --yes --name lai python=3.8
+    conda create --yes --name lai python=3.10
     conda activate lai
 
 Step 3: Download the app from github
