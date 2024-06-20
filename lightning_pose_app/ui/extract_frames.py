@@ -3,6 +3,7 @@ import os
 import shutil
 import zipfile
 import time
+from io import BytesIO
 
 import cv2
 import numpy as np
@@ -38,7 +39,6 @@ from lightning_pose_app.backend.extract_frames import (
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
     abspath,
-    get_frame_number,
 )
 
 from lightning_pose_app.backend.project import (
@@ -46,6 +46,7 @@ from lightning_pose_app.backend.project import (
     get_frame_paths,
     convert_csv_to_dict,
     annotate_frames,
+    zip_annotated_images,
 )
 
 
@@ -285,6 +286,7 @@ class ExtractFramesWork(LightningWork):
     def _save_annotated_frames(
         self,
         proj_dir: str,
+        selected_body_parts: list = None
     ) -> None:
         
         _logger.info(f"============== checking frames ================")
@@ -298,13 +300,14 @@ class ExtractFramesWork(LightningWork):
         labeled_data_check_path = os.path.join(proj_dir, 'labeled-data-check')
         # Convert CSV to dictionary
         collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
-        annotations_dict = convert_csv_to_dict(collected_data_file_path)
+        annotations_dict = convert_csv_to_dict(collected_data_file_path, selected_body_parts)
 
         # Copy and annotate frames
         for frame_rel_path, data in annotations_dict.items():
             frame_full_path = data['frame_full_path']
             video = data['video']
             frame_annotations = data['bodyparts']
+
             _logger.info(f"Processing frame: {frame_full_path} for video: {video} with annotations: {frame_annotations}")
 
             video_folder_path = os.path.join(labeled_data_check_path, video)
@@ -364,6 +367,7 @@ class ExtractFramesUI(LightningFlow):
         self.st_n_frames_per_video = None
         self.model_dir = None  # this will be used for extracting frames given a model
         self.last_execution_time = time.time()
+        self.selected_body_parts = ["All"]
 
     @property
     def st_video_files(self):
@@ -496,6 +500,7 @@ class ExtractFramesUI(LightningFlow):
 
     def _save_annotated_frames(
         self,
+        selected_body_parts: list = None,
         testing: bool = False
     ) -> None:
         _logger.info(f"============== triggering save annotated frames ================")
@@ -514,6 +519,7 @@ class ExtractFramesUI(LightningFlow):
             self.works_dict[video_key].run(
                 action="save_annotated_frames",
                 proj_dir=self.proj_dir,
+                selected_body_parts=self.selected_body_parts
             )
             self.st_check_status = "complete"
 
@@ -1004,106 +1010,118 @@ def _render_streamlit_fn(state: AppState):
     )
     
     st.divider()
-    import zipfile
-    from io import BytesIO
-    def zip_annotated_images(video_folder_path):
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, _, files in os.walk(video_folder_path):
-                for file in files:
-                    if file.endswith('.png'):
-                        file_path = os.path.join(root, file)
-                        zf.write(file_path, os.path.relpath(file_path, video_folder_path))
-        return zip_buffer
 
     st.header("Check Labeled Frames")
-    st.markdown(
-        """
-        Use this feature to review and verify the labeled frames from your project. 
-        Navigate through the frames using the arrows to ensure that all annotations are correct.
-        """
-    )
-    st_expander = st.expander("Expand to check labels")
-
+    st_expander = st.expander("Expand for instractions")
     with st_expander:
-        collected_data_csv = os.path.join(state.proj_dir[1:], COLLECTED_DATA_FILENAME)
-        st.write(
-            "Click Check labels to upload and review the labeled frames. "
-            "This button will be enabled once labeled frames are available for review."
+        st.markdown(
+            """
+            Use this feature to ensure your project’s annotations are spot on!
+
+            1. **Select Keypoints**:
+            - Choose the keypoints you want to check using the multiselect box. Select "All" to check everything.
+            
+            2. **Check Labels**:
+            - Click "Check labels" to upload and review the labeled frames.
+            - Navigate through frames using the left and right arrows to make sure each annotation is correct.
+            
+            3. **Correct Annotations**:
+            - If you find any wrong annotations, go back to Label Studio and relocate the keypoints to the correct positions.
+            
+            4. **Optional: Download Frames**:
+            - After review, you can click "Download Frames" to save all annotated frames for the selected video as a ZIP file.
+
+            """
         )
-        st_start_check_labels = st.button(
-            "Check labels",
-            key="show_annotated_frames",
-            disabled=(not os.path.exists(collected_data_csv) or state.run_script_check_labels)
-        )
 
-        if st_start_check_labels:
-            state.st_check_status = "initialized"
-            st.text("Request submitted!")
-            state.run_script_check_labels = True
+    collected_data_csv = os.path.join(state.proj_dir[1:], COLLECTED_DATA_FILENAME)
+    
 
-        st_autorefresh(interval=2000, key="refresh_check_labels")
+    # Adding multiselect box for body parts
+    df = pd.read_csv(collected_data_csv, header=[0, 1, 2])
+    body_parts = list(set(df.columns.get_level_values(1).tolist()[1:])) 
 
-        labeled_data_check_path = os.path.join(state.proj_dir[1:], 'labeled-data-check')
+    # Adding multiselect box for body parts
+    selected_body_parts = st.multiselect(
+        "Select body parts to check",
+        options=["All"] + body_parts,
+        default=["All"],
+    )
 
-        if os.path.exists(labeled_data_check_path):
-            if 'frame_index' not in st.session_state:
-                st.session_state.frame_index = 0
+    st.write("**Click Check labels to upload and review the labeled frames.**")
 
-            try:
-                video_names = os.listdir(labeled_data_check_path)
-            except Exception as e:
-                st.error(f"Error reading directory: {e}")
-                video_names = []
+    st_start_check_labels = st.button(
+        "Check labels",
+        key="show_annotated_frames",
+        disabled=(not os.path.exists(collected_data_csv) or state.run_script_check_labels)
+    )
+    st.caption("This button will be enabled once labeled frames are available for review.")
+    if st_start_check_labels:
+        state.st_check_status = "initialized"
+        st.text("Request submitted!")
+        state.selected_body_parts = selected_body_parts 
+        state.run_script_check_labels = True
 
-            if video_names:
-                selected_video = st.selectbox("Select a video", video_names)
-                frame_paths = get_frame_paths(os.path.join(labeled_data_check_path, selected_video))
+    st_autorefresh(interval=2000, key="refresh_check_labels")
 
-                if frame_paths:
-                    total_frames = len(frame_paths)
-                    st.session_state.frame_index = max(0, min(st.session_state.frame_index, total_frames - 1))
+    labeled_data_check_path = os.path.join(state.proj_dir[1:], 'labeled-data-check')
 
-                    
+    if os.path.exists(labeled_data_check_path):
+        if 'frame_index' not in st.session_state:
+            st.session_state.frame_index = 0
 
-                    current_frame_path = frame_paths[st.session_state.frame_index]
+        try:
+            video_names = os.listdir(labeled_data_check_path)
+        except Exception as e:
+            st.error(f"Error reading directory: {e}")
+            video_names = []
 
-                    if os.path.exists(current_frame_path):
-                        st.markdown('<div class="image-container">', unsafe_allow_html=True)
-                        st.image(current_frame_path, use_column_width=True)
-                        st.markdown('</div></div>', unsafe_allow_html=True)
-                    else:
-                        st.error(f"Image not found: {current_frame_path}")
+        if video_names:
+            selected_video = st.selectbox("Select a video", video_names)
+            frame_paths = get_frame_paths(os.path.join(labeled_data_check_path, selected_video))
 
-                    st.markdown('<div class="nav-buttons centered-container">', unsafe_allow_html=True)
-                    if total_frames > 1:
-                        _, col_prev, col_frame_count, col_next, _ = st.columns([2, 1, 2, 1, 2])
-                        with col_prev:
-                            if st.button("←", key="prev_button"):
-                                if st.session_state.frame_index > 0:
-                                    st.session_state.frame_index -= 1
-                        with col_frame_count:
-                            st.markdown(f'<span class="frame-counter">Frame {st.session_state.frame_index + 1} of {total_frames}</span>', unsafe_allow_html=True)
-                        with col_next:
-                            if st.button("→", key="next_button"):
-                                if st.session_state.frame_index < total_frames - 1:
-                                    st.session_state.frame_index += 1
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.warning("No frames found in the selected video folder.")
-                    
+            if frame_paths:
+                total_frames = len(frame_paths)
+                st.session_state.frame_index = max(0, min(st.session_state.frame_index, total_frames - 1))
+                current_frame_path = frame_paths[st.session_state.frame_index]
+
+                if os.path.exists(current_frame_path):
+                    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                    st.image(current_frame_path, use_column_width=True)
+                    st.markdown('</div></div>', unsafe_allow_html=True)
+                else:
+                    st.error(f"Image not found: {current_frame_path}")
+
+                st.markdown('<div class="nav-buttons centered-container">', unsafe_allow_html=True)
+                if total_frames > 1:
+                    _, col_prev, col_frame_count, col_next, _ = st.columns([2, 1, 2, 1, 2])
+                    with col_prev:
+                        if st.button("←", key="prev_button"):
+                            if st.session_state.frame_index > 0:
+                                st.session_state.frame_index -= 1
+                    with col_frame_count:
+                        st.markdown(f'<span class="frame-counter">Frame {st.session_state.frame_index + 1} of {total_frames}</span>', unsafe_allow_html=True)
+                    with col_next:
+                        if st.button("→", key="next_button"):
+                            if st.session_state.frame_index < total_frames - 1:
+                                st.session_state.frame_index += 1
+                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.warning("No frames found in the selected video folder.")
+                
+                col_left_outer, col_left, col_middle, col_right, col_right_outer = st.columns([2, 1, 2, 1, 2])
+                with col_right_outer:
                     # Provide a download button for annotated images
                     zip_buffer = zip_annotated_images(os.path.join(labeled_data_check_path, selected_video))
                     st.download_button(
-                        label="Download Annotated Images",
+                        label="Download Frames",
                         data=zip_buffer.getvalue(),
                         file_name=f"{selected_video}_annotated_images.zip",
                         mime="application/zip"
                     )
-                else:
-                    st.warning("No annotated frames found.")
             else:
-                st.warning("Annotated frames directory does not exist.")
-    
+                st.warning("No annotated frames found.")
+        else:
+            st.warning("Annotated frames directory does not exist.")
 
-    
+

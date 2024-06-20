@@ -441,7 +441,7 @@ class LitPoseApp(LightningFlow):
         
         #TODO: Add one more IF block
         if self.extract_ui.proj_dir and self.extract_ui.run_script_check_labels: 
-            self.extract_ui.run(action="save_annotated_frames") # ANNOTETED FRAMES
+            self.extract_ui.run(action="save_annotated_frames",selected_body_parts=self.extract_ui.selected_body_parts)
             self.extract_ui.run_script_check_labels = False
 
         # -------------------------------------------------------------

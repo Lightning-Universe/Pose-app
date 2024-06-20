@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 import io
 import zipfile
+from io import BytesIO
 import glob
 import logging
 import matplotlib.pyplot as plt
@@ -332,8 +333,38 @@ def get_frame_number(image_path: str) -> int:
 def get_frame_paths(video_folder_path: str):
     return [os.path.join(video_folder_path, f) for f in os.listdir(video_folder_path) if f.endswith('.png')]
 
-# Adjust the convert_csv_to_dict function
-def convert_csv_to_dict(csv_path: str) -> dict:
+# # Adjust the convert_csv_to_dict function
+# def convert_csv_to_dict(csv_path: str) -> dict:
+#     proj_dir = os.path.dirname(csv_path)
+#     try:
+#         annotations = pd.read_csv(csv_path, header=[1, 2], index_col=0)
+#         data_dict = {}
+#         for index, row in annotations.iterrows():
+#             frame_rel_path = index
+#             video = os.path.basename(os.path.dirname(frame_rel_path))
+#             frame_number = get_frame_number(os.path.basename(frame_rel_path))
+
+#             bodyparts = {}
+#             for bodypart in annotations.columns.levels[0]:
+#                 try:
+#                     x = row[(bodypart, 'x')]
+#                     y = row[(bodypart, 'y')]
+#                     bodyparts[bodypart] = {'x': x, 'y': y}
+#                 except KeyError as e:
+#                     print(f"Error extracting {bodypart} coordinates: {e}")
+
+#             data_dict[frame_rel_path] = {
+#                 'frame_full_path': os.path.join(proj_dir, frame_rel_path),
+#                 'video': video,
+#                 'frame_number': frame_number,
+#                 'bodyparts': bodyparts
+#             }
+#         return data_dict
+#     except Exception as e:
+#         print(f"Error converting CSV to dictionary: {e}")
+#     return {}
+
+def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict:
     proj_dir = os.path.dirname(csv_path)
     try:
         annotations = pd.read_csv(csv_path, header=[1, 2], index_col=0)
@@ -345,6 +376,9 @@ def convert_csv_to_dict(csv_path: str) -> dict:
 
             bodyparts = {}
             for bodypart in annotations.columns.levels[0]:
+                if selected_body_parts and "All" not in selected_body_parts:
+                    if bodypart not in selected_body_parts:
+                        continue
                 try:
                     x = row[(bodypart, 'x')]
                     y = row[(bodypart, 'y')]
@@ -362,7 +396,6 @@ def convert_csv_to_dict(csv_path: str) -> dict:
     except Exception as e:
         print(f"Error converting CSV to dictionary: {e}")
     return {}
-
 
 def validate_annotations_dict(annotations_dict: dict):
         for frame_path, data in annotations_dict.items():
@@ -434,3 +467,14 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         _logger.info(f"Annotated frame saved at: {output_file}")
     except Exception as e:
         _logger.error(f"Failed to plot annotations for {image_path}: {e}")
+
+
+def zip_annotated_images(video_folder_path):
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(video_folder_path):
+                for file in files:
+                    if file.endswith('.png'):
+                        file_path = os.path.join(root, file)
+                        zf.write(file_path, os.path.relpath(file_path, video_folder_path))
+        return zip_buffer
