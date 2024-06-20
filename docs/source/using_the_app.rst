@@ -45,6 +45,12 @@ and run:
 
 .. note::
 
+    If you see the message "`lightning run model` is deprecated..." on the command line after
+    trying to launch the app, you are running a newer version of lightning.
+    In order to launch the app, instead run ``lightning_app run app app.py``.
+
+.. note::
+
     You may get a message alerting you that a new version of Lightning is available.
     There is a possibility that upgrading will cause breaking changes, and you can always decline.
     If you **do** upgrade and an error occurs, please notify the maintainers by
