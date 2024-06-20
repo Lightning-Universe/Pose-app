@@ -324,7 +324,8 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
 
 #### Check labels functions-----------------------------------------------------------------
 
-def get_frame_number(filename: str) -> int:
+def get_frame_number(image_path: str) -> int:
+    filename = os.path.basename(image_path)
     return int(filename.replace('img', '').replace('.png', ''))
 
 
@@ -374,56 +375,62 @@ def validate_annotations_dict(annotations_dict: dict):
 # change name to annotate_frame
 def annotate_frames(image_path: str, annotations: dict, output_path: str):
     try:
-        image = Image.open(image_path)
+        image = Image.open(image_path).convert('L') 
         fig, ax = plt.subplots()
 
-        if image.mode == 'L':  # Grayscale
-            ax.imshow(image, cmap='gray')
-        else:
-            ax.imshow(image)
+        ax.imshow(image, cmap="gray")
+
+        # Get a list of unique body parts and determine colors
+        unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
+        unique_views = list(set([label.split('_')[1] for label in annotations.keys()]))
+
+        color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))  
+        bodypart_colors = {bodypart: color_map(i) for i, bodypart in enumerate(unique_bodyparts)}
+
+        # Create suffix_marker_map dynamically
+        markers = ['o', '^', 's', 'p', '*', 'x', 'd', 'v', '<', '>']
+        suffix_marker_map = {view: markers[i % len(markers)] for i, view in enumerate(unique_views)}
+
+        img_width, img_height = image.size
+        font_size = max(6, min(img_width, img_height) // 50)
 
         for label, coords in annotations.items():
             try:
                 x = coords['x']
                 y = coords['y']
-                ax.plot(x, y, 'ro')  # Red dot marker
-                ax.text(x, y, label, color='white', fontsize=12, ha='right', va='bottom')
+                
+                # Skip plotting if coordinates are missing (NaN)
+                if np.isnan(x) or np.isnan(y):
+                    continue
+
+                bodypart = label.split('_')[0]
+                view = label.split('_')[1]
+                color = bodypart_colors[bodypart]
+                marker = suffix_marker_map[view]
+                
+                ax.plot(x, y, marker, color=color, markersize=3) 
+
+                ha = 'left' if x < img_width * 0.9 else 'right'
+                va = 'bottom' if y < img_height * 0.9 else 'top'
+
+                ax.text(x + 5, y + 5, label, color='white', fontsize=font_size, ha= ha, va=va)
             except ValueError as e:
                 print(f"Error plotting {label}: {e}")
-
+        
+        video = os.path.basename(os.path.dirname(image_path))
+        frame_number = get_frame_number(image_path)
+        pca_error = 0.5
+        
+        title_text = f'Video: {video} | Frame: {frame_number} | PCA Error: {pca_error:.2f}'
+        ax.set_title(title_text, fontsize=font_size, pad=15)
         ax.axis('off')
 
         # Ensure the output directory exists
         os.makedirs(output_path, exist_ok=True)
 
         output_file = os.path.join(output_path, os.path.basename(image_path))
-        plt.savefig(output_file)
+        fig.savefig(output_file, bbox_inches='tight')
         plt.close()
         _logger.info(f"Annotated frame saved at: {output_file}")
     except Exception as e:
         _logger.error(f"Failed to plot annotations for {image_path}: {e}")
-
-
-# def save_annotated_frames(proj_dir: str) -> None:
-#     labeled_data_path = os.path.join(proj_dir, 'labeled-data')
-#     labeled_data_check_path = os.path.join(proj_dir, 'labeled-data-check')
-
-#     # Ensure the directory structure is created
-#     os.makedirs(labeled_data_check_path, exist_ok=True)
-
-#     # Convert CSV to dictionary
-#     collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
-#     annotations_dict = convert_csv_to_dict(proj_dir)
-
-#     # Copy and annotate frames
-#     for frame_full_path, data in annotations_dict.items():
-#         video = data['video']
-#         frame_annotations = data['bodyparts']
-
-#         video_folder_path = os.path.join(labeled_data_check_path, video)
-#         frame_full_path_abs = data['frame_full_path']
-
-#         if os.path.exists(frame_full_path_abs):  # Ensure the frame file exists before attempting to plot
-#             plot_frame_with_annotations(frame_full_path_abs, frame_annotations, video_folder_path)
-#         else:
-#             print(f"File not found: {frame_full_path_abs}")

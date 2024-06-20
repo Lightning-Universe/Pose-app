@@ -912,13 +912,125 @@ def _render_streamlit_fn(state: AppState):
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
 
-
-    st.divider()
-
-    st_expander = st.expander("Expand to check labels")
+    # Custom CSS for styling
+    st.markdown(
+        """
+        <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+        }
+        .navbar {
+            background-color: #3b5998;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .card img {
+            width: 100%;
+            border-radius: 8px;
+        }
+        .stButton button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .stButton button:hover {
+            background-color: #45a049;
+        }
+        .frame-counter {
+            font-size: 20px;
+            font-weight: normal;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .image-container img {
+            width: 100%;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .st-expander {
+            background-color: white !important;
+            border-radius: 8px;
+            padding: 20px !important;
+        }
+        .centered-container {
+            display: flex;
+            justify-content: center;
+        }
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .explanation {
+            font-size: 18px;
+            margin: 10px 20px;
+            text-align: center;
+        }
+        .button-explanation {
+            font-size: 16px;
+            margin-left: 10px;
+            margin-top: 10px;
+            text-align: left;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     
+    st.divider()
+    import zipfile
+    from io import BytesIO
+    def zip_annotated_images(video_folder_path):
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(video_folder_path):
+                for file in files:
+                    if file.endswith('.png'):
+                        file_path = os.path.join(root, file)
+                        zf.write(file_path, os.path.relpath(file_path, video_folder_path))
+        return zip_buffer
+
+    st.header("Check Labeled Frames")
+    st.markdown(
+        """
+        Use this feature to review and verify the labeled frames from your project. 
+        Navigate through the frames using the arrows to ensure that all annotations are correct.
+        """
+    )
+    st_expander = st.expander("Expand to check labels")
+
     with st_expander:
         collected_data_csv = os.path.join(state.proj_dir[1:], COLLECTED_DATA_FILENAME)
+        st.write(
+            "Click Check labels to upload and review the labeled frames. "
+            "This button will be enabled once labeled frames are available for review."
+        )
         st_start_check_labels = st.button(
             "Check labels",
             key="show_annotated_frames",
@@ -926,49 +1038,72 @@ def _render_streamlit_fn(state: AppState):
         )
 
         if st_start_check_labels:
-            # Check for path exist 
             state.st_check_status = "initialized"
             st.text("Request submitted!")
             state.run_script_check_labels = True
-        
-        
+
+        st_autorefresh(interval=2000, key="refresh_check_labels")
+
         labeled_data_check_path = os.path.join(state.proj_dir[1:], 'labeled-data-check')
-        
+
         if os.path.exists(labeled_data_check_path):
             if 'frame_index' not in st.session_state:
                 st.session_state.frame_index = 0
-        
-            
 
-            video_names = os.listdir(labeled_data_check_path)
+            try:
+                video_names = os.listdir(labeled_data_check_path)
+            except Exception as e:
+                st.error(f"Error reading directory: {e}")
+                video_names = []
 
             if video_names:
-                selected_video = st.selectbox("Select video", video_names)
+                selected_video = st.selectbox("Select a video", video_names)
                 frame_paths = get_frame_paths(os.path.join(labeled_data_check_path, selected_video))
 
                 if frame_paths:
-                    st.session_state.frame_index = max(0, min(st.session_state.frame_index, len(frame_paths) - 1))
+                    total_frames = len(frame_paths)
+                    st.session_state.frame_index = max(0, min(st.session_state.frame_index, total_frames - 1))
+
+                    
 
                     current_frame_path = frame_paths[st.session_state.frame_index]
 
                     if os.path.exists(current_frame_path):
+                        st.markdown('<div class="image-container">', unsafe_allow_html=True)
                         st.image(current_frame_path, use_column_width=True)
+                        st.markdown('</div></div>', unsafe_allow_html=True)
                     else:
-                        st.write(f"Image not found: {current_frame_path}")
+                        st.error(f"Image not found: {current_frame_path}")
+
+                    st.markdown('<div class="nav-buttons centered-container">', unsafe_allow_html=True)
+                    if total_frames > 1:
+                        _, col_prev, col_frame_count, col_next, _ = st.columns([2, 1, 2, 1, 2])
+                        with col_prev:
+                            if st.button("←", key="prev_button"):
+                                if st.session_state.frame_index > 0:
+                                    st.session_state.frame_index -= 1
+                        with col_frame_count:
+                            st.markdown(f'<span class="frame-counter">Frame {st.session_state.frame_index + 1} of {total_frames}</span>', unsafe_allow_html=True)
+                        with col_next:
+                            if st.button("→", key="next_button"):
+                                if st.session_state.frame_index < total_frames - 1:
+                                    st.session_state.frame_index += 1
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.warning("No frames found in the selected video folder.")
                     
-                    
-                    st.markdown('<div class="center-buttons">', unsafe_allow_html=True)
-                    _, col_prev, col_next, _ = st.columns([2,1,1,1])
-                    with col_prev:
-                        if st.button("←"):
-                            if st.session_state.frame_index > 0:
-                                st.session_state.frame_index -= 1
-                    with col_next:
-                        if st.button("→"):
-                            if st.session_state.frame_index < len(frame_paths) - 1:
-                                st.session_state.frame_index += 1
+                    # Provide a download button for annotated images
+                    zip_buffer = zip_annotated_images(os.path.join(labeled_data_check_path, selected_video))
+                    st.download_button(
+                        label="Download Annotated Images",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"{selected_video}_annotated_images.zip",
+                        mime="application/zip"
+                    )
                 else:
-                    st.write("No frames found in the selected video folder.")
+                    st.warning("No annotated frames found.")
             else:
-                st.write("No annotated frames found.")
-        
+                st.warning("Annotated frames directory does not exist.")
+    
+
+    
