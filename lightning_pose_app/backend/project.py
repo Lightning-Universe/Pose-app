@@ -333,36 +333,6 @@ def get_frame_number(image_path: str) -> int:
 def get_frame_paths(video_folder_path: str):
     return [os.path.join(video_folder_path, f) for f in os.listdir(video_folder_path) if f.endswith('.png')]
 
-# # Adjust the convert_csv_to_dict function
-# def convert_csv_to_dict(csv_path: str) -> dict:
-#     proj_dir = os.path.dirname(csv_path)
-#     try:
-#         annotations = pd.read_csv(csv_path, header=[1, 2], index_col=0)
-#         data_dict = {}
-#         for index, row in annotations.iterrows():
-#             frame_rel_path = index
-#             video = os.path.basename(os.path.dirname(frame_rel_path))
-#             frame_number = get_frame_number(os.path.basename(frame_rel_path))
-
-#             bodyparts = {}
-#             for bodypart in annotations.columns.levels[0]:
-#                 try:
-#                     x = row[(bodypart, 'x')]
-#                     y = row[(bodypart, 'y')]
-#                     bodyparts[bodypart] = {'x': x, 'y': y}
-#                 except KeyError as e:
-#                     print(f"Error extracting {bodypart} coordinates: {e}")
-
-#             data_dict[frame_rel_path] = {
-#                 'frame_full_path': os.path.join(proj_dir, frame_rel_path),
-#                 'video': video,
-#                 'frame_number': frame_number,
-#                 'bodyparts': bodyparts
-#             }
-#         return data_dict
-#     except Exception as e:
-#         print(f"Error converting CSV to dictionary: {e}")
-#     return {}
 
 def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict:
     proj_dir = os.path.dirname(csv_path)
