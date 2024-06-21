@@ -1114,9 +1114,9 @@ def _render_streamlit_fn(state: AppState):
                     # Provide a download button for annotated images
                     zip_buffer = zip_annotated_images(os.path.join(labeled_data_check_path, selected_video))
                     st.download_button(
-                        label="Download Frames",
+                        label="Download All Frames",
                         data=zip_buffer.getvalue(),
-                        file_name=f"{selected_video}_annotated_images.zip",
+                        file_name="labeled_data_check.zip",
                         mime="application/zip"
                     )
             else:

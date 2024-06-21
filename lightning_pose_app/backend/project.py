@@ -324,7 +324,7 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
 
 
 #### Check labels functions-----------------------------------------------------------------
-
+# TODO Move to extract frames 
 def get_frame_number(image_path: str) -> int:
     filename = os.path.basename(image_path)
     return int(filename.replace('img', '').replace('.png', ''))
@@ -375,7 +375,7 @@ def validate_annotations_dict(annotations_dict: dict):
                 elif np.isnan(coords['x']) or np.isnan(coords['y']):
                     print(f"Invalid coordinates for {bodypart} in frame {frame_path}: ({coords['x']}, {coords['y']})")
 
-# change name to annotate_frame
+
 def annotate_frames(image_path: str, annotations: dict, output_path: str):
     try:
         image = Image.open(image_path).convert('L') 
@@ -404,6 +404,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                 
                 # Skip plotting if coordinates are missing (NaN)
                 if np.isnan(x) or np.isnan(y):
+                    _logger.warning(f"Missing x or y in annotation for {label}")
                     continue
 
                 bodypart = label.split('_')[0]
@@ -439,12 +440,11 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         _logger.error(f"Failed to plot annotations for {image_path}: {e}")
 
 
-def zip_annotated_images(video_folder_path):
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, _, files in os.walk(video_folder_path):
-                for file in files:
-                    if file.endswith('.png'):
-                        file_path = os.path.join(root, file)
-                        zf.write(file_path, os.path.relpath(file_path, video_folder_path))
-        return zip_buffer
+def zip_annotated_images(labeled_data_check_path):
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _, files in os.walk(labeled_data_check_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                zf.write(file_path, os.path.relpath(file_path, labeled_data_check_path))
+    return zip_buffer
