@@ -423,6 +423,7 @@ def get_frame_number(image_path: str) -> int:
     frame_number = int(''.join(filter(str.isdigit, base_name)))
     return frame_number
 
+@st.cache_data(show_spinner=False)
 def preprocess_and_run_pca(config_file_path: str):
     # Read project config file to get PCA columns 
     with open(config_file_path, 'r') as file:
@@ -490,7 +491,7 @@ def preprocess_and_run_pca(config_file_path: str):
 
     return pca_errors_final
 
-
+@st.cache_data(show_spinner=False)
 def annotate_frames(image_path: str, annotations: dict, output_path: str, config_file: str):
     try:
         image = Image.open(image_path).convert('L') 
@@ -550,7 +551,12 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str, config
         else:
             pca_error = float('nan')
         
-        title_text = f'Video: {video} | Frame: {frame_number} | PCA Error: {pca_error:.2f}'
+        if pd.isna(pca_error):
+            pca_error_str = "NaN"
+        else:
+            pca_error_str = f"{pca_error:.2f}"
+        
+        title_text = f'Video: {video} | Frame: {frame_number} | PCA Error: {pca_error_str}'
         ax.set_title(title_text, fontsize=font_size, pad=15)
         ax.axis('off')
 
