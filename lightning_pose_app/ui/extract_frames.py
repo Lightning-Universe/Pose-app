@@ -73,6 +73,16 @@ VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 PROCEED_STR = "Please proceed to the next tab to label frames."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
+@st.cache_data(show_spinner=False)
+def load_image(image_path: str) -> Image:
+    return Image.open(image_path)
+
+@st.cache_data(show_spinner=False)
+def get_all_images(frame_paths: list) -> dict:
+    images = {}
+    for path in frame_paths:
+        images[path] = load_image(path)
+    return images
 
 class ExtractFramesWork(LightningWork):
 
@@ -310,7 +320,7 @@ class ExtractFramesWork(LightningWork):
         collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
         annotations_dict = convert_csv_to_dict(collected_data_file_path, selected_body_parts)
 
-        
+        all_frame_paths = []
         # Copy and annotate frames
         for frame_rel_path, data in annotations_dict.items():
             frame_full_path = data['frame_full_path']
@@ -325,6 +335,8 @@ class ExtractFramesWork(LightningWork):
             
             annotate_frames(frame_full_path, frame_annotations, video_folder_path, config_file_path)
 
+            all_frame_paths.append(frame_full_path)
+        get_all_images(all_frame_paths)
         self.work_is_done = True
         _logger.info(f"============== completed saving annotated frames ================")
 
@@ -1085,13 +1097,15 @@ def _render_streamlit_fn(state: AppState):
             if video_names:
                 selected_video = st.selectbox("Select a video", video_names)
                 frame_paths = get_frame_paths(os.path.join(labeled_data_check_path, selected_video))
-
+                preloaded_images = get_all_images(frame_paths)
+                
                 if frame_paths:
                     total_frames = len(frame_paths)
                     st.session_state.frame_index = max(0, min(st.session_state.frame_index, total_frames - 1))
                     current_frame_path = frame_paths[st.session_state.frame_index]
+                    current_image = preloaded_images.get(current_frame_path)
 
-                    if os.path.exists(current_frame_path):
+                    if current_image:
                         st.markdown('<div class="image-container">', unsafe_allow_html=True)
                         st.image(current_frame_path, use_column_width=True)
                         st.markdown('</div></div>', unsafe_allow_html=True)
