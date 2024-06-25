@@ -485,6 +485,8 @@ def preprocess_and_run_pca(config_file_path: str):
 
     # Reset index and drop "index" and "frame_number" columns
     pca_errors_final = pca_errors_full.reset_index().drop("index", axis=1)
+    #pca_errors_final['frame_number'] = pca_errors_final['frame_number'].astype(int)
+    pca_errors_final.set_index("frame_number", inplace=True)
 
     return pca_errors_final
 
@@ -541,9 +543,13 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str, config
         video = os.path.basename(os.path.dirname(image_path))
         frame_number = int(get_frame_number(image_path))
         
-        pca_error_df = preprocess_and_run_pca(config_file_path)
-        pca_error = pca_error_df[pca_error_df['frame_number'] == frame_number].drop("frame_number",axis=1).mean(axis=1).values[0]
-
+        pca_error_df = preprocess_and_run_pca(config_file)
+        
+        if frame_number is not None and frame_number in pca_error_df.index:
+            pca_error = pca_error_df.loc[frame_number].mean()
+        else:
+            pca_error = float('nan')
+        
         title_text = f'Video: {video} | Frame: {frame_number} | PCA Error: {pca_error:.2f}'
         ax.set_title(title_text, fontsize=font_size, pad=15)
         ax.axis('off')

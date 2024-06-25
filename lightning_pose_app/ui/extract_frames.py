@@ -322,6 +322,7 @@ class ExtractFramesWork(LightningWork):
             video_folder_path = os.path.join(labeled_data_check_path, video)
             project_name = os.path.basename(proj_dir)
             config_file_path = os.path.join(proj_dir, "model_config_" + project_name + ".yaml")
+            
             annotate_frames(frame_full_path, frame_annotations, video_folder_path, config_file_path)
 
         self.work_is_done = True
