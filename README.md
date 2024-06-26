@@ -4,9 +4,9 @@
 ![GitHub](https://img.shields.io/github/license/Lightning-Universe/Pose-app)
 [![Documentation Status](https://readthedocs.org/projects/pose-app/badge/?version=latest)](https://pose-app.readthedocs.io/en/latest/?badge=latest)
 
-This repo contains a browser-based GUI that facilitate the deveopment of a pose estimation project.
+This repo contains a browser-based GUI that facilitates the deveopment of a pose estimation project.
 
-The app allows you to
+The app allows you to:
 
 * label data (upload videos, extract frames, annotate keypoints)
 * train and evaluate models
@@ -25,9 +25,10 @@ We also provide [Lightning Pose documenation](https://lightning-pose.readthedocs
 
 ## Community
 The Lightning Pose app is primarily maintained by 
-[Matt Whiteway](https://themattinthehatt.github.io/) (Columbia University)
+[Matt Whiteway](https://themattinthehatt.github.io/) (Columbia University), 
+[Shmuel Shomrat](https://github.com/Shmuel-columbia) (Columbia University),
 and 
-[Dan Biderman](https://dan-biderman.netlify.app) (Columbia University). 
+[Dan Biderman](https://dan-biderman.netlify.app) (Stanford University). 
 
 The Lightning Pose app is under active development and we welcome community contributions 
 (see contributing guidelines [here](CONTRIBUTING.md)).
