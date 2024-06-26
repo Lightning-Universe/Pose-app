@@ -15,7 +15,7 @@ The app allows you to
 Additionally, the app comes with an example dataset if you want to explore, without needing to
 label your own data.
 
-Preprint: [Lightning Pose: improved animal pose estimation via semi-supervised learning, Bayesian ensembling, and cloud-native open-source tools](https://www.biorxiv.org/content/10.1101/2023.04.28.538703v1)
+As of June 2024, Lightning Pose is now [published in Nature Methods](https://rdcu.be/dLP3z)!
 
 ## Getting started
 
