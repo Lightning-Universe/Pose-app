@@ -444,16 +444,11 @@ class ProjectUI(LightningFlow):
 
         # remove zipped file and temporary extraction directory
         if finished_copy_files:
-            try:
-                if os.path.exists(self.st_upload_existing_project_zippath):
-                    _logger.debug(f"Removing zipped file at {self.st_upload_existing_project_zippath}")
-                    os.remove(self.st_upload_existing_project_zippath)
-                if os.path.isdir(unzipped_dir):
-                    _logger.debug(f"Removing extracted directory at {unzipped_dir}")
-                    shutil.rmtree(unzipped_dir)
-            except Exception as e:
-                _logger.error(f"Failed to remove zip file or directory: {e}")
-    
+            if os.path.exists(self.st_upload_existing_project_zippath):
+                os.remove(self.st_upload_existing_project_zippath)
+            if os.path.isdir(unzipped_dir):
+                shutil.rmtree(unzipped_dir)
+
         # update config file with frame shapes
         self._update_frame_shapes()
 
