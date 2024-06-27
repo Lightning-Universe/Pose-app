@@ -544,8 +544,7 @@ def _render_streamlit_fn(state: AppState):
         st.write("## To move forward, you will need to complete all the steps in this tab.")
         st.write("##")
         st.write("**Need further help? Check the documentation**")
-        
-        
+
         with st.expander("Link to docs"):
             st.markdown(
                 "App [documentation]"
@@ -570,7 +569,7 @@ def _render_streamlit_fn(state: AppState):
                 sorted(state.initialized_projects)
             )
             st.markdown(
-                "Project exports only contain frames, labels, and the project config file." 
+                "Project exports only contain frames, labels, and the project config file."
                 "To download trained models or the results files from video inference, see [here]"
                 "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#)",
                 unsafe_allow_html=True,

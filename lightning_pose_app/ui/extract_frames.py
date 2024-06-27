@@ -3,31 +3,15 @@ import os
 import shutil
 import zipfile
 import time
-from io import BytesIO
-import io
-import glob
 import cv2
 import numpy as np
+import pandas as pd
 import streamlit as st
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.state import AppState
 from streamlit_autorefresh import st_autorefresh
 from typing import Optional
-
-import torch
-import yaml
-from scipy.stats import zscore
-from omegaconf import DictConfig
-
-from lightning_pose.utils.scripts import get_imgaug_transform, get_dataset, get_data_module
-from lightning_pose.utils.io import return_absolute_data_paths
-from lightning_pose.utils.pca import KeypointPCA
-from lightning_pose_app.utilities import abspath
-
-import pandas as pd 
-import matplotlib.pyplot as plt
-from PIL import Image
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
@@ -51,6 +35,8 @@ from lightning_pose_app.backend.extract_frames import (
     convert_csv_to_dict,
     annotate_frames,
     zip_annotated_images,
+    find_models,
+    get_all_images,
 )
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
@@ -73,16 +59,6 @@ VIDEO_SELECT_UPLOADED = "Select previously uploaded video(s)"
 PROCEED_STR = "Please proceed to the next tab to label frames."
 PROCEED_FMT = "<p style='font-family:sans-serif; color:Green;'>%s</p>"
 
-@st.cache_data(show_spinner=False)
-def load_image(image_path: str) -> Image:
-    return Image.open(image_path)
-
-@st.cache_data(show_spinner=False)
-def get_all_images(frame_paths: list) -> dict:
-    images = {}
-    for path in frame_paths:
-        images[path] = load_image(path)
-    return images
 
 class ExtractFramesWork(LightningWork):
 
@@ -92,7 +68,6 @@ class ExtractFramesWork(LightningWork):
 
         # record progress of computationally-intensive steps (like reading video frames)
         self.progress = 0.0
-
         # flag to communicate state of work to parent flow
         self.work_is_done = False
 
@@ -306,14 +281,13 @@ class ExtractFramesWork(LightningWork):
         proj_dir: str,
         selected_body_parts: list = None
     ) -> None:
-        
-        _logger.info(f"============== checking frames ================")
+
+        _logger.info("============== checking frames ================")
         self.work_is_done = False
-        
+
         if not os.path.exists(proj_dir):
             proj_dir = abspath(proj_dir)
 
-        labeled_data_path = os.path.join(proj_dir, LABELED_DATA_DIR)
         # Create a new folder for the annotated frames
         labeled_data_check_path = os.path.join(proj_dir, 'labeled-data-check')
         # Convert CSV to dictionary
@@ -327,18 +301,19 @@ class ExtractFramesWork(LightningWork):
             video = data['video']
             frame_annotations = data['bodyparts']
 
-            _logger.info(f"Processing frame: {frame_full_path} for video: {video} with annotations: {frame_annotations}")
+            _logger.info(
+                f"Processing frame: {frame_full_path} for video: {video} \
+                with annotations: {frame_annotations}"
+            )
 
             video_folder_path = os.path.join(labeled_data_check_path, video)
-            project_name = os.path.basename(proj_dir)
-            config_file_path = os.path.join(proj_dir, "model_config_" + project_name + ".yaml")
-            
-            annotate_frames(frame_full_path, frame_annotations, video_folder_path, config_file_path)
+
+            annotate_frames(frame_full_path, frame_annotations, video_folder_path)
 
             all_frame_paths.append(frame_full_path)
         get_all_images(all_frame_paths)
         self.work_is_done = True
-        _logger.info(f"============== completed saving annotated frames ================")
+        _logger.info("============== completed saving annotated frames ================")
 
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames_using_kmeans":
@@ -379,7 +354,7 @@ class ExtractFramesUI(LightningFlow):
         self.run_script_video_random = False
         self.run_script_zipped_frames = False
         self.run_script_video_model = False
-        self.run_script_check_labels = False # flag for enable the streamlit button 
+        self.run_script_check_labels = False  # flag for enable the streamlit button
 
         # output from the UI
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
@@ -527,7 +502,7 @@ class ExtractFramesUI(LightningFlow):
         selected_body_parts: list = None,
         testing: bool = False
     ) -> None:
-        _logger.info(f"============== triggering save annotated frames ================")
+        _logger.info("============== triggering save annotated frames ================")
         self.work_is_done_check_labels = False
 
         # Set prokect status and flag the worker when moving frames
@@ -559,7 +534,7 @@ class ExtractFramesUI(LightningFlow):
                     del self.works_dict[video_key]
 
         self.work_is_done_check_labels = True
-        _logger.info(f"============== completed save annotated frames ================")
+        _logger.info("============== completed save annotated frames ================")
 
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames":
@@ -574,19 +549,6 @@ class ExtractFramesUI(LightningFlow):
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-def find_models(model_dir):
-    trained_models = []
-    # this returns a list of model training days
-    dirs_day = os.listdir(model_dir)
-    # loop over days and find HH-MM-SS
-    for dir_day in dirs_day:
-        fullpath1 = os.path.join(model_dir, dir_day)
-        dirs_time = os.listdir(fullpath1)
-        for dir_time in dirs_time:
-            fullpath2 = os.path.join(fullpath1, dir_time)
-            trained_models.append('/'.join(fullpath2.split('/')[-2:]))
-    return trained_models
 
 
 def _render_streamlit_fn(state: AppState):
@@ -745,14 +707,14 @@ def _render_streamlit_fn(state: AppState):
                     p = 100.0
                 else:
                     st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}% complete)")
             st.warning("waiting for existing extraction to finish")
             state.last_execution_time = time.time()
 
         if state.st_submits > 0 and not st_submit_button and not state.run_script_video_random:
             if time.time() - state.last_execution_time < 10:
                 st.markdown(PROCEED_FMT % PROCEED_STR, unsafe_allow_html=True)
-        
+
         # Lightning way of returning the parameters
         if st_submit_button:
 
@@ -916,7 +878,7 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
-                    st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+                    st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}% complete)")
                 st.warning("waiting for existing extraction to finish")
                 state.last_execution_time = time.time()
 
@@ -1032,24 +994,26 @@ def _render_streamlit_fn(state: AppState):
         """,
         unsafe_allow_html=True
     )
-    
+
     st.divider()
 
     st.header("Check Labeled Frames")
     st_expander = st.expander("Expand for instractions")
     with st_expander:
         st.markdown(
-        """
-        Ensure accurate annotations with these steps:
+            """
+            Ensure accurate annotations with these steps:
 
-        1. **Select Keypoints**: Use the multiselect box to choose keypoints to check.
+            1. **Select Keypoints**: Use the multiselect box to choose keypoints to check.
 
-        2. **Check Labels**: Click "Check labels" to upload and review frames, using arrows to navigate.
+            2. **Check Labels**: Click "Check labels" to upload and review frames, \
+                using arrows to navigate.
 
-        3. **Correct Annotations**: Go back to Label Studio to correct any wrong annotations.
+            3. **Correct Annotations**: Go back to Label Studio to correct any wrong annotations.
 
-        4. **Download Frames**: Click "Download Frames" to save all annotated frames as a ZIP file.
-        """
+            4. **Download Frames**: Click "Download Frames" to save all annotated frames as\
+                a ZIP file.
+            """
         )
 
     collected_data_csv = os.path.join(state.proj_dir[1:], COLLECTED_DATA_FILENAME)
@@ -1057,7 +1021,7 @@ def _render_streamlit_fn(state: AppState):
     if os.path.exists(collected_data_csv):
         # Adding multiselect box for body parts
         df = pd.read_csv(collected_data_csv, header=[0, 1, 2])
-        body_parts = list(set(df.columns.get_level_values(1).tolist()[1:])) 
+        body_parts = list(set(df.columns.get_level_values(1).tolist()[1:]))
 
         # Adding multiselect box for body parts
         selected_body_parts = st.multiselect(
@@ -1077,7 +1041,7 @@ def _render_streamlit_fn(state: AppState):
         if st_start_check_labels:
             state.st_check_status = "initialized"
             st.text("Request submitted!")
-            state.selected_body_parts = selected_body_parts 
+            state.selected_body_parts = selected_body_parts
             state.run_script_check_labels = True
 
         st_autorefresh(interval=2000, key="refresh_check_labels")
@@ -1096,12 +1060,16 @@ def _render_streamlit_fn(state: AppState):
 
             if video_names:
                 selected_video = st.selectbox("Select a video", video_names)
-                frame_paths = get_frame_paths(os.path.join(labeled_data_check_path, selected_video))
+                frame_paths = get_frame_paths(
+                    os.path.join(labeled_data_check_path, selected_video)
+                )
                 preloaded_images = get_all_images(frame_paths)
-                
+
                 if frame_paths:
                     total_frames = len(frame_paths)
-                    st.session_state.frame_index = max(0, min(st.session_state.frame_index, total_frames - 1))
+                    st.session_state.frame_index = max(
+                        0, min(st.session_state.frame_index, total_frames - 1)
+                    )
                     current_frame_path = frame_paths[st.session_state.frame_index]
                     current_image = preloaded_images.get(current_frame_path)
 
@@ -1112,7 +1080,9 @@ def _render_streamlit_fn(state: AppState):
                     else:
                         st.error(f"Image not found: {current_frame_path}")
 
-                    st.markdown('<div class="nav-buttons centered-container">', unsafe_allow_html=True)
+                    st.markdown(
+                        '<div class="nav-buttons centered-container">', unsafe_allow_html=True
+                    )
                     if total_frames > 1:
                         _, col_prev, col_frame_count, col_next, _ = st.columns([2, 1, 2, 1, 2])
                         with col_prev:
@@ -1120,7 +1090,11 @@ def _render_streamlit_fn(state: AppState):
                                 if st.session_state.frame_index > 0:
                                     st.session_state.frame_index -= 1
                         with col_frame_count:
-                            st.markdown(f'<span class="frame-counter">Frame {st.session_state.frame_index + 1} of {total_frames}</span>', unsafe_allow_html=True)
+                            st.markdown(
+                                f'<span class="frame-counter">Frame \
+                                {st.session_state.frame_index + 1} \
+                                of {total_frames}</span>', unsafe_allow_html=True
+                            )
                         with col_next:
                             if st.button("→", key="next_button"):
                                 if st.session_state.frame_index < total_frames - 1:
@@ -1128,20 +1102,22 @@ def _render_streamlit_fn(state: AppState):
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.warning("No frames found in the selected video folder.")
-                    
-                    col_left_outer, col_left, col_middle, col_right, col_right_outer = st.columns([2, 1, 2, 1, 2])
+
+                    col_left_outer, col_left, col_middle, col_right, col_right_outer = st.columns(
+                        [2, 1, 2, 1, 2]
+                    )
                     with col_right_outer:
                         # Provide a download button for annotated images
-                        zip_buffer = zip_annotated_images(os.path.join(labeled_data_check_path, selected_video))
+                        zip_buffer = zip_annotated_images(
+                            os.path.join(labeled_data_check_path, selected_video)
+                        )
                         st.download_button(
                             label="Download All Frames",
                             data=zip_buffer.getvalue(),
-                            file_name="labeled_data_check.zip",
+                            file_name=state.proj_dir[1:] + "_data_check.zip",
                             mime="application/zip"
                         )
             else:
                 st.warning("No annotated frames found.")
     else:
         st.warning("Annotated frames directory does not exist.")
-
-

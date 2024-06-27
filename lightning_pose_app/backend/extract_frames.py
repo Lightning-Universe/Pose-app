@@ -14,24 +14,12 @@ from typing import Optional
 from itertools import groupby
 from operator import itemgetter
 import streamlit as st
-
 from PIL import Image
-import io
 import zipfile
-from io import BytesIO
-import glob
 import logging
 import matplotlib.pyplot as plt
 
-import torch
-import yaml
 from scipy.stats import zscore
-from omegaconf import DictConfig
-
-from lightning_pose.utils.scripts import get_imgaug_transform, get_dataset, get_data_module
-from lightning_pose.utils.io import return_absolute_data_paths
-from lightning_pose.utils.pca import KeypointPCA
-from lightning_pose_app.utilities import abspath
 
 from lightning_pose_app.backend.video import (
     compute_motion_energy_from_predection_df,
@@ -366,8 +354,8 @@ def get_frame_number(image_path: str) -> int:
 
 def get_frame_paths(video_folder_path: str):
     frame_paths = [
-        os.path.join(video_folder_path, f) 
-        for f in os.listdir(video_folder_path) 
+        os.path.join(video_folder_path, f)
+        for f in os.listdir(video_folder_path)
         if f.endswith('.png')
     ]
     frame_paths.sort(key=lambda x: int(''.join(filter(str.isdigit, os.path.basename(x)))))
@@ -407,95 +395,10 @@ def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict
         print(f"Error converting CSV to dictionary: {e}")
     return {}
 
-def validate_annotations_dict(annotations_dict: dict):
-        for frame_path, data in annotations_dict.items():
-            for bodypart, coords in data['bodyparts'].items():
-                if 'x' not in coords or 'y' not in coords:
-                    st.write(f"Missing coordinates for {bodypart} in frame {frame_path}")
-                elif np.isnan(coords['x']) or np.isnan(coords['y']):
-                    print(
-                        f"Invalid coordinates for {bodypart} in frame \
-                        {frame_path}: ({coords['x']}, {coords['y']})"
-                    )
 
-
-def get_frame_number(image_path: str) -> int:
-    base_name = os.path.basename(image_path)
-    frame_number = int(''.join(filter(str.isdigit, base_name)))
-    return frame_number
-
-@st.cache_data(show_spinner=False)
-def preprocess_and_run_pca(config_file_path: str):
-    # Read project config file to get PCA columns 
-    with open(config_file_path, 'r') as file:
-        config = yaml.safe_load(file)
-
-    # Get the path to the CollectedData csv file
-    data_config = config.get('data', {})
-    data_dir = data_config.get('data_dir')
-    csv_file = data_config.get('csv_file')
-    full_path = os.path.abspath(os.path.join(data_dir, csv_file))
-    
-    # Load the labels
-    df_labels = pd.read_csv(full_path, header=[0, 1, 2], index_col=0)
-
-    columns_for_singleview_pca = data_config["columns_for_singleview_pca"]
-    selected_cols = np.sort(np.concatenate([2 * np.array(columns_for_singleview_pca), 2 * np.array(columns_for_singleview_pca) + 1]))
-
-    # Remove rows with any null values in the selected PCA columns
-    df_selected = df_labels.iloc[:, selected_cols].dropna(axis=0)
-    data = df_selected.to_numpy()
-    
-    # Extract keypoint names
-    keypoint_names = df_labels.columns.get_level_values('bodyparts').unique().tolist()
-    # Get original frame indices
-    original_indices = df_selected.index.to_list()
-
-    # Initialize the KeypointPCA object
-    pca = KeypointPCA(
-        loss_type="pca_singleview",
-        data_module=None,  # Assuming you're not using a data module here
-        components_to_keep=1,
-        empirical_epsilon_percentile=1.00,
-        columns_for_singleview_pca=columns_for_singleview_pca,
-        device="cpu"  # Change to "cuda" if GPU is available and desired
-    )
-    # # Fit the PCA with the data
-    pca.data_arr = torch.Tensor(data)  # Directly setting the data array
-    pca._fit_pca()
-    pca._choose_n_components()
-    pca._set_parameter_dict()
-    
-
-    # Compute PCA errors
-    pca_errors_array = pca.compute_reprojection_error(torch.Tensor(data)).cpu().numpy()
-
-    # Create DataFrame to store PCA errors
-    pca_errors = pd.DataFrame({
-        f'pca_error_{keypoint_names[k]}': pca_errors_array[:, k]
-        for k in range(len(columns_for_singleview_pca))
-    })
-
-    pca_errors['frame_number'] = list(map(get_frame_number, original_indices))
-
-    #Create a DataFrame with the full index and NaNs
-    pca_errors_full = pd.DataFrame(index=df_labels.index, columns=pca_errors.columns)
-    
-    # Update the DataFrame with PCA errors
-    for idx, original_index in enumerate(original_indices):
-        pca_errors_full.loc[original_index] = pca_errors.iloc[idx]
-
-    # Reset index and drop "index" and "frame_number" columns
-    pca_errors_final = pca_errors_full.reset_index().drop("index", axis=1)
-    #pca_errors_final['frame_number'] = pca_errors_final['frame_number'].astype(int)
-    pca_errors_final.set_index("frame_number", inplace=True)
-
-    return pca_errors_final
-
-@st.cache_data(show_spinner=False)
-def annotate_frames(image_path: str, annotations: dict, output_path: str, config_file: str):
+def annotate_frames(image_path: str, annotations: dict, output_path: str):
     try:
-        image = Image.open(image_path).convert('L') 
+        image = Image.open(image_path).convert('L')
         fig, ax = plt.subplots()
 
         ax.imshow(image, cmap="gray")
@@ -504,7 +407,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str, config
         unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
         unique_views = list(set([label.split('_')[1] for label in annotations.keys()]))
 
-        color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))  
+        color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))
         bodypart_colors = {bodypart: color_map(i) for i, bodypart in enumerate(unique_bodyparts)}
 
         # Create suffix_marker_map dynamically
@@ -533,7 +436,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str, config
                 color = bodypart_colors[bodypart]
                 marker = suffix_marker_map[view]
 
-                ax.plot(x, y, marker, color=color, markersize=3) 
+                ax.plot(x, y, marker, color=color, markersize=3)
 
                 ha = 'left' if x < img_width * 0.9 else 'right'
                 va = 'bottom' if y < img_height * 0.9 else 'top'
@@ -544,20 +447,8 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str, config
 
         video = os.path.basename(os.path.dirname(image_path))
         frame_number = int(get_frame_number(image_path))
-        
-        pca_error_df = preprocess_and_run_pca(config_file)
-        
-        if frame_number is not None and frame_number in pca_error_df.index:
-            pca_error = pca_error_df.loc[frame_number].mean()
-        else:
-            pca_error = float('nan')
-        
-        if pd.isna(pca_error):
-            pca_error_str = "NaN"
-        else:
-            pca_error_str = f"{pca_error:.2f}"
-        
-        title_text = f'Video: {video} | Frame: {frame_number} | PCA Error: {pca_error_str}'
+
+        title_text = f'Video: {video} | Frame: {frame_number}'
         ax.set_title(title_text, fontsize=font_size, pad=15)
         ax.axis('off')
 
@@ -580,3 +471,30 @@ def zip_annotated_images(labeled_data_check_path):
                 file_path = os.path.join(root, file)
                 zf.write(file_path, os.path.relpath(file_path, labeled_data_check_path))
     return zip_buffer
+
+
+def find_models(model_dir):
+    trained_models = []
+    # this returns a list of model training days
+    dirs_day = os.listdir(model_dir)
+    # loop over days and find HH-MM-SS
+    for dir_day in dirs_day:
+        fullpath1 = os.path.join(model_dir, dir_day)
+        dirs_time = os.listdir(fullpath1)
+        for dir_time in dirs_time:
+            fullpath2 = os.path.join(fullpath1, dir_time)
+            trained_models.append('/'.join(fullpath2.split('/')[-2:]))
+    return trained_models
+
+
+@st.cache_data(show_spinner=False)
+def load_image(image_path: str) -> Image:
+    return Image.open(image_path)
+
+
+@st.cache_data(show_spinner=False)
+def get_all_images(frame_paths: list) -> dict:
+    images = {}
+    for path in frame_paths:
+        images[path] = load_image(path)
+    return images

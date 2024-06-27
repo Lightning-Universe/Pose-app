@@ -153,9 +153,10 @@ def _render_streamlit_fn(state: AppState):
         else:
             st.write("No video to preview")
     else:
-        # Show a basic UI of the page and an error with instractions 
+        # Show a basic UI of the page and an error with instractions
         st.header("Visualize Model Predictions")
-        st.error("To view a prediction video, you'll need to train a model and run inference first")
+        st.error(
+            "To view a prediction video, you'll need to train a model and run inference first"
+        )
         with st.sidebar:
             st.write(" ")
-
