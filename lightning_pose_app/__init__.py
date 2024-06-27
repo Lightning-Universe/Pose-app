@@ -11,6 +11,7 @@ LABELSTUDIO_DB_DIR = "labelstudio_db"
 
 # directory name constants; relative to project_dir
 LABELED_DATA_DIR = "labeled-data"
+LABELED_DATA_CHECK_DIR = "labeled-data-check"
 VIDEOS_DIR = "videos"
 VIDEOS_TMP_DIR = "videos_tmp"
 VIDEOS_INFER_DIR = "videos_infer"

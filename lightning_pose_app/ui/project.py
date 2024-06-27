@@ -23,6 +23,17 @@ from lightning_pose_app import (
     SELECTED_FRAMES_FILENAME,
     VIDEOS_DIR,
 )
+from lightning_pose_app.backend.project import (
+    check_files_in_zipfile,
+    check_project_has_labels,
+    collect_dlc_labels,
+    extract_frames_from_pkg_slp,
+    extract_labels_from_pkg_slp,
+    find_models,
+    get_keypoints_from_pkg_slp,
+    get_keypoints_from_zipfile,
+    zip_project_for_export,
+)
 from lightning_pose_app.backend.video import copy_and_reformat_video_directory
 from lightning_pose_app.utilities import (
     StreamlitFrontend,
@@ -30,17 +41,6 @@ from lightning_pose_app.utilities import (
     compute_batch_sizes,
     compute_resize_dims,
     update_config,
-)
-
-from lightning_pose_app.backend.project import (
-    extract_frames_from_pkg_slp,
-    extract_labels_from_pkg_slp,
-    get_keypoints_from_pkg_slp,
-    get_keypoints_from_zipfile,
-    check_files_in_zipfile,
-    collect_dlc_labels,
-    check_project_has_labels,
-    zip_project_for_export
 )
 
 _logger = logging.getLogger('APP.PROJECT')
@@ -277,17 +277,7 @@ class ProjectUI(LightningFlow):
     def _update_trained_models_list(self, **kwargs):
 
         if os.path.isdir(abspath(self.model_dir)):
-            trained_models = []
-            # this returns a list of model training days
-            dirs_day = os.listdir(abspath(self.model_dir))
-            # loop over days and find HH-MM-SS
-            for dir_day in dirs_day:
-                fullpath1 = os.path.join(abspath(self.model_dir), dir_day)
-                dirs_time = os.listdir(fullpath1)
-                for dir_time in dirs_time:
-                    fullpath2 = os.path.join(fullpath1, dir_time)
-                    trained_models.append('/'.join(fullpath2.split('/')[-2:]))
-            self.trained_models = trained_models
+            self.trained_models = find_models(abspath(self.model_dir))
 
     def _upload_existing_project(self, **kwargs):
 
@@ -454,7 +444,6 @@ class ProjectUI(LightningFlow):
 
         # update counter
         self.count_upload_existing += 1
-
 
     def _delete_project(self, **kwargs):
         # delete project locally

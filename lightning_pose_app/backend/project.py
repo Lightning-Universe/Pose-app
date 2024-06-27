@@ -1,19 +1,16 @@
-import os
-import json
-import h5py
-import pandas as pd
-import numpy as np
-from PIL import Image
-import io
-import zipfile
 import glob
+import io
+import json
 import logging
+import os
+import zipfile
 
-from lightning_pose_app import (
-    COLLECTED_DATA_FILENAME,
-    LABELED_DATA_DIR,
-    VIDEOS_DIR,
-)
+import h5py
+import numpy as np
+import pandas as pd
+from PIL import Image
+
+from lightning_pose_app import COLLECTED_DATA_FILENAME, LABELED_DATA_DIR, VIDEOS_DIR
 
 _logger = logging.getLogger('APP.BACKEND.PROJECT')
 
@@ -319,3 +316,17 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
         missing_items.append(f'model_config_{project_name}.yaml')
 
     return missing_items
+
+
+def find_models(model_dir) -> list:
+    trained_models = []
+    # this returns a list of model training days
+    dirs_day = os.listdir(model_dir)
+    # loop over days and find HH-MM-SS
+    for dir_day in dirs_day:
+        fullpath1 = os.path.join(model_dir, dir_day)
+        dirs_time = os.listdir(fullpath1)
+        for dir_time in dirs_time:
+            fullpath2 = os.path.join(fullpath1, dir_time)
+            trained_models.append('/'.join(fullpath2.split('/')[-2:]))
+    return trained_models

@@ -2,24 +2,22 @@
 
 import logging
 import os
+import zipfile
+from io import BytesIO
+from itertools import groupby
+from operator import itemgetter
+from typing import Optional
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import streamlit as st
 from lightning.app import LightningWork
+from PIL import Image
 from scipy.stats import zscore
 from sklearn.decomposition import PCA
 from tqdm import tqdm
-from typing import Optional
-from itertools import groupby
-from operator import itemgetter
-import streamlit as st
-from PIL import Image
-import zipfile
-import logging
-import matplotlib.pyplot as plt
-
-from scipy.stats import zscore
 
 from lightning_pose_app.backend.video import (
     compute_motion_energy_from_predection_df,
@@ -346,13 +344,20 @@ def export_frames(
         )
 
 
-def get_frame_number(image_path: str) -> int:
+# def get_frame_number(image_path: str) -> int:
+#     base_name = os.path.basename(image_path)
+#     frame_number = int(''.join(filter(str.isdigit, base_name)))
+#     return frame_number
+
+def get_frame_number(image_path: str) -> tuple:
     base_name = os.path.basename(image_path)
     frame_number = int(''.join(filter(str.isdigit, base_name)))
-    return frame_number
+    prefix = ''.join(filter(str.isalpha, base_name.split('.')[0]))
+    extension = base_name.split('.')[-1]
+    return prefix, frame_number, extension
 
 
-def get_frame_paths(video_folder_path: str):
+def get_frame_paths(video_folder_path: str) -> str:
     frame_paths = [
         os.path.join(video_folder_path, f)
         for f in os.listdir(video_folder_path)
@@ -370,7 +375,7 @@ def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict
         for index, row in annotations.iterrows():
             frame_rel_path = index
             video = os.path.basename(os.path.dirname(frame_rel_path))
-            frame_number = get_frame_number(os.path.basename(frame_rel_path))
+            frame_number = get_frame_number(os.path.basename(frame_rel_path))[1]
 
             bodyparts = {}
             for bodypart in annotations.columns.levels[0]:
@@ -446,7 +451,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                 print(f"Error plotting {label}: {e}")
 
         video = os.path.basename(os.path.dirname(image_path))
-        frame_number = int(get_frame_number(image_path))
+        frame_number = int(get_frame_number(image_path)[1])
 
         title_text = f'Video: {video} | Frame: {frame_number}'
         ax.set_title(title_text, fontsize=font_size, pad=15)
@@ -471,20 +476,6 @@ def zip_annotated_images(labeled_data_check_path):
                 file_path = os.path.join(root, file)
                 zf.write(file_path, os.path.relpath(file_path, labeled_data_check_path))
     return zip_buffer
-
-
-def find_models(model_dir):
-    trained_models = []
-    # this returns a list of model training days
-    dirs_day = os.listdir(model_dir)
-    # loop over days and find HH-MM-SS
-    for dir_day in dirs_day:
-        fullpath1 = os.path.join(model_dir, dir_day)
-        dirs_time = os.listdir(fullpath1)
-        for dir_time in dirs_time:
-            fullpath2 = os.path.join(fullpath1, dir_time)
-            trained_models.append('/'.join(fullpath2.split('/')[-2:]))
-    return trained_models
 
 
 @st.cache_data(show_spinner=False)

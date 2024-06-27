@@ -1,8 +1,10 @@
 import logging
 import os
 import shutil
-import zipfile
 import time
+import zipfile
+from typing import Optional
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -11,10 +13,10 @@ from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.state import AppState
 from streamlit_autorefresh import st_autorefresh
-from typing import Optional
 
 from lightning_pose_app import (
     COLLECTED_DATA_FILENAME,
+    LABELED_DATA_CHECK_DIR,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODELS_DIR,
@@ -24,25 +26,21 @@ from lightning_pose_app import (
     VIDEOS_TMP_DIR,
     ZIPPED_TMP_DIR,
 )
-from lightning_pose_app.backend.video import copy_and_reformat_video
 from lightning_pose_app.backend.extract_frames import (
+    annotate_frames,
+    convert_csv_to_dict,
     export_frames,
-    select_frame_idxs_kmeans,
-    select_frame_idxs_model,
     find_contextual_frames,
+    get_all_images,
     get_frame_number,
     get_frame_paths,
-    convert_csv_to_dict,
-    annotate_frames,
+    select_frame_idxs_kmeans,
+    select_frame_idxs_model,
     zip_annotated_images,
-    find_models,
-    get_all_images,
 )
-from lightning_pose_app.utilities import (
-    StreamlitFrontend,
-    abspath,
-)
-
+from lightning_pose_app.backend.project import find_models
+from lightning_pose_app.backend.video import copy_and_reformat_video
+from lightning_pose_app.utilities import StreamlitFrontend, abspath
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
@@ -228,7 +226,7 @@ class ExtractFramesWork(LightningWork):
         # process and rename filenames
         correct_imgnames = []
         for filename in filenames:
-            frame_number = get_frame_number(filename)[0]
+            prefix, frame_number, extension = get_frame_number(filename)
             new_filename = f"img{frame_number:08d}.png"
             src_path = os.path.join(unzipped_dir, filename)
             dst_path = os.path.join(unzipped_dir, new_filename)
@@ -243,19 +241,19 @@ class ExtractFramesWork(LightningWork):
 
         # process filenames with get_frame_number and handle contexts
         frame_details = [get_frame_number(filename) for filename in correct_imgnames]
-        frame_numbers = [details[0] for details in frame_details]
+        frame_numbers = [details[1] for details in frame_details]
         csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
         frames, is_context = find_contextual_frames(frame_numbers)
 
         if not csv_exists:
             if not is_context:
                 frames_to_label = np.array([
-                    f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details
+                    f"{prefix}{num:08d}.{ext}" for prefix, num, ext in frame_details
                 ])
             else:
                 frames_to_label = np.array([
                     f"{prefix}{num:08d}.{ext}"
-                    for num, prefix, ext in frame_details
+                    for prefix, num, ext in frame_details
                     if num in frames
                 ])
             np.savetxt(
@@ -289,7 +287,7 @@ class ExtractFramesWork(LightningWork):
             proj_dir = abspath(proj_dir)
 
         # Create a new folder for the annotated frames
-        labeled_data_check_path = os.path.join(proj_dir, 'labeled-data-check')
+        labeled_data_check_path = os.path.join(proj_dir, LABELED_DATA_CHECK_DIR)
         # Convert CSV to dictionary
         collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
         annotations_dict = convert_csv_to_dict(collected_data_file_path, selected_body_parts)
@@ -380,7 +378,7 @@ class ExtractFramesUI(LightningFlow):
         self,
         action: str,
         video_files: Optional[list] = None,
-        work_kwargs: dict = None,
+        work_kwargs: Optional[dict] = None,
         testing: bool = False
     ) -> None:
 
@@ -544,7 +542,6 @@ class ExtractFramesUI(LightningFlow):
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
         elif action == "save_annotated_frames":
-            _logger.info("Starting save_annotated_frames process.")
             self._save_annotated_frames(**kwargs)
 
     def configure_layout(self):
@@ -707,7 +704,7 @@ def _render_streamlit_fn(state: AppState):
                     p = 100.0
                 else:
                     st.text(status)
-                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}% complete)")
+                st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
             st.warning("waiting for existing extraction to finish")
             state.last_execution_time = time.time()
 
@@ -1046,7 +1043,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_autorefresh(interval=2000, key="refresh_check_labels")
 
-        labeled_data_check_path = os.path.join(state.proj_dir[1:], 'labeled-data-check')
+        labeled_data_check_path = os.path.join(state.proj_dir[1:], LABELED_DATA_CHECK_DIR)
 
         if os.path.exists(labeled_data_check_path):
             if 'frame_index' not in st.session_state:

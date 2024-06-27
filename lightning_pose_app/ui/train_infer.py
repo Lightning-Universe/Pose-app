@@ -3,9 +3,9 @@
 import gc
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Optional
-import time
 
 import lightning.pytorch as pl
 import numpy as np
@@ -13,8 +13,8 @@ import pandas as pd
 import streamlit as st
 import torch
 import yaml
-from eks.utils import convert_lp_dlc, make_output_dataframe, populate_output_dataframe
 from eks.singleview_smoother import ensemble_kalman_smoother_single_view
+from eks.utils import convert_lp_dlc, make_output_dataframe, populate_output_dataframe
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.cloud import is_running_in_cloud
@@ -23,7 +23,6 @@ from omegaconf import DictConfig
 from streamlit_autorefresh import st_autorefresh
 
 from lightning_pose_app import (
-    __version__,
     ENSEMBLE_MEMBER_FILENAME,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
@@ -32,6 +31,7 @@ from lightning_pose_app import (
     VIDEOS_DIR,
     VIDEOS_INFER_DIR,
     VIDEOS_TMP_DIR,
+    __version__,
 )
 from lightning_pose_app.backend.train_infer import (
     TrainerProgress,

@@ -6,7 +6,8 @@ import streamlit as st
 from lightning.app import LightningFlow
 from lightning.app.utilities.state import AppState
 
-from lightning_pose_app import MODELS_DIR, MODEL_VIDEO_PREDS_INFER_DIR
+from lightning_pose_app import MODEL_VIDEO_PREDS_INFER_DIR, MODELS_DIR
+from lightning_pose_app.backend.project import find_models
 from lightning_pose_app.utilities import StreamlitFrontend, abspath
 
 
@@ -25,17 +26,6 @@ class StreamlitVideoViewer(LightningFlow):
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-
-def get_models(model_dir):
-    """Return a list of all models."""
-    trained_models = []
-    for dir_day in os.listdir(model_dir):
-        day_path = os.path.join(model_dir, dir_day)
-        for dir_time in os.listdir(day_path):
-            time_path = os.path.join(day_path, dir_time)
-            trained_models.append('/'.join(time_path.split('/')[-2:]))
-    return trained_models
 
 
 def list_labeled_mp4_files(model_dir, selected_model):
@@ -82,7 +72,7 @@ def _render_streamlit_fn(state: AppState):
         st.header("Visualize Model Predictions")
         with st.sidebar:
             st.write("Select the model and then the associated video you wish to inspect")
-            trained_models = get_models(model_dir)  # create a list of all models
+            trained_models = find_models(model_dir)  # create a list of all models
             selected_model = st.selectbox("**Step 1:** Select a model", trained_models)
             st.divider()
             # Labeled videos
