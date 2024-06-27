@@ -393,13 +393,6 @@ class ProjectUI(LightningFlow):
                 # flag finish coping all files
                 finished_copy_files = True
 
-            # remove zipped file from project folder
-            if finished_copy_files:
-                if os.path.exists(self.st_upload_existing_project_zippath):
-                    os.remove(self.st_upload_existing_project_zippath)
-                if os.path.isdir(unzipped_dir):
-                    shutil.rmtree(unzipped_dir)
-
             elif self.st_existing_project_format == "SLEAP":
                 if not os.path.exists(self.st_upload_existing_project_slp):
                     _logger.error(
@@ -449,11 +442,24 @@ class ProjectUI(LightningFlow):
                 fmt="%s"
             )
 
+        # remove zipped file and temporary extraction directory
+        if finished_copy_files:
+            try:
+                if os.path.exists(self.st_upload_existing_project_zippath):
+                    _logger.debug(f"Removing zipped file at {self.st_upload_existing_project_zippath}")
+                    os.remove(self.st_upload_existing_project_zippath)
+                if os.path.isdir(unzipped_dir):
+                    _logger.debug(f"Removing extracted directory at {unzipped_dir}")
+                    shutil.rmtree(unzipped_dir)
+            except Exception as e:
+                _logger.error(f"Failed to remove zip file or directory: {e}")
+    
         # update config file with frame shapes
         self._update_frame_shapes()
 
         # update counter
         self.count_upload_existing += 1
+
 
     def _delete_project(self, **kwargs):
         # delete project locally
