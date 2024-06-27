@@ -32,7 +32,6 @@ from lightning_pose_app.backend.extract_frames import (
     export_frames,
     find_contextual_frames,
     get_all_images,
-    get_frame_number,
     get_frame_paths,
     select_frame_idxs_kmeans,
     select_frame_idxs_model,
@@ -40,7 +39,7 @@ from lightning_pose_app.backend.extract_frames import (
 )
 from lightning_pose_app.backend.project import find_models
 from lightning_pose_app.backend.video import copy_and_reformat_video
-from lightning_pose_app.utilities import StreamlitFrontend, abspath
+from lightning_pose_app.utilities import StreamlitFrontend, abspath, get_frame_number
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
@@ -226,7 +225,7 @@ class ExtractFramesWork(LightningWork):
         # process and rename filenames
         correct_imgnames = []
         for filename in filenames:
-            prefix, frame_number, extension = get_frame_number(filename)
+            frame_number, prefix, extension = get_frame_number(filename)
             new_filename = f"img{frame_number:08d}.png"
             src_path = os.path.join(unzipped_dir, filename)
             dst_path = os.path.join(unzipped_dir, new_filename)
@@ -241,7 +240,7 @@ class ExtractFramesWork(LightningWork):
 
         # process filenames with get_frame_number and handle contexts
         frame_details = [get_frame_number(filename) for filename in correct_imgnames]
-        frame_numbers = [details[1] for details in frame_details]
+        frame_numbers = [details[0] for details in frame_details]
         csv_exists = SELECTED_FRAMES_FILENAME in os.listdir(unzipped_dir)
         frames, is_context = find_contextual_frames(frame_numbers)
 

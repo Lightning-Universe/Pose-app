@@ -344,18 +344,6 @@ def export_frames(
         )
 
 
-# def get_frame_number(image_path: str) -> int:
-#     base_name = os.path.basename(image_path)
-#     frame_number = int(''.join(filter(str.isdigit, base_name)))
-#     return frame_number
-
-def get_frame_number(image_path: str) -> tuple:
-    base_name = os.path.basename(image_path)
-    frame_number = int(''.join(filter(str.isdigit, base_name)))
-    prefix = ''.join(filter(str.isalpha, base_name.split('.')[0]))
-    extension = base_name.split('.')[-1]
-    return prefix, frame_number, extension
-
 
 def get_frame_paths(video_folder_path: str) -> str:
     frame_paths = [
@@ -375,7 +363,7 @@ def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict
         for index, row in annotations.iterrows():
             frame_rel_path = index
             video = os.path.basename(os.path.dirname(frame_rel_path))
-            frame_number = get_frame_number(os.path.basename(frame_rel_path))[1]
+            frame_number = get_frame_number(os.path.basename(frame_rel_path))[0]
 
             bodyparts = {}
             for bodypart in annotations.columns.levels[0]:
@@ -451,7 +439,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                 print(f"Error plotting {label}: {e}")
 
         video = os.path.basename(os.path.dirname(image_path))
-        frame_number = int(get_frame_number(image_path)[1])
+        frame_number = int(get_frame_number(image_path)[0])
 
         title_text = f'Video: {video} | Frame: {frame_number}'
         ax.set_title(title_text, fontsize=font_size, pad=15)
