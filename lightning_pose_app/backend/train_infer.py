@@ -5,6 +5,7 @@ import gc
 import logging
 import os
 import shutil
+from typing import Optional
 
 import cv2
 import lightning.pytorch as pl
@@ -19,10 +20,7 @@ from lightning_pose.utils.io import (
     return_absolute_data_paths,
     return_absolute_path,
 )
-from lightning_pose.utils.predictions import (
-    predict_dataset,
-    predict_single_video,
-)
+from lightning_pose.utils.predictions import predict_dataset, predict_single_video
 from lightning_pose.utils.scripts import (
     calculate_train_batches,
     compute_metrics,
@@ -35,7 +33,6 @@ from lightning_pose.utils.scripts import (
 )
 from moviepy.editor import VideoFileClip
 from omegaconf import DictConfig, OmegaConf
-from typing import Optional
 
 from lightning_pose_app import MODEL_VIDEO_PREDS_TRAIN_DIR
 

@@ -38,23 +38,12 @@ class StreamlitFrontend(LitStreamlitFrontend):
             pass
 
 
-def get_frame_number(basename: str) -> tuple:
-    """img0000234.png -> (234, "img", ".png")"""
-    ext = basename.split(".")[-1]  # get base name
-    split_idx = None
-    for c_idx, c in enumerate(basename):
-        try:
-            int(c)
-            split_idx = c_idx
-            break
-        except ValueError:
-            continue
-    # remove prefix
-    prefix = basename[:split_idx]
-    idx = basename[split_idx:]
-    # remove file extension
-    idx = idx.replace(f".{ext}", "")
-    return int(idx), prefix, ext
+def get_frame_number(image_path: str) -> tuple:
+    base_name = os.path.basename(image_path)
+    frame_number = int(''.join(filter(str.isdigit, base_name)))
+    prefix = ''.join(filter(str.isalpha, base_name.split('.')[0]))
+    extension = base_name.split('.')[-1]
+    return frame_number, prefix, extension
 
 
 def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> bool:

@@ -1,19 +1,22 @@
 import logging
 import os
 import shutil
-import zipfile
 import time
+import zipfile
+from typing import Optional
 
 import cv2
 import numpy as np
+import pandas as pd
 import streamlit as st
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
 from lightning.app.utilities.state import AppState
 from streamlit_autorefresh import st_autorefresh
-from typing import Optional
 
 from lightning_pose_app import (
+    COLLECTED_DATA_FILENAME,
+    LABELED_DATA_CHECK_DIR,
     LABELED_DATA_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODELS_DIR,
@@ -23,18 +26,20 @@ from lightning_pose_app import (
     VIDEOS_TMP_DIR,
     ZIPPED_TMP_DIR,
 )
-from lightning_pose_app.backend.video import copy_and_reformat_video
 from lightning_pose_app.backend.extract_frames import (
+    annotate_frames,
+    convert_csv_to_dict,
     export_frames,
+    find_contextual_frames,
+    get_all_images,
+    get_frame_paths,
     select_frame_idxs_kmeans,
     select_frame_idxs_model,
-    find_contextual_frames,
+    zip_annotated_images,
 )
-from lightning_pose_app.utilities import (
-    StreamlitFrontend,
-    abspath,
-    get_frame_number,
-)
+from lightning_pose_app.backend.project import find_models
+from lightning_pose_app.backend.video import copy_and_reformat_video
+from lightning_pose_app.utilities import StreamlitFrontend, abspath, get_frame_number
 
 _logger = logging.getLogger('APP.EXTRACT_FRAMES')
 
@@ -60,7 +65,6 @@ class ExtractFramesWork(LightningWork):
 
         # record progress of computationally-intensive steps (like reading video frames)
         self.progress = 0.0
-
         # flag to communicate state of work to parent flow
         self.work_is_done = False
 
@@ -221,7 +225,7 @@ class ExtractFramesWork(LightningWork):
         # process and rename filenames
         correct_imgnames = []
         for filename in filenames:
-            frame_number = get_frame_number(filename)[0]
+            frame_number, prefix, extension = get_frame_number(filename)
             new_filename = f"img{frame_number:08d}.png"
             src_path = os.path.join(unzipped_dir, filename)
             dst_path = os.path.join(unzipped_dir, new_filename)
@@ -243,12 +247,12 @@ class ExtractFramesWork(LightningWork):
         if not csv_exists:
             if not is_context:
                 frames_to_label = np.array([
-                    f"{prefix}{num:08d}.{ext}" for num, prefix, ext in frame_details
+                    f"{prefix}{num:08d}.{ext}" for prefix, num, ext in frame_details
                 ])
             else:
                 frames_to_label = np.array([
                     f"{prefix}{num:08d}.{ext}"
-                    for num, prefix, ext in frame_details
+                    for prefix, num, ext in frame_details
                     if num in frames
                 ])
             np.savetxt(
@@ -269,6 +273,45 @@ class ExtractFramesWork(LightningWork):
         # set flag for parent app
         self.work_is_done = True
 
+    def _save_annotated_frames(
+        self,
+        proj_dir: str,
+        selected_body_parts: list = None
+    ) -> None:
+
+        _logger.info("============== checking frames ================")
+        self.work_is_done = False
+
+        if not os.path.exists(proj_dir):
+            proj_dir = abspath(proj_dir)
+
+        # Create a new folder for the annotated frames
+        labeled_data_check_path = os.path.join(proj_dir, LABELED_DATA_CHECK_DIR)
+        # Convert CSV to dictionary
+        collected_data_file_path = os.path.join(proj_dir, COLLECTED_DATA_FILENAME)
+        annotations_dict = convert_csv_to_dict(collected_data_file_path, selected_body_parts)
+
+        all_frame_paths = []
+        # Copy and annotate frames
+        for frame_rel_path, data in annotations_dict.items():
+            frame_full_path = data['frame_full_path']
+            video = data['video']
+            frame_annotations = data['bodyparts']
+
+            _logger.info(
+                f"Processing frame: {frame_full_path} for video: {video} \
+                with annotations: {frame_annotations}"
+            )
+
+            video_folder_path = os.path.join(labeled_data_check_path, video)
+
+            annotate_frames(frame_full_path, frame_annotations, video_folder_path)
+
+            all_frame_paths.append(frame_full_path)
+        get_all_images(all_frame_paths)
+        self.work_is_done = True
+        _logger.info("============== completed saving annotated frames ================")
+
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames_using_kmeans":
             new_vid_file = copy_and_reformat_video(
@@ -284,6 +327,8 @@ class ExtractFramesWork(LightningWork):
             self._extract_frames(method="active", **kwargs)
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
+        elif action == "save_annotated_frames":
+            self._save_annotated_frames(**kwargs)
         else:
             pass
 
@@ -301,14 +346,16 @@ class ExtractFramesUI(LightningFlow):
         # works will be allocated once videos are uploaded
         self.works_dict = Dict()
         self.work_is_done_extract_frames = False
-
+        self.work_is_done_check_labels = False  # set this flag for the check labels flow
         # flag; used internally and externally
         self.run_script_video_random = False
         self.run_script_zipped_frames = False
         self.run_script_video_model = False
+        self.run_script_check_labels = False  # flag for enable the streamlit button
 
         # output from the UI
         self.st_extract_status = {}  # 'initialized' | 'active' | 'complete'
+        self.st_check_status = "none"
         self.st_video_files_ = []  # list of uploaded video files
         self.st_frame_files_ = []  # list of uploaded zipped frame files
         self.st_submits = 0
@@ -316,6 +363,7 @@ class ExtractFramesUI(LightningFlow):
         self.st_n_frames_per_video = None
         self.model_dir = None  # this will be used for extracting frames given a model
         self.last_execution_time = time.time()
+        self.selected_body_parts = ["All"]
 
     @property
     def st_video_files(self):
@@ -328,8 +376,8 @@ class ExtractFramesUI(LightningFlow):
     def _launch_works(
         self,
         action: str,
-        video_files: list,
-        work_kwargs: dict,
+        video_files: Optional[list] = None,
+        work_kwargs: Optional[dict] = None,
         testing: bool = False
     ) -> None:
 
@@ -444,8 +492,46 @@ class ExtractFramesUI(LightningFlow):
             testing=testing,
         )
 
-        # set flag for parent app
         self.work_is_done_extract_frames = True
+
+    def _save_annotated_frames(
+        self,
+        selected_body_parts: list = None,
+        testing: bool = False
+    ) -> None:
+        _logger.info("============== triggering save annotated frames ================")
+        self.work_is_done_check_labels = False
+
+        # Set prokect status and flag the worker when moving frames
+        video_key = "check_labels"  # keys cannot contain "."
+        if video_key not in self.works_dict.keys():
+            self.works_dict[video_key] = ExtractFramesWork(
+                cloud_compute=CloudCompute("default"),
+            )
+        status = self.st_check_status
+        if status == "initialized" or status == "active":
+            self.st_check_status = "active"
+            # extract frames for labeling (automatically reformats video for DALI)
+            self.works_dict[video_key].run(
+                action="save_annotated_frames",
+                proj_dir=self.proj_dir,
+                selected_body_parts=self.selected_body_parts
+            )
+            self.st_check_status = "complete"
+
+        # clean up works
+        while len(self.works_dict) > 0:
+            for video_key in list(self.works_dict):
+                if (video_key in self.works_dict.keys()) \
+                        and self.works_dict[video_key].work_is_done:
+                    # kill work
+                    _logger.info(f"killing work from {video_key}")
+                    if not testing:  # cannot run stop() from tests for some reason
+                        self.works_dict[video_key].stop()
+                    del self.works_dict[video_key]
+
+        self.work_is_done_check_labels = True
+        _logger.info("============== completed save annotated frames ================")
 
     def run(self, action: str, **kwargs) -> None:
         if action == "extract_frames":
@@ -454,23 +540,11 @@ class ExtractFramesUI(LightningFlow):
             self._extract_frames_using_model(**kwargs)
         elif action == "unzip_frames":
             self._unzip_frames(**kwargs)
+        elif action == "save_annotated_frames":
+            self._save_annotated_frames(**kwargs)
 
     def configure_layout(self):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
-
-
-def find_models(model_dir):
-    trained_models = []
-    # this returns a list of model training days
-    dirs_day = os.listdir(model_dir)
-    # loop over days and find HH-MM-SS
-    for dir_day in dirs_day:
-        fullpath1 = os.path.join(model_dir, dir_day)
-        dirs_time = os.listdir(fullpath1)
-        for dir_time in dirs_time:
-            fullpath2 = os.path.join(fullpath1, dir_time)
-            trained_models.append('/'.join(fullpath2.split('/')[-2:]))
-    return trained_models
 
 
 def _render_streamlit_fn(state: AppState):
@@ -800,7 +874,7 @@ def _render_streamlit_fn(state: AppState):
                         p = 100.0
                     else:
                         st.text(status)
-                    st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}\% complete)")
+                    st.progress(p / 100.0, f"{vid} progress ({status}: {int(p)}% complete)")
                 st.warning("waiting for existing extraction to finish")
                 state.last_execution_time = time.time()
 
@@ -825,3 +899,221 @@ def _render_streamlit_fn(state: AppState):
 
             #     #force rerun to show "waiting for existing..." message
             st_autorefresh(interval=2000, key="refresh_extract_frames_after_submit")
+
+    # Custom CSS for styling
+    st.markdown(
+        """
+        <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+        }
+        .navbar {
+            background-color: #3b5998;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .card img {
+            width: 100%;
+            border-radius: 8px;
+        }
+        .stButton button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .stButton button:hover {
+            background-color: #45a049;
+        }
+        .frame-counter {
+            font-size: 20px;
+            font-weight: normal;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .image-container img {
+            width: 100%;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .st-expander {
+            background-color: white !important;
+            border-radius: 8px;
+            padding: 20px !important;
+        }
+        .centered-container {
+            display: flex;
+            justify-content: center;
+        }
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .explanation {
+            font-size: 18px;
+            margin: 10px 20px;
+            text-align: center;
+        }
+        .button-explanation {
+            font-size: 16px;
+            margin-left: 10px;
+            margin-top: 10px;
+            text-align: left;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.divider()
+
+    st.header("Check Labeled Frames")
+    st_expander = st.expander("Expand for instractions")
+    with st_expander:
+        st.markdown(
+            """
+            Ensure accurate annotations with these steps:
+
+            1. **Select Keypoints**: Use the multiselect box to choose keypoints to check.
+
+            2. **Check Labels**: Click "Check labels" to upload and review frames, \
+                using arrows to navigate.
+
+            3. **Correct Annotations**: Go back to Label Studio to correct any wrong annotations.
+
+            4. **Download Frames**: Click "Download Frames" to save all annotated frames as\
+                a ZIP file.
+            """
+        )
+
+    collected_data_csv = os.path.join(state.proj_dir[1:], COLLECTED_DATA_FILENAME)
+
+    if os.path.exists(collected_data_csv):
+        # Adding multiselect box for body parts
+        df = pd.read_csv(collected_data_csv, header=[0, 1, 2])
+        body_parts = list(set(df.columns.get_level_values(1).tolist()[1:]))
+
+        # Adding multiselect box for body parts
+        selected_body_parts = st.multiselect(
+            "Select body parts to check",
+            options=["All"] + body_parts,
+            default=["All"],
+        )
+
+        st.write("**Click Check labels to upload and review the labeled frames.**")
+
+        st_start_check_labels = st.button(
+            "Check labels",
+            key="show_annotated_frames",
+            disabled=(not os.path.exists(collected_data_csv) or state.run_script_check_labels)
+        )
+        st.caption("This button will be enabled once labeled frames are available for review.")
+        if st_start_check_labels:
+            state.st_check_status = "initialized"
+            st.text("Request submitted!")
+            state.selected_body_parts = selected_body_parts
+            state.run_script_check_labels = True
+
+        st_autorefresh(interval=2000, key="refresh_check_labels")
+
+        labeled_data_check_path = os.path.join(state.proj_dir[1:], LABELED_DATA_CHECK_DIR)
+
+        if os.path.exists(labeled_data_check_path):
+            if 'frame_index' not in st.session_state:
+                st.session_state.frame_index = 0
+
+            try:
+                video_names = os.listdir(labeled_data_check_path)
+            except Exception as e:
+                st.error(f"Error reading directory: {e}")
+                video_names = []
+
+            if video_names:
+                selected_video = st.selectbox("Select a video", video_names)
+                frame_paths = get_frame_paths(
+                    os.path.join(labeled_data_check_path, selected_video)
+                )
+                preloaded_images = get_all_images(frame_paths)
+
+                if frame_paths:
+                    total_frames = len(frame_paths)
+                    st.session_state.frame_index = max(
+                        0, min(st.session_state.frame_index, total_frames - 1)
+                    )
+                    current_frame_path = frame_paths[st.session_state.frame_index]
+                    current_image = preloaded_images.get(current_frame_path)
+
+                    if current_image:
+                        st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                        st.image(current_frame_path, use_column_width=True)
+                        st.markdown('</div></div>', unsafe_allow_html=True)
+                    else:
+                        st.error(f"Image not found: {current_frame_path}")
+
+                    st.markdown(
+                        '<div class="nav-buttons centered-container">', unsafe_allow_html=True
+                    )
+                    if total_frames > 1:
+                        _, col_prev, col_frame_count, col_next, _ = st.columns([2, 1, 2, 1, 2])
+                        with col_prev:
+                            if st.button("←", key="prev_button"):
+                                if st.session_state.frame_index > 0:
+                                    st.session_state.frame_index -= 1
+                        with col_frame_count:
+                            st.markdown(
+                                f'<span class="frame-counter">Frame \
+                                {st.session_state.frame_index + 1} \
+                                of {total_frames}</span>', unsafe_allow_html=True
+                            )
+                        with col_next:
+                            if st.button("→", key="next_button"):
+                                if st.session_state.frame_index < total_frames - 1:
+                                    st.session_state.frame_index += 1
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.warning("No frames found in the selected video folder.")
+
+                    col_left_outer, col_left, col_middle, col_right, col_right_outer = st.columns(
+                        [2, 1, 2, 1, 2]
+                    )
+                    with col_right_outer:
+                        # Provide a download button for annotated images
+                        zip_buffer = zip_annotated_images(
+                            os.path.join(labeled_data_check_path, selected_video)
+                        )
+                        st.download_button(
+                            label="Download All Frames",
+                            data=zip_buffer.getvalue(),
+                            file_name=state.proj_dir[1:] + "_data_check.zip",
+                            mime="application/zip"
+                        )
+            else:
+                st.warning("No annotated frames found.")
+    else:
+        st.warning("Annotated frames directory does not exist.")

@@ -2,7 +2,7 @@ import os
 
 from lightning.app import CloudCompute, LightningFlow
 
-from lightning_pose_app import LIGHTNING_POSE_DIR, MODELS_DIR, MODEL_VIDEO_PREDS_INFER_DIR
+from lightning_pose_app import LIGHTNING_POSE_DIR, MODEL_VIDEO_PREDS_INFER_DIR, MODELS_DIR
 from lightning_pose_app.bashwork import LitBashWork
 
 
