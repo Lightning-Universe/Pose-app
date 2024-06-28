@@ -45,6 +45,7 @@ def get_frame_number(image_path: str) -> tuple:
     extension = base_name.split('.')[-1]
     return frame_number, prefix, extension
 
+
 def is_context_dataset(labeled_data_dir: str, selected_frames_filename: str) -> bool:
     """Starting from labeled data directory, determine if this is a context dataset or not."""
     # loop over all labeled frames, break as soon as single frame fails

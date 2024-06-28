@@ -344,7 +344,6 @@ def export_frames(
         )
 
 
-
 def get_frame_paths(video_folder_path: str) -> str:
     frame_paths = [
         os.path.join(video_folder_path, f)

@@ -258,19 +258,3 @@ def test_find_contextual_frames():
         result, is_context = find_contextual_frames(case["input"])
         assert result == case["expected_output"], f"Failed for input: {case['input']}"
         assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
-
-
-# @pytest.fixture
-# def mock_read_csv(mocker):
-#     # Mock data for the CSV
-#     data = {
-#         ('paw1LH_top', 'x'): [77.25, 37.25],
-#         ('paw1LH_top', 'y'): [36.25, 110.75],
-#         ('paw2LF_top', 'x'): [264.516530, 285.75],
-#         ('paw2LF_top', 'y'): [401.94, 104.75],
-#         # Add more columns as needed
-#     }
-#     index = ["labeled-data/test_vid/img01.png", "labeled-data/test_vid/img02.png"]
-#     mock_df = pd.DataFrame(data, index=index)
-#     mock_read_csv = mocker.patch('your_module.pd.read_csv', return_value=mock_df)
-#     return mock_read_csv
