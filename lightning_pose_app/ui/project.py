@@ -445,6 +445,12 @@ class ProjectUI(LightningFlow):
         # update counter
         self.count_upload_existing += 1
 
+        if finished_copy_files:
+            if os.path.exists(self.st_upload_existing_project_zippath):
+                os.remove(self.st_upload_existing_project_zippath)
+            if os.path.isdir(unzipped_dir):
+                shutil.rmtree(unzipped_dir)
+
     def _delete_project(self, **kwargs):
         # delete project locally
         if os.path.exists(self.proj_dir_abs):
@@ -716,7 +722,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_prev_format = st.radio(
             "Select uploaded project format",
-            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: SLEAP, MARS?
+            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: MARS?
             help="Select the file format that the project is stored at."
             " If DLC selected make sure the zipped folder has meet all reqierments"
         )
@@ -730,12 +736,18 @@ def _render_streamlit_fn(state: AppState):
                 bytes_data = uploaded_file.read()
                 # name it
                 filename = uploaded_file.name
-                filename_temp = filename.replace(".zip", '_temp.zip')
+                filename_temp = filename.replace('.zip', '_temp.zip')
                 filepath = os.path.join(os.getcwd(), "data", filename_temp)
+                
+                # Ensure directory exists
+                if not os.path.exists(os.path.dirname(filepath)):
+                    os.makedirs(os.path.dirname(filepath))
+
                 # write the content of the file to the path if it doesn't already exist
                 if not os.path.exists(filepath):
                     with open(filepath, "wb") as f:
                         f.write(bytes_data)
+                
                 # check files
                 state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
                     filepath, project_type=st_prev_format)

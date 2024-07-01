@@ -23,7 +23,11 @@ from lightning_pose_app.backend.video import (
     compute_motion_energy_from_predection_df,
     get_frames_from_idxs,
 )
-from lightning_pose_app.utilities import run_kmeans
+from lightning_pose_app.utilities import (
+    run_kmeans, 
+    get_frame_number,
+)
+
 
 _logger = logging.getLogger('APP.BACKEND.EXTRACT_FRAMES')
 
@@ -465,14 +469,14 @@ def zip_annotated_images(labeled_data_check_path):
     return zip_buffer
 
 
-@st.cache_data(show_spinner=False)
-def load_image(image_path: str) -> Image:
-    return Image.open(image_path)
+# @st.cache_data(show_spinner=False)
+# def load_image(image_path: str) -> Image:
+#     return Image.open(image_path)
 
 
 @st.cache_data(show_spinner=False)
 def get_all_images(frame_paths: list) -> dict:
     images = {}
     for path in frame_paths:
-        images[path] = load_image(path)
+        images[path] = Image.open(path)
     return images
