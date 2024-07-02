@@ -305,6 +305,7 @@ class ProjectUI(LightningFlow):
                         return root
 
         finished_copy_files = False
+        unzipped_dir = None
         try:
             if self.st_existing_project_format == "Lightning Pose":
 
@@ -434,10 +435,33 @@ class ProjectUI(LightningFlow):
 
         # remove zipped file and temporary extraction directory
         if finished_copy_files:
+            _logger.info(
+                f"Attempting to delete zipped project file at \
+                {self.st_upload_existing_project_zippath}"
+            )
             if os.path.exists(self.st_upload_existing_project_zippath):
-                os.remove(self.st_upload_existing_project_zippath)
+                try:
+                    os.remove(self.st_upload_existing_project_zippath)
+                    _logger.info(
+                        f"Deleted zipped project file at {self.st_upload_existing_project_zippath}"
+                    )
+                except Exception as e:
+                    _logger.error(f"Failed to delete zipped project file: {e}")
+            else:
+                _logger.error(
+                    f"Zipped project file at \
+                    {self.st_upload_existing_project_zippath} does not exist"
+                )
+
+            _logger.info(f"Attempting to delete temporary extraction directory at {unzipped_dir}")
             if os.path.isdir(unzipped_dir):
-                shutil.rmtree(unzipped_dir)
+                try:
+                    shutil.rmtree(unzipped_dir)
+                    _logger.info(f"Deleted temporary extraction directory at {unzipped_dir}")
+                except Exception as e:
+                    _logger.error(f"Failed to delete temporary extraction directory: {e}")
+            else:
+                _logger.error(f"Temporary extraction directory at {unzipped_dir} does not exist")
 
         # update config file with frame shapes
         self._update_frame_shapes()
@@ -716,7 +740,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_prev_format = st.radio(
             "Select uploaded project format",
-            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: SLEAP, MARS?
+            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: MARS?
             help="Select the file format that the project is stored at."
             " If DLC selected make sure the zipped folder has meet all reqierments"
         )
@@ -730,12 +754,18 @@ def _render_streamlit_fn(state: AppState):
                 bytes_data = uploaded_file.read()
                 # name it
                 filename = uploaded_file.name
-                filename_temp = filename.replace(".zip", '_temp.zip')
+                filename_temp = filename.replace('.zip', '_temp.zip')
                 filepath = os.path.join(os.getcwd(), "data", filename_temp)
+
+                # Ensure directory exists
+                if not os.path.exists(os.path.dirname(filepath)):
+                    os.makedirs(os.path.dirname(filepath))
+
                 # write the content of the file to the path if it doesn't already exist
                 if not os.path.exists(filepath):
                     with open(filepath, "wb") as f:
                         f.write(bytes_data)
+
                 # check files
                 state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
                     filepath, project_type=st_prev_format)

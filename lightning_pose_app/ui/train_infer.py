@@ -954,7 +954,7 @@ def _render_streamlit_fn(state: AppState):
                     st.progress(
                         p / 100.0,
                         f"model: {m} (rng={rng})\n\n"
-                        f"{status_ or status}: {int(p)}\% complete"
+                        f"{status_ or status}: {int(p)}\% complete" # noqa
                     )
             state.last_execution_time = time.time()
 
@@ -1129,7 +1129,7 @@ def _render_streamlit_fn(state: AppState):
                     st.progress(
                         p / 100.0,
                         f"model: {model_}\n\nvideo: {vid_}\n\n"
-                        f"{status_ or status}: {int(p)}\% complete")
+                        f"{status_ or status}: {int(p)}\% complete") # noqa
 
                 st.warning("waiting for existing inference to finish")
 
@@ -1158,7 +1158,7 @@ def _render_streamlit_fn(state: AppState):
 
             st.header("Create an ensemble of models")
             selected_models = st.multiselect(
-               "Select models for ensembling",
+               "Select models for ensembling", # noqa
                sorted(state.trained_models, reverse=True),
                help="Select which models you want to create an new ensemble model",
             )
