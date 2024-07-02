@@ -24,7 +24,7 @@ from lightning_pose_app.backend.video import (
     get_frames_from_idxs,
 )
 from lightning_pose_app.utilities import (
-    run_kmeans, 
+    run_kmeans,
     get_frame_number,
 )
 

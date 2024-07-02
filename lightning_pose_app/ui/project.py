@@ -435,17 +435,25 @@ class ProjectUI(LightningFlow):
 
         # remove zipped file and temporary extraction directory
         if finished_copy_files:
-            _logger.info(f"Attempting to delete zipped project file at {self.st_upload_existing_project_zippath}")
+            _logger.info(
+                f"Attempting to delete zipped project file at \
+                {self.st_upload_existing_project_zippath}"
+            )
             if os.path.exists(self.st_upload_existing_project_zippath):
                 try:
                     os.remove(self.st_upload_existing_project_zippath)
-                    _logger.info(f"Deleted zipped project file at {self.st_upload_existing_project_zippath}")
+                    _logger.info(
+                        f"Deleted zipped project file at {self.st_upload_existing_project_zippath}"
+                    )
                 except Exception as e:
                     _logger.error(f"Failed to delete zipped project file: {e}")
             else:
-                _logger.error(f"Zipped project file at {self.st_upload_existing_project_zippath} does not exist")
-            
-            _logger.info(f"Attempting to delete temporary extraction directory at {unzipped_dir}")    
+                _logger.error(
+                    f"Zipped project file at \
+                    {self.st_upload_existing_project_zippath} does not exist"
+                )
+
+            _logger.info(f"Attempting to delete temporary extraction directory at {unzipped_dir}")
             if os.path.isdir(unzipped_dir):
                 try:
                     shutil.rmtree(unzipped_dir)
@@ -460,7 +468,6 @@ class ProjectUI(LightningFlow):
 
         # update counter
         self.count_upload_existing += 1
-
 
     def _delete_project(self, **kwargs):
         # delete project locally
@@ -749,7 +756,7 @@ def _render_streamlit_fn(state: AppState):
                 filename = uploaded_file.name
                 filename_temp = filename.replace('.zip', '_temp.zip')
                 filepath = os.path.join(os.getcwd(), "data", filename_temp)
-                
+
                 # Ensure directory exists
                 if not os.path.exists(os.path.dirname(filepath)):
                     os.makedirs(os.path.dirname(filepath))
@@ -758,7 +765,7 @@ def _render_streamlit_fn(state: AppState):
                 if not os.path.exists(filepath):
                     with open(filepath, "wb") as f:
                         f.write(bytes_data)
-                
+
                 # check files
                 state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
                     filepath, project_type=st_prev_format)
