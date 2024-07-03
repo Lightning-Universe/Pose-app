@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import pandas as pd
+import csv
 
 from lightning_pose_app import (
     MODEL_VIDEO_PREDS_INFER_DIR,
@@ -258,3 +259,73 @@ def test_find_contextual_frames():
         result, is_context = find_contextual_frames(case["input"])
         assert result == case["expected_output"], f"Failed for input: {case['input']}"
         assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
+
+
+def create_test_csv_dict(tmpdir):
+    csv_path = os.path.join(tmpdir, "test_data.csv")
+
+    header_data = [
+        ["scorer", 'scorer1', 'scorer2', 'scorer3', 'scorer4', 'scorer5', 'scorer6'],
+        ['bodyparts', 'paw1LH_top', 'paw1LH_top', 'paw2LF_top', 'paw2LF_top',
+         'paw3RF_top', 'paw3RF_top'],
+        ['coords', 'x', 'y', 'x', 'y', 'x', 'y']
+    ]
+    scorer_data = [
+        'labeled-data/test_vid/img01.png',
+        'labeled-data/test_vid/img02.png'
+    ]
+    fixed_values = [
+        [1, 2, 3, 4, 5, 6],
+        [7, 8, 9, 10, 11, 12]
+    ]
+    data = [[scorer_data[i]] + fixed_values[i] for i in range(2)]
+    all_data = header_data + data
+
+    with open(csv_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(all_data)
+
+    result_dict = {}
+    for row in data:
+        frame_path = row[0]
+        frame_data = row[1:]
+        bodyparts_dict = {
+            'paw1LH_top': {'x': frame_data[0], 'y': frame_data[1]},
+            'paw2LF_top': {'x': frame_data[2], 'y': frame_data[3]},
+            'paw3RF_top': {'x': frame_data[4], 'y': frame_data[5]}
+        }
+        result_dict[frame_path] = {
+            'frame_full_path': os.path.join(tmpdir, frame_path),
+            'video': 'test_vid',
+            'frame_number': int(frame_path.split('img')[-1].split('.')[0]),
+            'bodyparts': bodyparts_dict
+        }
+
+    return csv_path, result_dict
+
+
+def test_convert_csv_to_dict(tmpdir):
+    from lightning_pose_app.backend.extract_frames import convert_csv_to_dict
+
+    # Create the CSV file and expected dictionary
+    csv_file, expected_output = create_test_csv_dict(tmpdir)
+
+    # Run the function without selected_body_parts
+    result = convert_csv_to_dict(csv_file)
+    assert result == expected_output, f"Expected {expected_output}, but got {result}"
+
+    selected_body_parts = ['paw1LH_top', 'paw3RF_top']
+
+    expected_output_selected = {}
+    for key, value in expected_output.items():
+        selected_bodyparts = {bp: value['bodyparts'][bp] for bp in selected_body_parts}
+        expected_output_selected[key] = {
+            'frame_full_path': value['frame_full_path'],
+            'video': value['video'],
+            'frame_number': value['frame_number'],
+            'bodyparts': selected_bodyparts
+        }
+
+    result_selected = convert_csv_to_dict(csv_file, selected_body_parts=selected_body_parts)
+    assert result_selected == expected_output_selected, \
+        f"Expected {expected_output_selected}, but got {result_selected}"

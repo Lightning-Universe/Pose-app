@@ -302,6 +302,7 @@ class ProjectUI(LightningFlow):
                         return root
 
         finished_copy_files = False
+        unzipped_dir = None
         try:
             if self.st_existing_project_format == "Lightning Pose":
 
@@ -405,7 +406,8 @@ class ProjectUI(LightningFlow):
                 finished_copy_files = True
 
             else:
-                raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
+                raise NotImplementedError("Can only import 'Lightning Pose', 'DLC' or \
+                    'SLEAP' projects")
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -750,8 +752,13 @@ def _render_streamlit_fn(state: AppState):
                 bytes_data = uploaded_file.read()
                 # name it
                 filename = uploaded_file.name
-                filename_temp = filename.replace(".zip", '_temp.zip')
+                filename_temp = filename.replace('.zip', '_temp.zip')
                 filepath = os.path.join(os.getcwd(), "data", filename_temp)
+
+                # Ensure directory exists
+                if not os.path.exists(os.path.dirname(filepath)):
+                    os.makedirs(os.path.dirname(filepath))
+
                 # write the content of the file to the path if it doesn't already exist
                 if not os.path.exists(filepath) and state.count_upload_existing_st == 0:
                     # the "state.count_upload_existing == 0" condition keeps us from reuploading
