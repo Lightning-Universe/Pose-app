@@ -163,11 +163,11 @@ def get_keypoints_from_pkg_slp(file_path: str) -> list:
     return keypoints
 
 
-def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose") -> list:
+def get_keypoints_from_zipfile(file_path: str, project_type: str = "Lightning Pose") -> list:
     if project_type not in ["DLC", "Lightning Pose"]:
         raise NotImplementedError
     keypoints = []
-    with zipfile.ZipFile(filepath) as z:
+    with zipfile.ZipFile(file_path) as z:
         for filename in z.namelist():
             if project_type in ["DLC", "Lightning Pose"]:
                 if filename.endswith('.csv'):

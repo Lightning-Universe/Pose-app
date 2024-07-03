@@ -86,7 +86,8 @@ class ProjectUI(LightningFlow):
         self.run_script = False
         self.update_models = False
         self.count = 0  # counter for external app
-        self.count_upload_existing = 0
+        self.count_upload_existing = 0  # counter for flow
+        self.count_upload_existing_st = 0  # counter for streamlit
         self.st_submits = 0  # counter for this streamlit app
         self.st_submits_delete = 0  # counter for this streamlit app
         self.initialized_projects = []
@@ -116,10 +117,6 @@ class ProjectUI(LightningFlow):
 
     @property
     def st_keypoints(self):
-        # if len(np.unique(self.st_keypoints_)) == len(self.st_keypoints_):
-        #     return self.st_keypoints_
-        # else:
-        #     return np.unique(self.st_keypoints_).tolist()  # hack to fix duplication bug
         kps = []
         for kp in self.st_keypoints_:
             if kp not in kps:
@@ -311,8 +308,7 @@ class ProjectUI(LightningFlow):
                 if not os.path.exists(self.st_upload_existing_project_zippath):
                     _logger.error(
                         f"Could not find zipped project file at \
-                        {self.st_upload_existing_project_zippath};"
-                        f" aborting"
+                        {self.st_upload_existing_project_zippath}; aborting"
                     )
                     return
 
@@ -351,8 +347,7 @@ class ProjectUI(LightningFlow):
                 if not os.path.exists(self.st_upload_existing_project_zippath):
                     _logger.error(
                         f"Could not find zipped project file at \
-                        {self.st_upload_existing_project_zippath};"
-                        f" aborting"
+                        {self.st_upload_existing_project_zippath}; aborting"
                     )
                     return
 
@@ -380,15 +375,14 @@ class ProjectUI(LightningFlow):
                 _logger.debug(f"Attempting to save collected data to {csv_file}")
                 df_all.to_csv(csv_file)
 
-                # flag finish coping all files
+                # flag finish copying all files
                 finished_copy_files = True
 
             elif self.st_existing_project_format == "SLEAP":
                 if not os.path.exists(self.st_upload_existing_project_slp):
                     _logger.error(
                         f"Could not find SLEAP project file at \
-                        {self.st_upload_existing_project_slp};"
-                        f" aborting"
+                        {self.st_upload_existing_project_slp}; aborting"
                     )
                     return
 
@@ -406,6 +400,9 @@ class ProjectUI(LightningFlow):
                 # Create a videos folder for future use
                 videos_dir = os.path.join(self.proj_dir_abs, 'videos')
                 os.makedirs(videos_dir, exist_ok=True)
+
+                # flag finish copying all files
+                finished_copy_files = True
 
             else:
                 raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
@@ -434,10 +431,20 @@ class ProjectUI(LightningFlow):
 
         # remove zipped file and temporary extraction directory
         if finished_copy_files:
-            if os.path.exists(self.st_upload_existing_project_zippath):
+            # DLC/Lightning Pose
+            if (
+                self.st_upload_existing_project_zippath is not None
+                and os.path.exists(self.st_upload_existing_project_zippath)
+            ):
                 os.remove(self.st_upload_existing_project_zippath)
-            if os.path.isdir(unzipped_dir):
-                shutil.rmtree(unzipped_dir)
+                if os.path.isdir(unzipped_dir):
+                    shutil.rmtree(unzipped_dir)
+            # SLEAP
+            if (
+                self.st_upload_existing_project_slp is not None
+                and os.path.exists(self.st_upload_existing_project_slp)
+            ):
+                os.remove(self.st_upload_existing_project_slp)
 
         # update config file with frame shapes
         self._update_frame_shapes()
@@ -520,6 +527,16 @@ class ProjectUI(LightningFlow):
         return StreamlitFrontend(render_fn=_render_streamlit_fn)
 
 
+@st.cache_data
+def get_keypoints_from_pkg_slp_(file_path):
+    return get_keypoints_from_pkg_slp(file_path)
+
+
+@st.cache_data
+def get_keypoints_from_zipfile_(file_path, project_type):
+    return get_keypoints_from_zipfile(file_path=file_path, project_type=project_type)
+
+
 def _render_streamlit_fn(state: AppState):
 
     # ----------------------------------------------------
@@ -535,19 +552,19 @@ def _render_streamlit_fn(state: AppState):
         st.write("##")
         st.write("**Need further help? Check the documentation**")
 
-        with st.expander("Link to docs"):
+        with st.expander("Links to docs"):
             st.markdown(
-                "App [documentation]"
+                "[Pose-app]"
                 "(https://pose-app.readthedocs.io/en/latest/source/tabs/manage_project.html#)",
                 unsafe_allow_html=True,
             )
             st.markdown(
-                "Lightning Pose [documentation]"
+                "[Lightning Pose]"
                 "(https://lightning-pose.readthedocs.io/en/latest/.html#)",
                 unsafe_allow_html=True,
             )
             st.markdown(
-                "Ensemble Kalman Smoother (EKS) [documentation]"
+                "[Ensemble Kalman Smoother (EKS)]"
                 "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",  # noqa
                 unsafe_allow_html=True,
             )
@@ -560,7 +577,7 @@ def _render_streamlit_fn(state: AppState):
             )
             st.markdown(
                 "Project exports only contain frames, labels, and the project config file."
-                "To download trained models or the results files from video inference, see [here]"
+                "To download trained models or the results files from video inference, see [here]."
                 "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#)",
                 unsafe_allow_html=True,
             )
@@ -711,20 +728,23 @@ def _render_streamlit_fn(state: AppState):
     # upload existing project
     # ----------------------------------------------------
     # initialize the file uploader
-
     if st_project_name and st_mode == UPLOAD_STR:
 
         st_prev_format = st.radio(
             "Select uploaded project format",
             options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: SLEAP, MARS?
-            help="Select the file format that the project is stored at."
-            " If DLC selected make sure the zipped folder has meet all reqierments"
+            help="Select the file format of the project to be uploaded. "
+                 "If DLC is selected, make sure the zipped folder meets all reqierments."
         )
         state.st_existing_project_format = st_prev_format
 
         if state.st_existing_project_format in ["DLC", "Lightning Pose"]:
             uploaded_file = st.file_uploader(
-                "Upload project in .zip file", type="zip", accept_multiple_files=False)
+                "Upload project in .zip file",
+                type="zip",
+                accept_multiple_files=False,
+                key="uploader_dlc_lp",
+            )
             if uploaded_file is not None:
                 # read it
                 bytes_data = uploaded_file.read()
@@ -733,43 +753,54 @@ def _render_streamlit_fn(state: AppState):
                 filename_temp = filename.replace(".zip", '_temp.zip')
                 filepath = os.path.join(os.getcwd(), "data", filename_temp)
                 # write the content of the file to the path if it doesn't already exist
-                if not os.path.exists(filepath):
+                if not os.path.exists(filepath) and state.count_upload_existing_st == 0:
+                    # the "state.count_upload_existing == 0" condition keeps us from reuploading
+                    # this file after we've created the LP dataset and deleted the uploaded file
                     with open(filepath, "wb") as f:
                         f.write(bytes_data)
-                # check files
-                state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
-                    filepath, project_type=st_prev_format)
+                    # check files
+                    state.st_error_flag, state.st_error_msg = check_files_in_zipfile(
+                        filepath=filepath,
+                        project_type=st_prev_format,
+                    )
                 # grab keypoint names
-                st_keypoints = get_keypoints_from_zipfile(filepath, project_type=st_prev_format)
+                st_keypoints = get_keypoints_from_zipfile_(
+                    file_path=filepath,
+                    project_type=st_prev_format,
+                )
                 # update relevant vars
-
                 state.st_upload_existing_project_zippath = filepath
                 enter_data = True
                 st_mode = CREATE_STR
+                state.count_upload_existing_st += 1
 
         elif state.st_existing_project_format == "SLEAP":
             uploaded_file = st.file_uploader(
                 "Upload project in .pkg.slp file",
                 type="pkg.slp",
                 accept_multiple_files=False,
-                key="uploader2"
+                key="uploader_sleap",
             )
-
             if uploaded_file is not None:
+                # read it
                 bytes_data = uploaded_file.read()
+                # name it
                 filename = uploaded_file.name
                 filename_temp = filename.replace(".pkg.slp", '_temp.pkg.slp')
                 filepath = os.path.join(os.getcwd(), "data", filename_temp)
                 # write the content of the file to the path if it doesn't already exist
-                if not os.path.exists(filepath):
+                if not os.path.exists(filepath) and state.count_upload_existing_st == 0:
+                    # the "state.count_upload_existing == 0" condition keeps us from reuploading
+                    # this file after we've created the LP dataset and deleted the uploaded file
                     with open(filepath, "wb") as f:
                         f.write(bytes_data)
-
-                st_keypoints = get_keypoints_from_pkg_slp(filepath)
-
+                # grab keypoint names
+                st_keypoints = get_keypoints_from_pkg_slp_(filepath)
+                # update relevant vars
                 state.st_upload_existing_project_slp = filepath
                 enter_data = True
                 st_mode = CREATE_STR
+                state.count_upload_existing_st += 1
 
         st.caption(
             "If your zip file is larger than the 200MB limit, see the [FAQ]"
@@ -795,8 +826,7 @@ def _render_streamlit_fn(state: AppState):
         for kp in st_keypoints_:
             if kp not in st_keypoints:
                 st_keypoints.append(kp)
-        # if we are uploading existing project, we don't want to sort via np.unique, need to keep
-        # keypoints in the correct order
+
     st_n_keypoints = state.st_n_keypoints
     st_pcasv_columns = np.array(state.st_pcasv_columns, dtype=np.int32)
     st_pcamv_columns = np.array(state.st_pcamv_columns, dtype=np.int32)
