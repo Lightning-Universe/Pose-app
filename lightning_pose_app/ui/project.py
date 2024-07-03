@@ -458,7 +458,6 @@ class ProjectUI(LightningFlow):
                     _logger.error(f"Failed to delete temporary extraction directory: {e}")
             else:
                 _logger.error(f"Temporary extraction directory at {unzipped_dir} does not exist")
-                
 
         # update config file with frame shapes
         self._update_frame_shapes()
