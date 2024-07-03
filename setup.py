@@ -26,7 +26,7 @@ with open("README.md", "r") as fh:
 
 install_requires = [
     "lightning[app]==2.2.5",
-    "ensemble-kalman-smoother==1.1.0",
+    "ensemble-kalman-smoother==2.0.1",
     "numpy",
     "opencv-python-headless",
     "pandas",
