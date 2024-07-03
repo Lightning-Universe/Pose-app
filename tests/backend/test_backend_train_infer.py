@@ -111,3 +111,13 @@ def test_make_labeled_video(video_file, video_file_pred_df, tmpdir):
         confidence_thresh=0.0,
     )
     assert os.path.isfile(save_file)
+
+
+def test_make_cmap():
+
+    from lightning_pose_app.backend.train_infer import make_cmap
+
+    n_colors_list = [4, 5, 6]
+    for n_colors in n_colors_list:
+        cmap = make_cmap(number_colors=n_colors)
+        assert cmap.shape == (n_colors, 3)

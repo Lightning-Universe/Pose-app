@@ -281,7 +281,7 @@ def select_frame_idxs_model(
     return np.array(idxs_selected)
 
 
-def find_contextual_frames(frame_numbers):
+def find_contextual_frames(frame_numbers: list) -> tuple:
     sorted_nums = sorted(frame_numbers)
     result_frames = []
 
