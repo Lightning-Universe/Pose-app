@@ -469,11 +469,6 @@ def zip_annotated_images(labeled_data_check_path):
     return zip_buffer
 
 
-# @st.cache_data(show_spinner=False)
-# def load_image(image_path: str) -> Image:
-#     return Image.open(image_path)
-
-
 @st.cache_data(show_spinner=False)
 def get_all_images(frame_paths: list) -> dict:
     images = {}

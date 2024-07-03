@@ -1158,7 +1158,7 @@ def _render_streamlit_fn(state: AppState):
 
             st.header("Create an ensemble of models")
             selected_models = st.multiselect(
-               "Select models for ensembling", # noqa
+               "Select models for ensembling",
                sorted(state.trained_models, reverse=True),
                help="Select which models you want to create an new ensemble model",
             )
