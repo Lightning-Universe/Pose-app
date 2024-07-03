@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 import torch
 import yaml
-from eks.singleview_smoother import ensemble_kalman_smoother_single_view
+from eks.singlecam_smoother import ensemble_kalman_smoother_singlecam
 from eks.utils import convert_lp_dlc, make_output_dataframe, populate_output_dataframe
 from lightning.app import CloudCompute, LightningFlow, LightningWork
 from lightning.app.structures import Dict
@@ -305,29 +305,46 @@ class LitPose(LightningWork):
         # -----------------------------------------
         # run eks
         # -----------------------------------------
-        self.status_ = "running eks"
-        self.progress = 0.0
+        self.status_ = "finding optimal smoothing parameter"
+        self.progress = 50.0
 
         # make empty dataframe for eks outputs
         df_eks = make_output_dataframe(preds_df)  # make from unformatted dataframe
 
-        # loop over keypoints; apply eks to each individually
-        for k, keypoint_name in enumerate(keypoints_to_smooth):
-            # run eks
-            keypoint_df_dict, s_final, nll_values = ensemble_kalman_smoother_single_view(
-                markers_list=dfs,
-                keypoint_ensemble=keypoint_name,
-                smooth_param=smooth_param,  # default (None) is to compute automatically
-            )
-            keypoint_df = keypoint_df_dict[keypoint_name + '_df']  # make cleaner 2
+        # Convert list of DataFrames to a 3D NumPy array
+        data_arrays = [df.to_numpy() for df in dfs]
+        markers_3d_array = np.stack(data_arrays, axis=0)
 
+        # Map keypoint names to keys in dfs and crop markers_3d_array
+        keypoint_is = {}
+        keys = []
+        for i, col in enumerate(dfs[0].columns):
+            keypoint_is[col] = i
+        for part in keypoints_to_smooth:
+            keys.append(keypoint_is[part + '_x'])
+            keys.append(keypoint_is[part + '_y'])
+            keys.append(keypoint_is[part + '_likelihood'])
+        key_cols = np.array(keys)
+        markers_3d_array = markers_3d_array[:, :, key_cols]
+
+        # Call the smoother function
+        df_dicts, s_finals = ensemble_kalman_smoother_singlecam(
+            markers_3d_array=markers_3d_array,
+            bodypart_list=keypoints_to_smooth,
+            smooth_param=smooth_param,  # default (None) is to compute automatically
+            s_frames=[(0, min(10000, markers_3d_array.shape[0]))],  # optimize on first 10k frames
+        )
+
+        self.status_ = "running eks"
+        self.progress = 0.0
+        for k, keypoint_name in enumerate(keypoints_to_smooth):
+            keypoint_df = df_dicts[k][keypoint_name + '_df']
             # put results into new dataframe
             df_eks = populate_output_dataframe(
                 keypoint_df,
                 keypoint_name,
                 df_eks,
             )
-
             self.progress = (k + 1.0) / len(keypoints_to_smooth) * 100.0
 
         # -----------------------------------------
@@ -1209,5 +1226,8 @@ def create_ensemble_directory(ensemble_dir: str, model_dirs: list):
     text_file_path = os.path.join(ensemble_dir, ENSEMBLE_MEMBER_FILENAME)
     with open(text_file_path, 'w') as file:
         file.writelines(f"{path}\n" for path in model_dirs)
+
+    # save empty predictions.csv file so that `find_models` function will find this
+    os.mknod(os.path.join(ensemble_dir, "predictions.csv"))
 
     return text_file_path

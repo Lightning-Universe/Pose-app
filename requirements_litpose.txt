@@ -21,3 +21,4 @@ torchtyping==0.1.4
 torchvision==0.18.1
 typeguard==4.3.0
 typing==3.7.4.3
+optax==0.1.7

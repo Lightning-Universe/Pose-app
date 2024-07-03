@@ -315,7 +315,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     flow.work_is_done_inference = False
     flow.work_is_done_eks = False
     # NOTE: this will launch EKS as well
-    flow.run(action="run_inference", video_files=[video_file], smooth_param=1.0, testing=True)
+    flow.run(action="run_inference", video_files=[video_file], smooth_param=None, testing=True)
 
     # check flow state
     assert len(flow.st_infer_status) == 3  # one for eks, one for each of the two ensemble members

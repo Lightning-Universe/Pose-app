@@ -619,7 +619,6 @@ def _render_streamlit_fn(state: AppState):
              "for your new project, continue work on an ongoing lightning pose project, or remove "
              "a project from your projects."
     )
-    st.text(f"Available projects: {state.initialized_projects}")
 
     if st_mode == LOAD_STR:
         st_project_name = st.selectbox(
@@ -638,6 +637,7 @@ def _render_streamlit_fn(state: AppState):
             value="" if (not state.st_project_loaded or state.st_reset_project_name)
             else state.st_project_name
         )
+        st.text(f"Available projects: {state.initialized_projects}")
         state.st_delete_project = False  # extra insurance, keep this!
 
     # ----------------------------------------------------
