@@ -408,8 +408,11 @@ class ProjectUI(LightningFlow):
                 videos_dir = os.path.join(self.proj_dir_abs, 'videos')
                 os.makedirs(videos_dir, exist_ok=True)
 
+                finished_copy_files = True
+
             else:
-                raise NotImplementedError("Can only import 'Lightning Pose' or 'DLC' projects")
+                raise NotImplementedError("Can only import 'Lightning Pose', 'DLC' or \
+                    'SLEAP' projects")
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -463,6 +466,19 @@ class ProjectUI(LightningFlow):
             else:
                 _logger.error(f"Temporary extraction directory at {unzipped_dir} does not exist")
 
+            # if os.path.exists(self.st_upload_existing_project_slp) is not None:
+            #     try:
+            #         os.remove(self.st_upload_existing_project_slp)
+            #         _logger.info(
+            #             f"Deleted zipped project file at {self.st_upload_existing_project_slp}"
+            #         )
+            #     except Exception as e:
+            #         _logger.error(f"Failed to delete slp project file: {e}")
+            # else:
+            #     _logger.error(
+            #         f"Slp project file at \
+            #         {self.st_upload_existing_project_slp} does not exist"
+            #     )
         # update config file with frame shapes
         self._update_frame_shapes()
 

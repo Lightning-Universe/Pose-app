@@ -261,8 +261,9 @@ def test_find_contextual_frames():
         assert is_context == case["expected_is_context"], f"Failed for input: {case['input']}"
 
 
-# Mock CSV content similar to the uploaded file structure
-def create_test_csv(file_path):
+def create_test_csv_dict(tmpdir):
+    file_path = os.path.join(tmpdir, "test_data.csv")
+    
     header_data = [
         ["scorer", 'scorer1', 'scorer2', 'scorer3', 'scorer4', 'scorer5', 'scorer6'],
         ['bodyparts', 'paw1LH_top', 'paw1LH_top', 'paw2LF_top', 'paw2LF_top',
@@ -284,66 +285,47 @@ def create_test_csv(file_path):
         writer = csv.writer(file)
         writer.writerows(all_data)
 
+    result_dict = {}
+    for row in data:
+        frame_path = row[0]
+        frame_data = row[1:]
+        bodyparts_dict = {
+            'paw1LH_top': {'x': frame_data[0], 'y': frame_data[1]},
+            'paw2LF_top': {'x': frame_data[2], 'y': frame_data[3]},
+            'paw3RF_top': {'x': frame_data[4], 'y': frame_data[5]}
+        }
+        result_dict[frame_path] = {
+            'frame_full_path': os.path.join(tmpdir, frame_path),
+            'video': 'test_vid',
+            'frame_number': int(frame_path.split('img')[-1].split('.')[0]),
+            'bodyparts': bodyparts_dict
+        }
+
+    return file_path, result_dict
+
 
 def test_convert_csv_to_dict(tmpdir):
     from lightning_pose_app.backend.extract_frames import convert_csv_to_dict
-
-    # Create the CSV file in the temporary directory
-    csv_file = os.path.join(tmpdir, "test_data.csv")
-    create_test_csv(csv_file)
-
-    # Expected output without selected_body_parts
-    expected_output = {
-        'labeled-data/test_vid/img01.png': {
-            'frame_full_path': os.path.join(tmpdir, 'labeled-data/test_vid/img01.png'),
-            'video': 'test_vid',
-            'frame_number': 1,
-            'bodyparts': {
-                'paw1LH_top': {'x': 1, 'y': 2},
-                'paw2LF_top': {'x': 3, 'y': 4},
-                'paw3RF_top': {'x': 5, 'y': 6}
-            }
-        },
-        'labeled-data/test_vid/img02.png': {
-            'frame_full_path': os.path.join(tmpdir, 'labeled-data/test_vid/img02.png'),
-            'video': 'test_vid',
-            'frame_number': 2,
-            'bodyparts': {
-                'paw1LH_top': {'x': 7, 'y': 8},
-                'paw2LF_top': {'x': 9, 'y': 10},
-                'paw3RF_top': {'x': 11, 'y': 12}
-            }
-        }
-    }
+    
+    # Create the CSV file and expected dictionary
+    csv_file, expected_output = create_test_csv_dict(tmpdir)
 
     # Run the function without selected_body_parts
     result = convert_csv_to_dict(csv_file)
-    print(result)
-    assert result == expected_output
+    assert result == expected_output, f"Expected {expected_output}, but got {result}"
 
-    # Expected output with selected_body_parts
     selected_body_parts = ['paw1LH_top', 'paw3RF_top']
-    expected_output_selected = {
-        'labeled-data/test_vid/img01.png': {
-            'frame_full_path': os.path.join(tmpdir, 'labeled-data/test_vid/img01.png'),
-            'video': 'test_vid',
-            'frame_number': 1,
-            'bodyparts': {
-                'paw1LH_top': {'x': 1, 'y': 2},
-                'paw3RF_top': {'x': 5, 'y': 6}
-            }
-        },
-        'labeled-data/test_vid/img02.png': {
-            'frame_full_path': os.path.join(tmpdir, 'labeled-data/test_vid/img02.png'),
-            'video': 'test_vid',
-            'frame_number': 2,
-            'bodyparts': {
-                'paw1LH_top': {'x': 7, 'y': 8},
-                'paw3RF_top': {'x': 11, 'y': 12}
-            }
-        }
-    }
 
-    # Run the function with selected_body_parts
+    expected_output_selected = {}
+    for key, value in expected_output.items():
+        selected_bodyparts = {bp: value['bodyparts'][bp] for bp in selected_body_parts}
+        expected_output_selected[key] = {
+            'frame_full_path': value['frame_full_path'],
+            'video': value['video'],
+            'frame_number': value['frame_number'],
+            'bodyparts': selected_bodyparts
+        }
+
     result_selected = convert_csv_to_dict(csv_file, selected_body_parts=selected_body_parts)
-    assert result_selected == expected_output_selected
+    assert result_selected == expected_output_selected, \
+    f"Expected {expected_output_selected}, but got {result_selected}"
