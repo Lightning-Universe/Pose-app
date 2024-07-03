@@ -262,8 +262,8 @@ def test_find_contextual_frames():
 
 
 def create_test_csv_dict(tmpdir):
-    file_path = os.path.join(tmpdir, "test_data.csv")
-    
+    csv_path = os.path.join(tmpdir, "test_data.csv")
+
     header_data = [
         ["scorer", 'scorer1', 'scorer2', 'scorer3', 'scorer4', 'scorer5', 'scorer6'],
         ['bodyparts', 'paw1LH_top', 'paw1LH_top', 'paw2LF_top', 'paw2LF_top',
@@ -281,7 +281,7 @@ def create_test_csv_dict(tmpdir):
     data = [[scorer_data[i]] + fixed_values[i] for i in range(2)]
     all_data = header_data + data
 
-    with open(file_path, 'w', newline='') as file:
+    with open(csv_path, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(all_data)
 
@@ -301,12 +301,12 @@ def create_test_csv_dict(tmpdir):
             'bodyparts': bodyparts_dict
         }
 
-    return file_path, result_dict
+    return csv_path, result_dict
 
 
 def test_convert_csv_to_dict(tmpdir):
     from lightning_pose_app.backend.extract_frames import convert_csv_to_dict
-    
+
     # Create the CSV file and expected dictionary
     csv_file, expected_output = create_test_csv_dict(tmpdir)
 
@@ -328,4 +328,4 @@ def test_convert_csv_to_dict(tmpdir):
 
     result_selected = convert_csv_to_dict(csv_file, selected_body_parts=selected_body_parts)
     assert result_selected == expected_output_selected, \
-    f"Expected {expected_output_selected}, but got {result_selected}"
+        f"Expected {expected_output_selected}, but got {result_selected}"
