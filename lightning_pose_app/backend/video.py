@@ -42,7 +42,11 @@ def reencode_video(input_file: str, output_file: str) -> None:
     assert os.path.isfile(input_file), "input video does not exist."
     # check directory for saving outputs exists
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    ffmpeg_cmd = f'ffmpeg -i {input_file} -c:v libx264 -pix_fmt yuv420p -c:a copy -y {output_file}'
+    ffmpeg_cmd = (
+        f'ffmpeg -i {input_file} '
+        f'-vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p '
+        f'-c:a copy -y {output_file}'
+    )
     subprocess.run(ffmpeg_cmd, shell=True)
 
 

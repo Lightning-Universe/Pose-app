@@ -28,7 +28,7 @@ def extract_video_names_from_pkg_slp(hdf_file: str) -> dict:
     return video_names
 
 
-def extract_frames_from_pkg_slp(file_path: str, base_output_dir: str):
+def extract_frames_from_pkg_slp(file_path: str, base_output_dir: str) -> None:
     # Extract frames from pkg.slp file to an output folder
     with h5py.File(file_path, 'r') as hdf_file:
 
@@ -163,11 +163,11 @@ def get_keypoints_from_pkg_slp(file_path: str) -> list:
     return keypoints
 
 
-def get_keypoints_from_zipfile(filepath: str, project_type: str = "Lightning Pose") -> list:
+def get_keypoints_from_zipfile(file_path: str, project_type: str = "Lightning Pose") -> list:
     if project_type not in ["DLC", "Lightning Pose"]:
         raise NotImplementedError
     keypoints = []
-    with zipfile.ZipFile(filepath) as z:
+    with zipfile.ZipFile(file_path) as z:
         for filename in z.namelist():
             if project_type in ["DLC", "Lightning Pose"]:
                 if filename.endswith('.csv'):
@@ -318,7 +318,7 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
     return missing_items
 
 
-def find_models(model_dir) -> list:
+def find_models(model_dir: str, must_contain_predictions: bool = True) -> list:
     trained_models = []
     # this returns a list of model training days
     dirs_day = os.listdir(model_dir)
@@ -328,5 +328,11 @@ def find_models(model_dir) -> list:
         dirs_time = os.listdir(fullpath1)
         for dir_time in dirs_time:
             fullpath2 = os.path.join(fullpath1, dir_time)
+            if (
+                must_contain_predictions
+                and not os.path.exists(os.path.join(fullpath2, "predictions.csv"))
+            ):
+                # skip this model folder if it does not contain predictions.csv file
+                continue
             trained_models.append('/'.join(fullpath2.split('/')[-2:]))
     return trained_models

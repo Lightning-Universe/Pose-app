@@ -112,9 +112,9 @@ def test_project_ui(root_dir, tmp_proj_dir):
             assert flow.config_dict[key1][key2] == val2
             assert config_dict_saved[key1][key2] == val2
 
-    # -------------------
-    # test update shapes
-    # -------------------
+    # -----------------------
+    # test labeled frame frac
+    # -----------------------
     # should return None if no label studio metadata file
     metadata_file = os.path.join(root_dir, tmp_proj_dir, LABELSTUDIO_METADATA_FILENAME)
     flow.run(action="compute_labeled_frame_fraction")
@@ -146,16 +146,23 @@ def test_project_ui(root_dir, tmp_proj_dir):
     # -------------------
     # test find models
     # -------------------
-    m1 = "00-11-22/33-44-55"
-    m2 = "aa-bb-cc/dd-ee-ff"
-    m1_path = os.path.join(root_dir, tmp_proj_dir, MODELS_DIR, m1)
-    m2_path = os.path.join(root_dir, tmp_proj_dir, MODELS_DIR, m2)
-    os.makedirs(m1_path, exist_ok=True)
-    os.makedirs(m2_path, exist_ok=True)
+    models = {
+        "00-11-22/33-44-55": True,
+        "aa-bb-cc/dd-ee-ff": True,
+        "11-22-33/44-55-66": False,
+    }
+    n_trained = 0
+    for model, is_trained in models.items():
+        model_path = os.path.join(root_dir, tmp_proj_dir, MODELS_DIR, model)
+        os.makedirs(model_path, exist_ok=True)
+        if is_trained:
+            os.mknod(os.path.join(model_path, "predictions.csv"))
+            n_trained += 1
     flow.run(action="update_trained_models_list")
-    assert len(flow.trained_models) == 2
-    assert m1 in flow.trained_models
-    assert m2 in flow.trained_models
+    assert len(flow.trained_models) == n_trained
+    for model, is_trained in models.items():
+        if is_trained:
+            assert model in flow.trained_models
 
     # -------------------
     # test upload existing
