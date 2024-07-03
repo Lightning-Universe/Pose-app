@@ -734,7 +734,7 @@ def _render_streamlit_fn(state: AppState):
 
         st_prev_format = st.radio(
             "Select uploaded project format",
-            options=["DLC", "Lightning Pose", "SLEAP"],  # TODO: SLEAP, MARS?
+            options=["DLC", "Lightning Pose", "SLEAP"],
             help="Select the file format of the project to be uploaded. "
                  "If DLC is selected, make sure the zipped folder meets all reqierments."
         )
