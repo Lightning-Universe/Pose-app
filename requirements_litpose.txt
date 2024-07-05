@@ -7,6 +7,7 @@ kornia==0.7.2
 lightning
 matplotlib==3.9.0
 moviepy==1.0.3
+numpy<2.0.0
 nvidia-dali-cuda110  # freeze this to be cuda 11 for now
 opencv-python-headless==4.8.1.78
 pandas==2.2.2
