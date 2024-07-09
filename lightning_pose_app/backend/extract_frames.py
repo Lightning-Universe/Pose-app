@@ -57,7 +57,7 @@ def read_nth_frames(
                 # If the frame was successfully read, then process it
                 if frame_counter % n == 0:
                     frame_resize = cv2.resize(frame, (resize_dims, resize_dims))
-                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2GRAY)
+                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
                     frames.append(frame_gray.astype(np.float16))
                 frame_counter += 1
                 progress = frame_counter / frame_total * 100.0
@@ -344,7 +344,7 @@ def export_frames(
     for frame, idx in zip(frames, frame_idxs):
         cv2.imwrite(
             filename=os.path.join(save_dir, "img%s.%s" % (str(idx).zfill(n_digits), format)),
-            img=frame[0],
+            img=cv2.cvtColor(frame.transpose(1, 2, 0), cv2.COLOR_RGB2BGR),
         )
 
 
