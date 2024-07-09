@@ -401,17 +401,13 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
 
         # Get a list of unique body parts and determine colors
         unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
-        unique_views = list(set([label.split('_')[1] for label in annotations.keys()]))
 
         color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))
         bodypart_colors = {bodypart: color_map(i) for i, bodypart in enumerate(unique_bodyparts)}
 
-        # Create suffix_marker_map dynamically
         markers = ['o', '^', 's', 'p', '*', 'x', 'd', 'v', '<', '>']
-        suffix_marker_map = {
-            view: markers[i % len(markers)]
-            for i, view
-            in enumerate(unique_views)
+        bodypart_markers = {
+            bodypart: markers[i % len(markers)] for i, bodypart in enumerate(unique_bodyparts)
         }
 
         img_width, img_height = image.size
@@ -428,9 +424,8 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                     continue
 
                 bodypart = label.split('_')[0]
-                view = label.split('_')[1]
                 color = bodypart_colors[bodypart]
-                marker = suffix_marker_map[view]
+                marker = bodypart_markers[bodypart]
 
                 ax.plot(x, y, marker, color=color, markersize=3)
 
