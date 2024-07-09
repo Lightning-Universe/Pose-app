@@ -411,7 +411,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         }
 
         img_width, img_height = image.size
-        font_size = max(6, min(img_width, img_height) // 50)
+        font_size = max(6, min(img_width, img_height) // 100)
 
         for label, coords in annotations.items():
             try:
@@ -440,7 +440,9 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         frame_number = int(get_frame_number(image_path)[0])
 
         title_text = f'Video: {video} | Frame: {frame_number}'
-        ax.set_title(title_text, fontsize=font_size, pad=15)
+        title_font_size = max(8, int(img_width * 0.04))
+        
+        ax.set_title(title_text, fontsize=12, pad=15)
         ax.axis('off')
 
         # Ensure the output directory exists
