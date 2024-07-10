@@ -15,7 +15,7 @@ def test_read_nth_frames(video_file):
 
     resize_dims = 8
     frames = read_nth_frames(video_file=video_file, n=10, resize_dims=resize_dims)
-    assert frames.shape == (100, resize_dims, resize_dims)
+    assert frames.shape == (100, resize_dims, resize_dims, 3)
 
 
 def test_select_idxs_kmeans(video_file):
