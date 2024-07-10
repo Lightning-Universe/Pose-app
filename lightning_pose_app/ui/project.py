@@ -597,7 +597,7 @@ def _render_streamlit_fn(state: AppState):
                 else:
                     if 'zip_filepath' not in st.session_state:
                         st.session_state.zip_filepath = None
-                    if st.button("Zip Project Files",):
+                    if st.button("Zip Project Files"):
                         try:
                             st.session_state.zip_filepath = zip_project_for_export(proj_dir)
                             st.success(
