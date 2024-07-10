@@ -400,7 +400,8 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         ax.imshow(image)
 
         # Get a list of unique body parts and determine colors
-        unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
+        #unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
+        unique_bodyparts = list(set(annotations.keys()))
 
         color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))
         bodypart_colors = {bodypart: color_map(i) for i, bodypart in enumerate(unique_bodyparts)}
@@ -423,7 +424,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                     _logger.warning(f"Missing x or y in annotation for {label}")
                     continue
 
-                bodypart = label.split('_')[0]
+                bodypart = label#.split('_')[0]
                 color = bodypart_colors[bodypart]
                 marker = bodypart_markers[bodypart]
 
