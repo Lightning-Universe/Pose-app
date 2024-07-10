@@ -578,9 +578,10 @@ def _render_streamlit_fn(state: AppState):
                 sorted(state.initialized_projects)
             )
             st.markdown(
-                "Project exports only contain frames, labels, and the project config file."
-                "To download trained models or the results files from video inference, see [here]."
-                "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#)",
+                "Project exports only contain frames, labels, and the project config file. "
+                "To download trained models or the results files from video inference, see "
+                "[here]"
+                "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#).",
                 unsafe_allow_html=True,
             )
 
@@ -594,20 +595,26 @@ def _render_streamlit_fn(state: AppState):
                         "Please label some frames before attempting to download the project."
                     )
                 else:
-                    try:
-                        zip_filepath = zip_project_for_export(proj_dir)
-                        # Add download botton
-                        with open(zip_filepath, "rb") as f:
+                    if 'zip_filepath' not in st.session_state:
+                        st.session_state.zip_filepath = None
+                    if st.button("Zip Project Files"):
+                        try:
+                            st.session_state.zip_filepath = zip_project_for_export(proj_dir)
+                            st.success(
+                                "Project files are zipped and ready. Press the button below to "
+                                "download the zipped files."
+                            )
+                        except FileNotFoundError as e:
+                            st.error(str(e))
+                    if st.session_state.zip_filepath:
+                        with open(st.session_state.zip_filepath, "rb") as f:
                             st.download_button(
                                 label="Download Project",
                                 data=f,
-                                file_name=os.path.basename(zip_filepath)
+                                file_name=os.path.basename(st.session_state.zip_filepath)
                             )
-                        os.remove(zip_filepath)
-
-                    except FileNotFoundError as e:
-                        st.error(str(e))
-
+                        os.remove(st.session_state.zip_filepath)
+                        st.session_state.zip_filepath = None
     st.header("Manage Lightning Pose projects")
 
     st_mode = st.radio(

@@ -57,7 +57,7 @@ def read_nth_frames(
                 # If the frame was successfully read, then process it
                 if frame_counter % n == 0:
                     frame_resize = cv2.resize(frame, (resize_dims, resize_dims))
-                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2GRAY)
+                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
                     frames.append(frame_gray.astype(np.float16))
                 frame_counter += 1
                 progress = frame_counter / frame_total * 100.0
@@ -344,7 +344,7 @@ def export_frames(
     for frame, idx in zip(frames, frame_idxs):
         cv2.imwrite(
             filename=os.path.join(save_dir, "img%s.%s" % (str(idx).zfill(n_digits), format)),
-            img=frame[0],
+            img=cv2.cvtColor(frame.transpose(1, 2, 0), cv2.COLOR_RGB2BGR),
         )
 
 
@@ -394,28 +394,28 @@ def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict
 
 def annotate_frames(image_path: str, annotations: dict, output_path: str):
     try:
-        image = Image.open(image_path).convert('L')
+        image = Image.open(image_path)
+        # Convert image to RGB if necessary
+        if image.mode == 'L':
+            image = image.convert('L')
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+
         fig, ax = plt.subplots()
-
-        ax.imshow(image, cmap="gray")
-
-        # Get a list of unique body parts and determine colors
-        unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
-        unique_views = list(set([label.split('_')[1] for label in annotations.keys()]))
+        ax.imshow(image, cmap='gray' if image.mode == 'L' else None)
+        # Get a list of unique body parts
+        unique_bodyparts = list(set(annotations.keys()))
 
         color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))
         bodypart_colors = {bodypart: color_map(i) for i, bodypart in enumerate(unique_bodyparts)}
 
-        # Create suffix_marker_map dynamically
         markers = ['o', '^', 's', 'p', '*', 'x', 'd', 'v', '<', '>']
-        suffix_marker_map = {
-            view: markers[i % len(markers)]
-            for i, view
-            in enumerate(unique_views)
+        bodypart_markers = {
+            bodypart: markers[i % len(markers)] for i, bodypart in enumerate(unique_bodyparts)
         }
 
         img_width, img_height = image.size
-        font_size = max(6, min(img_width, img_height) // 50)
+        font_size = max(6, min(img_width, img_height) // 100)
 
         for label, coords in annotations.items():
             try:
@@ -427,10 +427,9 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                     _logger.warning(f"Missing x or y in annotation for {label}")
                     continue
 
-                bodypart = label.split('_')[0]
-                view = label.split('_')[1]
+                bodypart = label
                 color = bodypart_colors[bodypart]
-                marker = suffix_marker_map[view]
+                marker = bodypart_markers[bodypart]
 
                 ax.plot(x, y, marker, color=color, markersize=3)
 
@@ -445,7 +444,8 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         frame_number = int(get_frame_number(image_path)[0])
 
         title_text = f'Video: {video} | Frame: {frame_number}'
-        ax.set_title(title_text, fontsize=font_size, pad=15)
+
+        ax.set_title(title_text, fontsize=10, pad=15)
         ax.axis('off')
 
         # Ensure the output directory exists

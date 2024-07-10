@@ -50,7 +50,7 @@ def test_get_frames_from_idxs(video_file):
     n_frames = 3
     frames = get_frames_from_idxs(cap, np.arange(n_frames))
     cap.release()
-    assert frames.shape == (n_frames, 1, 406, 396)
+    assert frames.shape == (n_frames, 3, 406, 396)
     assert frames.dtype == np.uint8
 
 

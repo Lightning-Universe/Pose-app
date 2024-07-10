@@ -82,46 +82,51 @@ def _render_streamlit_fn(state: AppState):
             )
             st.divider()
             # Add a section to download results files
-            video_name = extract_video_name(selected_video)
-            results_files = list_results_files(video_name, model_dir, selected_model)
+            if selected_video:
+                video_name = extract_video_name(selected_video)
+                results_files = list_results_files(video_name, model_dir, selected_model)
 
-            if results_files:
-                selected_result_files = st.multiselect(
-                    "**Step 3:** Select results files to download", list(results_files.keys())
-                )
-                if selected_result_files:
-                    if len(selected_result_files) == 1:
-                        selected_result_file = results_files[selected_result_files[0]]
-                        new_file_name = f"{selected_model}_{video_name}_{selected_result_files[0]}"
-                        with open(selected_result_file, "rb") as file:
-                            st.download_button(
-                                label="Download File",
-                                data=file,
-                                file_name=new_file_name
+                if results_files:
+                    selected_result_files = st.multiselect(
+                        "**Step 3:** Select results files to download", list(results_files.keys())
+                    )
+                    if selected_result_files:
+                        if len(selected_result_files) == 1:
+                            selected_result_file = results_files[selected_result_files[0]]
+                            new_file_name = (
+                                f"{selected_model}_{video_name}_{selected_result_files[0]}"
                             )
-                    else:
-                        st.warning(
-                            "If you select more than one file, they will be downloaded "
-                            "together as a ZIP folder"
-                        )
-                        # Create a zip file
-                        zip_buffer = BytesIO()
-                        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                            for result_file_name in selected_result_files:
-                                result_file_path = results_files[result_file_name]
-                                new_file_name = f"{selected_model}_{video_name}_{result_file_name}"
-                                with open(result_file_path, "rb") as file:
-                                    zip_file.writestr(new_file_name, file.read())
-                        zip_buffer.seek(0)
-                        zip_file_name = f"results_{selected_model}_{video_name}.zip"
-                        st.download_button(
-                            label="Download Files",
-                            data=zip_buffer,
-                            file_name=zip_file_name,
-                            mime="application/zip"
-                        )
-            else:
-                st.write("No results files available for this video.")
+                            with open(selected_result_file, "rb") as file:
+                                st.download_button(
+                                    label="Download File",
+                                    data=file,
+                                    file_name=new_file_name
+                                )
+                        else:
+                            st.warning(
+                                "If you select more than one file, they will be downloaded "
+                                "together as a ZIP folder"
+                            )
+                            # Create a zip file
+                            zip_buffer = BytesIO()
+                            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                                for result_file_name in selected_result_files:
+                                    result_file_path = results_files[result_file_name]
+                                    new_file_name = (
+                                        f"{selected_model}_{video_name}_{result_file_name}"
+                                    )
+                                    with open(result_file_path, "rb") as file:
+                                        zip_file.writestr(new_file_name, file.read())
+                            zip_buffer.seek(0)
+                            zip_file_name = f"results_{selected_model}_{video_name}.zip"
+                            st.download_button(
+                                label="Download Files",
+                                data=zip_buffer,
+                                file_name=zip_file_name,
+                                mime="application/zip"
+                            )
+                else:
+                    st.write("No results files available for this video.")
 
         if selected_video:
             # read and show the predictions labeled video

@@ -137,10 +137,11 @@ def get_frames_from_idxs(cap: cv2.VideoCapture, idxs: np.ndarray) -> np.ndarray:
             cap.set(1, i)
         ret, frame = cap.read()
         if ret:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if fr == 0:
-                height, width, _ = frame.shape
-                frames = np.zeros((n_frames, 1, height, width), dtype="uint8")
-            frames[fr, 0, :, :] = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                height, width, _ = frame_rgb.shape
+                frames = np.zeros((n_frames, 3, height, width), dtype="uint8")
+            frames[fr] = frame_rgb.transpose(2, 0, 1)
         else:
             _logger.debug(
                 "warning! reached end of video; returning blank frames for remainder of "
