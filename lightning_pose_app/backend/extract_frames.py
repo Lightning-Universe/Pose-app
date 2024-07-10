@@ -395,10 +395,14 @@ def convert_csv_to_dict(csv_path: str, selected_body_parts: list = None) -> dict
 def annotate_frames(image_path: str, annotations: dict, output_path: str):
     try:
         image = Image.open(image_path)
+        # Convert image to RGB if necessary
+        if image.mode == 'L':
+            image = image.convert('L')
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+
         fig, ax = plt.subplots()
-
-        ax.imshow(image)
-
+        ax.imshow(image, cmap='gray' if image.mode == 'L' else None)
         # Get a list of unique body parts
         unique_bodyparts = list(set(annotations.keys()))
 
