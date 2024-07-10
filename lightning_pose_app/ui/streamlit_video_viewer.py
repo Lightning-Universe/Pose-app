@@ -93,7 +93,9 @@ def _render_streamlit_fn(state: AppState):
                     if selected_result_files:
                         if len(selected_result_files) == 1:
                             selected_result_file = results_files[selected_result_files[0]]
-                            new_file_name = f"{selected_model}_{video_name}_{selected_result_files[0]}"
+                            new_file_name = (
+                                f"{selected_model}_{video_name}_{selected_result_files[0]}"
+                            )
                             with open(selected_result_file, "rb") as file:
                                 st.download_button(
                                     label="Download File",
@@ -110,7 +112,9 @@ def _render_streamlit_fn(state: AppState):
                             with zipfile.ZipFile(zip_buffer, "w") as zip_file:
                                 for result_file_name in selected_result_files:
                                     result_file_path = results_files[result_file_name]
-                                    new_file_name = f"{selected_model}_{video_name}_{result_file_name}"
+                                    new_file_name = (
+                                        f"{selected_model}_{video_name}_{result_file_name}"
+                                    )
                                     with open(result_file_path, "rb") as file:
                                         zip_file.writestr(new_file_name, file.read())
                             zip_buffer.seek(0)

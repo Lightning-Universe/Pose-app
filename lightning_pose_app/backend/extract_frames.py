@@ -399,8 +399,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
 
         ax.imshow(image)
 
-        # Get a list of unique body parts and determine colors
-        #unique_bodyparts = list(set([label.split('_')[0] for label in annotations.keys()]))
+        # Get a list of unique body parts
         unique_bodyparts = list(set(annotations.keys()))
 
         color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))
@@ -424,7 +423,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
                     _logger.warning(f"Missing x or y in annotation for {label}")
                     continue
 
-                bodypart = label#.split('_')[0]
+                bodypart = label
                 color = bodypart_colors[bodypart]
                 marker = bodypart_markers[bodypart]
 
@@ -441,9 +440,8 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         frame_number = int(get_frame_number(image_path)[0])
 
         title_text = f'Video: {video} | Frame: {frame_number}'
-        title_font_size = max(8, int(img_width * 0.04))
-        
-        ax.set_title(title_text, fontsize=12, pad=15)
+
+        ax.set_title(title_text, fontsize=10, pad=15)
         ax.axis('off')
 
         # Ensure the output directory exists

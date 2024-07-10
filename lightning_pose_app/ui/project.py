@@ -580,7 +580,8 @@ def _render_streamlit_fn(state: AppState):
             st.markdown(
                 "Project exports only contain frames, labels, and the project config file. "
                 "To download trained models or the results files from video inference, see "
-                "[here](https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#).",
+                "[here]"
+                "(https://pose-app.readthedocs.io/en/latest/source/accessing_your_data.html#).",
                 unsafe_allow_html=True,
             )
 
@@ -599,7 +600,10 @@ def _render_streamlit_fn(state: AppState):
                     if st.button("Zip Project Files",):
                         try:
                             st.session_state.zip_filepath = zip_project_for_export(proj_dir)
-                            st.success("Project files are zipped and ready. Press the button below to download the zipped files.")
+                            st.success(
+                                "Project files are zipped and ready. Press the button below to "
+                                "download the zipped files."
+                            )
                         except FileNotFoundError as e:
                             st.error(str(e))
                     if st.session_state.zip_filepath:
