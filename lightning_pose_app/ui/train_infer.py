@@ -890,7 +890,7 @@ def _render_streamlit_fn(state: AppState):
             for rng in st_rng_seed_data_pt.split(","):
                 try:
                     st_rng_seed_data_pt_.append(int(rng))
-                except:
+                except ValueError:
                     continue
             st_rng_seed_data_pt = np.unique(st_rng_seed_data_pt_).tolist()
         elif isinstance(st_rng_seed_data_pt, list):
@@ -1092,7 +1092,7 @@ def _render_streamlit_fn(state: AppState):
                     video_name = os.path.basename(video)
                     if video_name not in unique_videos:
                         unique_videos[video_name] = video
-                
+
                 st_videos = st.multiselect(
                     "Select video files",
                     list(unique_videos.values()),
@@ -1182,9 +1182,9 @@ def _render_streamlit_fn(state: AppState):
 
             st.header("Create an ensemble of models")
             selected_models = st.multiselect(
-               "Select models for ensembling",
-               sorted(state.trained_models, reverse=True),
-               help="Select which models you want to create an new ensemble model",
+                "Select models for ensembling",
+                sorted(state.trained_models, reverse=True),
+                help="Select which models you want to create an new ensemble model",
             )
             eks_model_name = st.text_input(
                 label="Add ensemble name",
