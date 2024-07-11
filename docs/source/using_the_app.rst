@@ -41,7 +41,7 @@ and run:
 
 .. code-block:: console
 
-    lightning run app app.py
+    lightning_app run app app.py
 
 .. note::
 
