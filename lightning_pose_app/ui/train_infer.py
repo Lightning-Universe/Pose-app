@@ -1086,14 +1086,21 @@ def _render_streamlit_fn(state: AppState):
                         for vid in os.listdir(uploaded_video_dir_infer)
                     ]
 
+                combined_list = list_train + list_infer
+                unique_videos = {}
+                for video in combined_list:
+                    video_name = os.path.basename(video)
+                    if video_name not in unique_videos:
+                        unique_videos[video_name] = video
+                
                 st_videos = st.multiselect(
                     "Select video files",
-                    list_train + list_infer,
+                    list(unique_videos.values()),
                     help="Videos in the 'videos_infer' directory have been previously uploaded "
                          "for inference. "
                          "Videos in the 'videos' directory have been previously uploaded for "
                          "frame extraction.",
-                    format_func=lambda x: "/".join(x.split("/")[-2:]),
+                    format_func=lambda x: "/".join(x.split("/")[-1:]),
                 )
 
             # allow user to select labeled video option
