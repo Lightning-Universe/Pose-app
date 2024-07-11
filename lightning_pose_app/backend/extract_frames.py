@@ -406,7 +406,7 @@ def annotate_frames(image_path: str, annotations: dict, output_path: str):
         # Get a list of unique body parts
         unique_bodyparts = list(set(annotations.keys()))
 
-        color_map = plt.cm.get_cmap('tab10', len(unique_bodyparts))
+        color_map = plt.get_cmap('tab10', len(unique_bodyparts))
         bodypart_colors = {bodypart: color_map(i) for i, bodypart in enumerate(unique_bodyparts)}
 
         markers = ['o', '^', 's', 'p', '*', 'x', 'd', 'v', '<', '>']
