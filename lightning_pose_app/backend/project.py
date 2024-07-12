@@ -317,8 +317,13 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
 
     return missing_items
 
-# TODO: change the test unit to test the config check part 
-def find_models(model_dir: str, must_contain_predictions: bool = True, must_contain_config: bool = False) -> list:
+
+def find_models(
+    model_dir: str,
+    must_contain_predictions: bool = True,
+    must_contain_config: bool = False
+) -> list:
+
     trained_models = []
     # this returns a list of model training days
     dirs_day = os.listdir(model_dir)
