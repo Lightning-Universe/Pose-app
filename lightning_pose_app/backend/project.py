@@ -317,8 +317,8 @@ def check_project_has_labels(proj_dir: str, project_name: str) -> list:
 
     return missing_items
 
-
-def find_models(model_dir: str, must_contain_predictions: bool = True) -> list:
+# TODO: change the test unit to test the config check part 
+def find_models(model_dir: str, must_contain_predictions: bool = True, must_contain_config: bool = False) -> list:
     trained_models = []
     # this returns a list of model training days
     dirs_day = os.listdir(model_dir)
@@ -333,6 +333,12 @@ def find_models(model_dir: str, must_contain_predictions: bool = True) -> list:
                 and not os.path.exists(os.path.join(fullpath2, "predictions.csv"))
             ):
                 # skip this model folder if it does not contain predictions.csv file
+                continue
+            if (
+                must_contain_config
+                and not os.path.exists(os.path.join(fullpath2, "config.yaml"))
+            ):
+                # skip this model folder if it does not contain config.yaml file
                 continue
             trained_models.append('/'.join(fullpath2.split('/')[-2:]))
     return trained_models

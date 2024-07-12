@@ -79,6 +79,7 @@ class ProjectUI(LightningFlow):
         self.config_dict = None
         self.model_dir = None
         self.trained_models = []
+        self.trained_models_no_eks = []
         self.n_labeled_frames = 0
         self.n_total_frames = 0
 
@@ -471,6 +472,7 @@ class ProjectUI(LightningFlow):
         self.config_dict = None
         self.model_dir = None
         self.trained_models = []
+        self.trained_models_no_eks = []
         self.n_labeled_frames = 0
         self.n_total_frames = 0
 

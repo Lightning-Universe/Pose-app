@@ -48,6 +48,8 @@ from lightning_pose_app.utilities import (
     update_config,
 )
 
+from lightning_pose_app.backend.project import find_models
+
 _logger = logging.getLogger('APP.TRAIN_INFER')
 
 st.set_page_config(layout="wide")
@@ -1179,11 +1181,17 @@ def _render_streamlit_fn(state: AppState):
 
         eks_tab = st.container()
         with eks_tab:
-
             st.header("Create an ensemble of models")
+            # Create a model list with no pre exist eks models in it
+            model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
+            trained_models_no_eks = find_models(
+                model_dir,
+                must_contain_predictions=False,
+                must_contain_config=True
+            )
             selected_models = st.multiselect(
                 "Select models for ensembling",
-                sorted(state.trained_models, reverse=True),
+                sorted(trained_models_no_eks, reverse=True),
                 help="Select which models you want to create an new ensemble model",
             )
             eks_model_name = st.text_input(
