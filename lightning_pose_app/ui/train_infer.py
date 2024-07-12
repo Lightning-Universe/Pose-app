@@ -48,6 +48,8 @@ from lightning_pose_app.utilities import (
     update_config,
 )
 
+from lightning_pose_app.backend.project import find_models
+
 _logger = logging.getLogger('APP.TRAIN_INFER')
 
 st.set_page_config(layout="wide")
@@ -890,7 +892,7 @@ def _render_streamlit_fn(state: AppState):
             for rng in st_rng_seed_data_pt.split(","):
                 try:
                     st_rng_seed_data_pt_.append(int(rng))
-                except:
+                except ValueError:
                     continue
             st_rng_seed_data_pt = np.unique(st_rng_seed_data_pt_).tolist()
         elif isinstance(st_rng_seed_data_pt, list):
@@ -1086,14 +1088,21 @@ def _render_streamlit_fn(state: AppState):
                         for vid in os.listdir(uploaded_video_dir_infer)
                     ]
 
+                combined_list = list_train + list_infer
+                unique_videos = {}
+                for video in combined_list:
+                    video_name = os.path.basename(video)
+                    if video_name not in unique_videos:
+                        unique_videos[video_name] = video
+
                 st_videos = st.multiselect(
                     "Select video files",
-                    list_train + list_infer,
+                    list(unique_videos.values()),
                     help="Videos in the 'videos_infer' directory have been previously uploaded "
                          "for inference. "
                          "Videos in the 'videos' directory have been previously uploaded for "
                          "frame extraction.",
-                    format_func=lambda x: "/".join(x.split("/")[-2:]),
+                    format_func=lambda x: "/".join(x.split("/")[-1:]),
                 )
 
             # allow user to select labeled video option
@@ -1172,12 +1181,18 @@ def _render_streamlit_fn(state: AppState):
 
         eks_tab = st.container()
         with eks_tab:
-
             st.header("Create an ensemble of models")
+            # Create a model list with no pre exist eks models in it
+            model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
+            trained_models_no_eks = find_models(
+                model_dir,
+                must_contain_predictions=False,
+                must_contain_config=True
+            )
             selected_models = st.multiselect(
-               "Select models for ensembling",
-               sorted(state.trained_models, reverse=True),
-               help="Select which models you want to create an new ensemble model",
+                "Select models for ensembling",
+                sorted(trained_models_no_eks, reverse=True),
+                help="Select which models you want to create an new ensemble model",
             )
             eks_model_name = st.text_input(
                 label="Add ensemble name",

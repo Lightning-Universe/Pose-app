@@ -279,31 +279,65 @@ def test_check_project_has_labels(tmp_proj_dir):
 
 
 def test_find_models(tmpdir):
-
     from lightning_pose_app.backend.project import find_models
 
     # create model directories
     models = {
-        "00-11-22/33-44-55": True,
-        "11-22-33/44-55-66": True,
-        "22-33-44/55-66-77": False,
+        "00-11-22/33-44-55": {"predictions": True, "config": True},
+        "11-22-33/44-55-66": {"predictions": True, "config": False},
+        "22-33-44/55-66-77": {"predictions": False, "config": True},
+        "33-44-55/66-77-88": {"predictions": False, "config": False},
     }
     model_parent = os.path.join(str(tmpdir), "models")
-    for model, finished_training in models.items():
+    for model, files in models.items():
         model_dir = os.path.join(model_parent, model)
         os.makedirs(model_dir)
-        if finished_training:
+        if files["predictions"]:
             os.mknod(os.path.join(model_dir, "predictions.csv"))
+        if files["config"]:
+            os.mknod(os.path.join(model_dir, "config.yaml"))
 
     # test 1: find all model directories
-    trained_models = find_models(model_parent, must_contain_predictions=False)
+    trained_models = find_models(
+        model_parent,
+        must_contain_predictions=False,
+        must_contain_config=False
+    )
     for model in models.keys():
         assert model in trained_models
 
-    # test 2: find trained model directories
-    trained_models = find_models(model_parent, must_contain_predictions=True)
-    for model, trained in models.items():
-        if trained:
+    # test 2: find trained model directories with predictions.csv
+    trained_models = find_models(
+        model_parent,
+        must_contain_predictions=True,
+        must_contain_config=False
+    )
+    for model, files in models.items():
+        if files["predictions"]:
+            assert model in trained_models
+        else:
+            assert model not in trained_models
+
+    # test 3: find trained model directories with config.yaml
+    trained_models = find_models(
+        model_parent,
+        must_contain_predictions=False,
+        must_contain_config=True
+    )
+    for model, files in models.items():
+        if files["config"]:
+            assert model in trained_models
+        else:
+            assert model not in trained_models
+
+    # test 4: find trained model directories with both predictions.csv and config.yaml
+    trained_models = find_models(
+        model_parent,
+        must_contain_predictions=True,
+        must_contain_config=True
+    )
+    for model, files in models.items():
+        if files["predictions"] and files["config"]:
             assert model in trained_models
         else:
             assert model not in trained_models
