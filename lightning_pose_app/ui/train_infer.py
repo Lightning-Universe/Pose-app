@@ -1181,35 +1181,44 @@ def _render_streamlit_fn(state: AppState):
         eks_tab = st.container()
         with eks_tab:
             st.header("Create an ensemble of models")
-            # Create a model list with no pre exist eks models in it
-            model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
-            trained_models_no_eks = find_models(
-                model_dir,
-                must_contain_predictions=False,
-                must_contain_config=True
-            )
-            selected_models = st.multiselect(
-                "Select models for ensembling",
-                sorted(trained_models_no_eks, reverse=True),
-                help="Select which models you want to create an new ensemble model",
-            )
-            eks_model_name = st.text_input(
-                label="Add ensemble name",
-                value="eks",
-                help="Provide a name that will be appended to the data/time information."
-            )
-            eks_model_name = eks_model_name.replace(" ", "_")
+            try:
+                # Create a model list with no pre exist eks models in it
+                model_dir = os.path.join(state.proj_dir[1:], MODELS_DIR)
+                if not os.path.exists(model_dir):
+                    st.info("No model directory found. Please train models first to proceed with\
+                        creating an ensemble model."
+                    )
+                    st_submit_button_eks = None
+                else:
+                    trained_models_no_eks = find_models(
+                        model_dir,
+                        must_contain_predictions=False,
+                        must_contain_config=True
+                    )
+                    selected_models = st.multiselect(
+                        "Select models for ensembling",
+                        sorted(trained_models_no_eks, reverse=True),
+                        help="Select which models you want to create an new ensemble model",
+                    )
+                    eks_model_name = st.text_input(
+                        label="Add ensemble name",
+                        value="eks",
+                        help="Provide a name that will be appended to the data/time information."
+                    )
+                    eks_model_name = eks_model_name.replace(" ", "_")
 
-            st_submit_button_eks = st.button(
-                "Create ensemble",
-                key="eks_unique_key_button",
-                disabled=(
-                    len(selected_models) < 2
-                    or state.run_script_train
-                    or state.run_script_infer
-                ),
-            )
-
+                    st_submit_button_eks = st.button(
+                        "Create ensemble",
+                        key="eks_unique_key_button",
+                        disabled=(
+                            len(selected_models) < 2
+                            or state.run_script_train
+                            or state.run_script_infer
+                        ),
+                    )
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+            
             if st_submit_button_eks:
 
                 model_abs_paths = [
