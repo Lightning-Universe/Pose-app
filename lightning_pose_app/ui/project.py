@@ -567,7 +567,7 @@ def _render_streamlit_fn(state: AppState):
             )
             st.markdown(
                 "[Ensemble Kalman Smoother (EKS)]"
-                "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble#)",  # noqa
+                "(https://pose-app.readthedocs.io/en/latest/source/tabs/train_infer.html#tab-train-infer-ensemble)",  # noqa
                 unsafe_allow_html=True,
             )
         st.divider()
