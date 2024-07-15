@@ -46,6 +46,8 @@ class StreamlitAppLightningPose(LightningFlow):
             model_dir_args = f" --model_dir={model_dir} --make_dir"
             if self.app_type == "video":
                 model_dir_args += f" --video_subdir {MODEL_VIDEO_PREDS_INFER_DIR}"
+            if self.app_type == "frame":
+                model_dir_args += " --require_tb_logs"
 
             cmd = f"streamlit run lightning_pose/apps/{self.script_name}" \
                 + " --server.address $host --server.port $port --server.headless true" \
