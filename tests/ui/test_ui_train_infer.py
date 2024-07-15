@@ -1,13 +1,14 @@
-from datetime import datetime
 import os
+from datetime import datetime
+
 import yaml
 
 from lightning_pose_app import (
     ENSEMBLE_MEMBER_FILENAME,
     LIGHTNING_POSE_DIR,
-    MODELS_DIR,
     MODEL_VIDEO_PREDS_INFER_DIR,
     MODEL_VIDEO_PREDS_TRAIN_DIR,
+    MODELS_DIR,
     VIDEOS_DIR,
 )
 from lightning_pose_app.ui.train_infer import create_ensemble_directory
@@ -179,7 +180,7 @@ def test_train_infer_ui(root_dir, tmp_proj_dir, video_file):
     """Test run methods of TrainUI object."""
 
     from lightning_pose_app.ui.project import ProjectUI
-    from lightning_pose_app.ui.train_infer import TrainUI, VIDEO_LABEL_NONE
+    from lightning_pose_app.ui.train_infer import VIDEO_LABEL_NONE, TrainUI
 
     base_dir = os.path.join(root_dir, tmp_proj_dir)
 

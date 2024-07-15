@@ -23,11 +23,7 @@ from lightning_pose_app.backend.video import (
     compute_motion_energy_from_predection_df,
     get_frames_from_idxs,
 )
-from lightning_pose_app.utilities import (
-    run_kmeans,
-    get_frame_number,
-)
-
+from lightning_pose_app.utilities import get_frame_number, run_kmeans
 
 _logger = logging.getLogger('APP.BACKEND.EXTRACT_FRAMES')
 

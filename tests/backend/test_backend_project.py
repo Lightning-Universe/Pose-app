@@ -1,8 +1,8 @@
 import os
-import h5py
-
-import pandas as pd
 import zipfile
+
+import h5py
+import pandas as pd
 
 
 def test_extract_video_names_from_pkg_slp(root_dir, tmpdir):

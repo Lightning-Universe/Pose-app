@@ -1,12 +1,10 @@
-import numpy as np
-import os
-import pandas as pd
 import csv
+import os
 
-from lightning_pose_app import (
-    MODEL_VIDEO_PREDS_INFER_DIR,
-    MODELS_DIR,
-)
+import numpy as np
+import pandas as pd
+
+from lightning_pose_app import MODEL_VIDEO_PREDS_INFER_DIR, MODELS_DIR
 
 
 def test_read_nth_frames(video_file):

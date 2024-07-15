@@ -1,9 +1,9 @@
-from lightning.app import CloudCompute
-import numpy as np
 import os
-import pandas as pd
 import shutil
 
+import numpy as np
+import pandas as pd
+from lightning.app import CloudCompute
 
 from lightning_pose_app import (
     LABELED_DATA_DIR,
@@ -13,9 +13,7 @@ from lightning_pose_app import (
     VIDEOS_DIR,
     VIDEOS_TMP_DIR,
 )
-from lightning_pose_app.backend.extract_frames import (
-    export_frames,
-)
+from lightning_pose_app.backend.extract_frames import export_frames
 
 
 def test_extract_frames_work(

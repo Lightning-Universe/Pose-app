@@ -1,11 +1,12 @@
 import os
 import shutil
+
 import yaml
 
 from lightning_pose_app import (
-    LIGHTNING_POSE_DIR,
     LABELSTUDIO_DB_DIR,
     LABELSTUDIO_METADATA_FILENAME,
+    LIGHTNING_POSE_DIR,
     MODELS_DIR,
 )
 

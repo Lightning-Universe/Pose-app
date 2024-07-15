@@ -33,6 +33,7 @@ from lightning_pose_app import (
     VIDEOS_TMP_DIR,
     __version__,
 )
+from lightning_pose_app.backend.project import find_models
 from lightning_pose_app.backend.train_infer import (
     TrainerProgress,
     inference_with_metrics,
@@ -47,8 +48,6 @@ from lightning_pose_app.utilities import (
     is_context_dataset,
     update_config,
 )
-
-from lightning_pose_app.backend.project import find_models
 
 _logger = logging.getLogger('APP.TRAIN_INFER')
 

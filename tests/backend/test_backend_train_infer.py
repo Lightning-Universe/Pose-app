@@ -1,13 +1,13 @@
 import os
-import yaml
 from datetime import datetime
 
+import yaml
 from omegaconf import DictConfig
 
 from lightning_pose_app import (
     LIGHTNING_POSE_DIR,
-    MODELS_DIR,
     MODEL_VIDEO_PREDS_TRAIN_DIR,
+    MODELS_DIR,
     VIDEOS_DIR,
 )
 from lightning_pose_app.utilities import update_config

@@ -1,6 +1,6 @@
 """Package constants"""
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 
 # dir where lightning pose package lives, relative to Pose-app root

@@ -4,16 +4,17 @@ These fixtures create data and data modules that can be reused by other tests.
 
 """
 
-import cv2
-import numpy as np
 import os
-import pandas as pd
-import pytest
 import shutil
 
+import cv2
+import numpy as np
+import pandas as pd
+import pytest
+
 from lightning_pose_app import (
-    LIGHTNING_POSE_DIR,
     LABELED_DATA_DIR,
+    LIGHTNING_POSE_DIR,
     SELECTED_FRAMES_FILENAME,
     VIDEOS_DIR,
     VIDEOS_TMP_DIR,
