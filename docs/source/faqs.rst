@@ -64,6 +64,19 @@ General
     The process is outlined at the bottom of the :ref:`Getting started page <update_app>`.
 
 
+.. _faq_connection_error:
+
+.. dropdown:: What does it mean if I see a "Connection error" in one of the Streamlit tabs?
+
+    .. image:: https://imgur.com/Ty5jJeQ.png
+        :width: 400
+
+    If you see some form of connection error like the above image, this typically means that an
+    error has occurred somewhere in the app, the app has closed down, and the Streamlit tab is no
+    longer connected. Navigate to the command line where you launched the app and you should see a
+    more specific error message.
+
+
 Data labeling
 -------------
 
