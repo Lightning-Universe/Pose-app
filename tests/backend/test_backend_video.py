@@ -90,6 +90,15 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
     os.remove(snippet_file)
 
 
+def test_compute_video_motion_energy(video_file, video_file_pred_df):
+
+    from lightning_pose_app.backend.video import compute_video_motion_energy
+
+    me = compute_video_motion_energy(video_file)
+    assert video_file_pred_df.shape[0] == len(me)
+    assert np.isnan(me).sum() == 0
+
+
 def test_compute_motion_energy_from_predection_df(video_file_pred_df):
 
     from lightning_pose_app.backend.video import compute_motion_energy_from_predection_df
@@ -109,3 +118,12 @@ def test_compute_motion_energy_from_predection_df(video_file_pred_df):
     me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
     assert df.shape[0] == len(me)
     assert np.isnan(me).sum() == sum_of_nan
+
+
+def test_read_nth_frames(video_file):
+
+    from lightning_pose_app.backend.video import read_nth_frames
+
+    resize_dims = 8
+    frames = read_nth_frames(video_file=video_file, n=10, resize_dims=resize_dims)
+    assert frames.shape == (100, resize_dims, resize_dims, 3)

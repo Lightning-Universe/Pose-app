@@ -7,15 +7,6 @@ import pandas as pd
 from lightning_pose_app import MODEL_VIDEO_PREDS_INFER_DIR, MODELS_DIR
 
 
-def test_read_nth_frames(video_file):
-
-    from lightning_pose_app.backend.extract_frames import read_nth_frames
-
-    resize_dims = 8
-    frames = read_nth_frames(video_file=video_file, n=10, resize_dims=resize_dims)
-    assert frames.shape == (100, resize_dims, resize_dims, 3)
-
-
 def test_select_idxs_kmeans(video_file):
 
     from lightning_pose_app.backend.extract_frames import select_frame_idxs_kmeans

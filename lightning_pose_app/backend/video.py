@@ -4,10 +4,13 @@ import logging
 import os
 import shutil
 import subprocess
+from typing import Optional
 
 import cv2
 import numpy as np
 import pandas as pd
+from lightning.app import LightningWork
+from tqdm import tqdm
 
 _logger = logging.getLogger('APP.BACKEND.VIDEO')
 
@@ -153,10 +156,28 @@ def get_frames_from_idxs(cap: cv2.VideoCapture, idxs: np.ndarray) -> np.ndarray:
 
 def make_video_snippet(
     video_file: str,
-    preds_file: str,
+    preds_file: Optional[str] = None,
     clip_length: int = 30,
     likelihood_thresh: float = 0.9
 ) -> tuple:
+    """Create a snippet from a larger video that contains the most movement.
+
+    Parameters
+    ----------
+    video_file: absolute path to original video file
+    preds_file: csv file containing pose estimates; if not None, "movement" is measured from these
+        pose estimates; if None, "movement" is measured using the pixel values
+    clip_length: length of the snippet in seconds
+    likelihood_thresh: only measure movement using the preds_file for keypoints with a likelihood
+        above this threshold (0-1)
+
+    Returns
+    -------
+    - absolute path to video snippet
+    - snippet start: frame index
+    - snippet start: seconds
+
+    """
 
     # save videos with csv file
     save_dir = os.path.dirname(preds_file)
@@ -179,8 +200,13 @@ def make_video_snippet(
         if not os.path.exists(dst):
             shutil.copyfile(src, dst)
     else:
-        # compute motion energy (averaged over keypoints)
-        me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
+        # compute motion energy
+        if preds_file is None:
+            # motion energy averaged over pixels
+            me = compute_video_motion_energy(video_file=video_file)
+        else:
+            # motion energy averaged over predicted keypoints
+            me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
         # find window
         df_me = pd.DataFrame({"me": me})
         df_me_win = df_me.rolling(window=win_len, center=False).mean()
@@ -198,6 +224,30 @@ def make_video_snippet(
             subprocess.run(ffmpeg_cmd, shell=True)
 
     return dst, int(clip_start_idx), float(clip_start_sec)
+
+
+def compute_video_motion_energy(
+    video_file: str,
+    resize_dims: int = 32,
+) -> np.ndarray:
+    # read all frames, reshape, chop off unwanted portions of beginning/end
+    frames = read_nth_frames(
+        video_file=video_file,
+        n=1,
+        resize_dims=resize_dims,
+    )
+    frame_count = frames.shape[0]
+    batches = np.reshape(frames, (frame_count, -1))
+
+    # take temporal diffs
+    me = np.concatenate([
+        np.zeros((1, batches.shape[1])),
+        np.diff(batches, axis=0)
+    ])
+    # take absolute values and sum over all pixels to get motion energy
+    me = np.sum(np.abs(me), axis=1)
+
+    return me
 
 
 def compute_motion_energy_from_predection_df(
@@ -219,3 +269,50 @@ def compute_motion_energy_from_predection_df(
     me = np.nanmean(np.linalg.norm(kps[1:] - kps[:-1], axis=2), axis=-1)
     me = np.concatenate([[0], me])
     return me
+
+
+def read_nth_frames(
+    video_file: str,
+    n: int = 1,
+    resize_dims: int = 64,
+    progress_delta: float = 0.5,  # for online progress updates
+    work: Optional[LightningWork] = None,  # for online progress updates
+) -> np.ndarray:
+
+    # Open the video file
+    cap = cv2.VideoCapture(video_file)
+
+    if not cap.isOpened():
+        _logger.error(f"Error opening video file {video_file}")
+
+    frames = []
+    frame_counter = 0
+    frame_total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    with tqdm(total=int(frame_total)) as pbar:
+        while cap.isOpened():
+            # Read the next frame
+            ret, frame = cap.read()
+            if ret:
+                # If the frame was successfully read, then process it
+                if frame_counter % n == 0:
+                    frame_resize = cv2.resize(frame, (resize_dims, resize_dims))
+                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
+                    frames.append(frame_gray.astype(np.float16))
+                frame_counter += 1
+                progress = frame_counter / frame_total * 100.0
+                # periodically update progress of worker if available
+                if work is not None:
+                    if round(progress, 4) - work.progress >= progress_delta:
+                        if progress > 100:
+                            work.progress = 100.0
+                        else:
+                            work.progress = round(progress, 4)
+                pbar.update(1)
+            else:
+                # If we couldn't read a frame, we've probably reached the end
+                break
+
+    # When everything is done, release the video capture object
+    cap.release()
+
+    return np.array(frames)

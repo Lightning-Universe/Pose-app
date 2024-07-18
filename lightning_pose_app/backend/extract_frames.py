@@ -17,62 +17,15 @@ from lightning.app import LightningWork
 from PIL import Image
 from scipy.stats import zscore
 from sklearn.decomposition import PCA
-from tqdm import tqdm
 
 from lightning_pose_app.backend.video import (
     compute_motion_energy_from_predection_df,
     get_frames_from_idxs,
+    read_nth_frames,
 )
 from lightning_pose_app.utilities import get_frame_number, run_kmeans
 
 _logger = logging.getLogger('APP.BACKEND.EXTRACT_FRAMES')
-
-
-def read_nth_frames(
-    video_file: str,
-    n: int = 1,
-    resize_dims: int = 64,
-    progress_delta: float = 0.5,  # for online progress updates
-    work: Optional[LightningWork] = None,  # for online progress updates
-) -> np.ndarray:
-
-    # Open the video file
-    cap = cv2.VideoCapture(video_file)
-
-    if not cap.isOpened():
-        _logger.error(f"Error opening video file {video_file}")
-
-    frames = []
-    frame_counter = 0
-    frame_total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-    with tqdm(total=int(frame_total)) as pbar:
-        while cap.isOpened():
-            # Read the next frame
-            ret, frame = cap.read()
-            if ret:
-                # If the frame was successfully read, then process it
-                if frame_counter % n == 0:
-                    frame_resize = cv2.resize(frame, (resize_dims, resize_dims))
-                    frame_gray = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
-                    frames.append(frame_gray.astype(np.float16))
-                frame_counter += 1
-                progress = frame_counter / frame_total * 100.0
-                # periodically update progress of worker if available
-                if work is not None:
-                    if round(progress, 4) - work.progress >= progress_delta:
-                        if progress > 100:
-                            work.progress = 100.0
-                        else:
-                            work.progress = round(progress, 4)
-                pbar.update(1)
-            else:
-                # If we couldn't read a frame, we've probably reached the end
-                break
-
-    # When everything is done, release the video capture object
-    cap.release()
-
-    return np.array(frames)
 
 
 def select_frame_idxs_kmeans(
