@@ -68,6 +68,10 @@ def select_frame_idxs_kmeans(
     # find high me frames, defined as those with me larger than nth percentile me
     prctile = 50 if frame_count < 1e5 else 75  # take fewer frames if there are many
     idxs_high_me = np.where(me > np.percentile(me, prctile))[0]
+    # just use all frames if the user wants to label a large fraction of the frames
+    # (helpful for very short videos)
+    if len(idxs_high_me) < n_frames_to_select:
+        idxs_high_me = np.arange(me.shape[0])
 
     # compute pca over high me frames
     _logger.info('performing pca over high motion energy frames...')

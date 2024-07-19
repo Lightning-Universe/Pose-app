@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from lightning_pose_app import MODEL_VIDEO_PREDS_INFER_DIR, MODELS_DIR
 
@@ -11,8 +12,29 @@ def test_select_idxs_kmeans(video_file):
 
     from lightning_pose_app.backend.extract_frames import select_frame_idxs_kmeans
 
+    # test: small number of idxs
     resize_dims = 8
     n_clusters = 5
+    idxs = select_frame_idxs_kmeans(
+        video_file=video_file,
+        resize_dims=resize_dims,
+        n_frames_to_select=n_clusters,
+        frame_skip=1,
+    )
+    assert len(idxs) == n_clusters
+
+    # test: too many idxs
+    n_clusters = 1000
+    with pytest.raises(AssertionError):
+        select_frame_idxs_kmeans(
+            video_file=video_file,
+            resize_dims=resize_dims,
+            n_frames_to_select=n_clusters,
+            frame_skip=1,
+        )
+
+    # test: very large number of idxs
+    n_clusters = 990
     idxs = select_frame_idxs_kmeans(
         video_file=video_file,
         resize_dims=resize_dims,
