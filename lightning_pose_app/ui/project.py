@@ -542,6 +542,7 @@ def get_keypoints_from_zipfile_(file_path, project_type):
 def _render_streamlit_fn(state: AppState):
 
     st_keypoints = []
+
     # ----------------------------------------------------
     # landing
     # ----------------------------------------------------
