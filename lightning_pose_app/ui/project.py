@@ -655,6 +655,7 @@ def _render_streamlit_fn(state: AppState):
         # Check no other keys but letters, numbers
         st_project_name = st_project_name.replace(' ', '_')
         if st_mode == LOAD_STR:
+            state.st_upload_existing_project = False
             if st_project_name not in state.initialized_projects:
                 # catch user error
                 st.error(f"No project named {st_project_name} found; "
@@ -713,8 +714,11 @@ def _render_streamlit_fn(state: AppState):
             if st_mode == UPLOAD_STR:
                 state.st_upload_existing_project = True
                 enter_data = False
+            else:
+                state.st_upload_existing_project = False
 
         elif st_mode == DELETE_STR:
+            state.st_upload_existing_project = False
             if st_project_name not in state.initialized_projects:
                 # catch user error
                 st.error(f"A project named {st_project_name} does not exist; "
