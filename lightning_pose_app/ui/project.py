@@ -655,8 +655,8 @@ def _render_streamlit_fn(state: AppState):
         # Check no other keys but letters, numbers
         st_project_name = st_project_name.replace(' ', '_')
         if st_mode == LOAD_STR:
+            state.st_upload_existing_project = False
             if st_project_name not in state.initialized_projects:
-                state.st_upload_existing_project = False
                 # catch user error
                 st.error(f"No project named {st_project_name} found; "
                          f"available projects are {state.initialized_projects}")
