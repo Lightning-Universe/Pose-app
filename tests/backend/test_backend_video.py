@@ -89,6 +89,18 @@ def test_make_video_snippet(video_file, video_file_pred_df, tmpdir):
     assert n_frames_2 == n_frames
     os.remove(snippet_file)
 
+    # CHECK 3: use pixel motion energy rather than prediction df
+    clip_length = 1
+    snippet_file, _, _ = make_video_snippet(
+        video_file=video_file,
+        clip_length=clip_length,
+    )
+    cap = cv2.VideoCapture(snippet_file)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    n_frames_2 = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    assert n_frames_2 == int(fps * clip_length)
+    os.remove(snippet_file)
+
 
 def test_compute_video_motion_energy(video_file, video_file_pred_df):
 

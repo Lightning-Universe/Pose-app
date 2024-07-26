@@ -179,21 +179,30 @@ def make_video_snippet(
 
     """
 
-    # save videos with csv file
-    save_dir = os.path.dirname(preds_file)
-
-    # load pose predictions
-    df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
-
     # how large is the clip window?
     video = cv2.VideoCapture(video_file)
     fps = video.get(cv2.CAP_PROP_FPS)
     win_len = int(fps * clip_length)
+    n_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # manage paths
+    if preds_file is None:
+        # save videos with video file
+        save_dir = os.path.dirname(video_file)
+    else:
+        # save videos with csv file
+        save_dir = os.path.dirname(preds_file)
+
+    src = video_file
+    new_video_name = os.path.basename(video_file).replace(
+        ".mp4", ".short.mp4"
+    ).replace(
+        ".avi", ".short.mp4"
+    )
+    dst = os.path.join(save_dir, new_video_name)
 
     # make a `clip_length` second video clip that contains the highest keypoint motion energy
-    src = video_file
-    dst = os.path.join(save_dir, os.path.basename(video_file).replace(".mp4", ".short.mp4"))
-    if win_len >= df.shape[0]:
+    if win_len >= n_frames:
         # short video, no need to shorten further. just copy existing video
         clip_start_idx = 0
         clip_start_sec = 0.0
@@ -205,6 +214,8 @@ def make_video_snippet(
             # motion energy averaged over pixels
             me = compute_video_motion_energy(video_file=video_file)
         else:
+            # load pose predictions
+            df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
             # motion energy averaged over predicted keypoints
             me = compute_motion_energy_from_predection_df(df, likelihood_thresh)
         # find window
