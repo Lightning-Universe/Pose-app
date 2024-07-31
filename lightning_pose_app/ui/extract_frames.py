@@ -994,7 +994,7 @@ def _render_streamlit_fn(state: AppState):
     st.divider()
 
     st.header("Check Labeled Frames")
-    st_expander = st.expander("Expand for instractions")
+    st_expander = st.expander("Expand for instructions")
     with st_expander:
         st.markdown(
             """
