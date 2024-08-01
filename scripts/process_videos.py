@@ -1,15 +1,12 @@
 import argparse
-from moviepy.editor import VideoFileClip
-import numpy as np
-from omegaconf import DictConfig
 import os
-from lightning_pose.utils.io import ckpt_path_from_base_path
-from lightning_pose.utils.scripts import (
-    get_data_module,
-    get_dataset,
-    get_imgaug_transform,
-)
+
+import numpy as np
 import yaml
+from lightning_pose.utils.io import ckpt_path_from_base_path
+from lightning_pose.utils.scripts import get_data_module, get_dataset, get_imgaug_transform
+from moviepy.editor import VideoFileClip
+from omegaconf import DictConfig
 
 from lightning_pose_app import MODEL_VIDEO_PREDS_INFER_DIR
 from lightning_pose_app.backend.train_infer import inference_with_metrics, make_labeled_video
@@ -48,6 +45,10 @@ if not check_codec_format(video_file):
 
 # load config
 config_file = os.path.join(model_dir, ".hydra/config.yaml")
+if not os.path.exists(config_file):
+    config_file = os.path.join(model_dir, "config.yaml")
+    if not os.path.exists(config_file):
+        raise FileNotFoundError("Could not find config.yaml; has your model finished training?")
 cfg = DictConfig(yaml.safe_load(open(config_file, "r")))
 
 # define where predictions will be saved
