@@ -47,7 +47,7 @@ _logger = logging.getLogger('APP.PROJECT')
 
 # options for handling projects
 CREATE_STR = "Create new project"
-UPLOAD_STR = "Create new project from source (e.g. existing DLC project)"
+UPLOAD_STR = "Create new project from source (e.g. existing DeepLabCut project)"
 LOAD_STR = "Load existing project"
 DELETE_STR = "Delete existing project"
 
@@ -343,7 +343,7 @@ class ProjectUI(LightningFlow):
                 # flag finish coping all files
                 finished_copy_files = True
 
-            elif self.st_existing_project_format == "DLC":
+            elif self.st_existing_project_format == "DeepLabCut":
 
                 if not os.path.exists(self.st_upload_existing_project_zippath):
                     _logger.error(
@@ -406,7 +406,7 @@ class ProjectUI(LightningFlow):
                 finished_copy_files = True
 
             else:
-                raise NotImplementedError("Can only import 'Lightning Pose', 'DLC' or \
+                raise NotImplementedError("Can only import 'Lightning Pose', 'DeepLabCut' or \
                     'SLEAP' projects")
 
         except Exception as e:
@@ -745,13 +745,13 @@ def _render_streamlit_fn(state: AppState):
 
         st_prev_format = st.radio(
             "Select uploaded project format",
-            options=["DLC", "Lightning Pose", "SLEAP"],
+            options=["DeepLabCut", "Lightning Pose", "SLEAP"],
             help="Select the file format of the project to be uploaded. "
                  "If DLC is selected, make sure the zipped folder meets all reqierments."
         )
         state.st_existing_project_format = st_prev_format
 
-        if state.st_existing_project_format in ["DLC", "Lightning Pose"]:
+        if state.st_existing_project_format in ["DeepLabCut", "Lightning Pose"]:
             uploaded_file = st.file_uploader(
                 "Upload project in .zip file",
                 type="zip",
