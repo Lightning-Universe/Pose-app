@@ -451,19 +451,23 @@ class LitPoseApp(LightningFlow):
         # -------------------------------------------------------------
         if self.project_ui.count > 0 and run_while_training and run_while_inferring:
             # with large datasets, the check_labeling_task_and_export can take >15 s
-            if self.project_ui.n_labeled_frames is None or self.project_ui.n_total_frames < 500:
-                t_elapsed = 15  # seconds
-            elif self.project_ui.n_total_frames < 1000:
-                t_elapsed = 30
-            elif self.project_ui.n_total_frames < 2000:
-                t_elapsed = 60
-            else:
-                t_elapsed = 60
-            t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
-            if self.schedule(f"* * * * * {t_elapsed_list}"):
-                # only true for a single flow execution every n seconds; capture event in state var
-                self.label_studio.check_labels = True
-                self.label_studio.time = time.time()
+            if self.project_ui.n_labeled_frames is None or self.project_ui.n_labeled_frames < 1000:
+                if self.project_ui.n_labeled_frames is None or self.project_ui.n_total_frames < 500:
+                    t_elapsed = 15  # seconds
+                else:
+                    t_elapsed = 30
+                t_elapsed_list = ",".join([str(v) for v in range(0, 60, t_elapsed)])
+                if self.schedule(f"* * * * * {t_elapsed_list}"):
+                    # only true for a single flow execution every n seconds; capture event in state var
+                    self.label_studio.check_labels = True
+                    self.label_studio.time = time.time()
+            else:  # assume 5k frames/minute for label studio updates (conservative, ~15k/minute in reality)
+                t_elapsed = int(np.ceil(self.project_ui.n_total_frames / 5000))
+                if self.schedule(f"*/{t_elapsed} * * * *"):
+                    # only true for a single flow execution every n seconds; capture event in state var
+                    self.label_studio.check_labels = True
+                    self.label_studio.time = time.time()
+
             if self.label_studio.check_labels:
                 self.label_studio.run(
                     action="check_labeling_task_and_export", timer=self.label_studio.time)
