@@ -60,6 +60,7 @@ mechanism than the Streamlit uploader available in the app.
 
 If your videos are very large (>1GB) we recommend uploading one video at a time.
 
+
 Step 2: Run inference from the command line
 ===========================================
 
@@ -91,3 +92,22 @@ This call will use the model located in ``2024-03-28/23-29-04_super-0`` to run i
 in ``<project_name>/videos_infer``,
 compute metrics on each video,
 and create both a full labeled video and a labeled video snippet.
+
+If you wish to run inference with an *ensemble* of models, and optionally run EKS on the outputs,
+we provide another script name ``process_videos_ensemble.sh``.
+
+This script requires 7 positional arguments.
+The first 5 arguments are the same as above, except the first argument is a *list* of mmodel
+directories, separated by colons (``:``); see the example below.
+The final two arguments are:
+
+* compute eks flag: if ``True``, run EKS on the outputs of the listed models.
+  The previous three flags for computing metrics and label videos will be applied to the EKS
+  outputs as well, where applicable.
+* eks save directory: absolute path to directory to save eks outputs
+
+Here is an example using two networks for the ensemble when running from a Lightning Studio:
+
+.. code-block:: console
+
+    bash scripts/process_videos_ensemble.sh /this_studio/Pose-app/data/<project_name>/2024-03-28/23-29-04_super-0:/this_studio/Pose-app/data/<project_name>/2024-03-28/23-29-04_super-1 /this_studio/Pose-app/data/<project_name>/videos_infer true true true true /this_studio/Pose-app/data/<project_name>/eks_outputs

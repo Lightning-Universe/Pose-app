@@ -125,7 +125,7 @@ Update the ``lightning-pose`` dependencies:
 .. code-block:: console
 
     pip install -U -r requirements_litpose.txt
-    pip install -U torchaudio
+    pip install -U torchaudio==2.3.1
 
 .. note::
 
