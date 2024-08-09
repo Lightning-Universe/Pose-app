@@ -154,19 +154,31 @@ def run_eks(
 parser = argparse.ArgumentParser()
 parser.add_argument("--model_dir_list", type=str)
 parser.add_argument("--video_file", type=str)
-parser.add_argument("--compute_metrics", type=bool, default=True)
-parser.add_argument("--label_video_full", type=bool, default=False)
-parser.add_argument("--label_video_snippet", type=bool, default=True)
+parser.add_argument("--compute_metrics", type=str, default="True")
+parser.add_argument("--label_video_full", type=str, default="False")
+parser.add_argument("--label_video_snippet", type=str, default="True")
 parser.add_argument("--eks_save_dir", type=str)
+parser.add_argument("--smooth_param", type=str, default="none")
 
 args = parser.parse_args()
+
+# argparse doesn't handle "type=bool" args the way you would expect
+if (args.label_video_full == "True") or (args.label_video_full == "true"):
+    make_labeled_video_full = True
+else:
+    make_labeled_video_full = False
+
+if (args.label_video_snippet == "True") or (args.label_video_snippet == "true"):
+    make_labeled_video_clip = True
+else:
+    make_labeled_video_clip = False
 
 run_eks(
     save_dir=args.eks_save_dir,
     model_dirs=args.model_dir_list.split(":"),
     video_file=args.video_file,
-    make_labeled_video_full=args.label_video_full,
-    make_labeled_video_clip=args.label_video_snippet,
+    make_labeled_video_full=make_labeled_video_full,
+    make_labeled_video_clip=make_labeled_video_clip,
     keypoints_to_smooth=None,  # default to smoothing all
-    smooth_param=None,  # default to finding optimal smoothing param
+    smooth_param=None if args.smooth_param == "none" else float(args.smooth_param),
 )

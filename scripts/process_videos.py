@@ -20,11 +20,27 @@ from lightning_pose_app.backend.video import (
 parser = argparse.ArgumentParser()
 parser.add_argument("--model_dir", type=str)
 parser.add_argument("--video_file", type=str)
-parser.add_argument("--compute_metrics", type=bool, default=True)
-parser.add_argument("--label_video_full", type=bool, default=False)
-parser.add_argument("--label_video_snippet", type=bool, default=True)
+parser.add_argument("--compute_metrics", type=str, default="True")
+parser.add_argument("--label_video_full", type=str, default="False")
+parser.add_argument("--label_video_snippet", type=str, default="True")
 
 args = parser.parse_args()
+
+# argparse doesn't handle "type=bool" args the way you would expect
+if (args.compute_metrics == "True") or (args.compute_metrics == "true"):
+    compute_metrics = True
+else:
+    compute_metrics = False
+
+if (args.label_video_full == "True") or (args.label_video_full == "true"):
+    make_labeled_video_full = True
+else:
+    make_labeled_video_full = False
+
+if (args.label_video_snippet == "True") or (args.label_video_snippet == "true"):
+    make_labeled_video_clip = True
+else:
+    make_labeled_video_clip = False
 
 model_dir = args.model_dir
 if not os.path.exists(model_dir):
@@ -56,7 +72,7 @@ pred_dir = os.path.join(model_dir, MODEL_VIDEO_PREDS_INFER_DIR)
 preds_file = os.path.join(pred_dir, os.path.basename(video_file).replace(".mp4", ".csv"))
 
 # create a data module that will be used to compute several metrics
-if args.compute_metrics:
+if compute_metrics:
     # don't augment images
     cfg.training.imgaug = "default"
     # imgaug transform
@@ -78,11 +94,11 @@ preds_df = inference_with_metrics(
     preds_file=preds_file,
     ckpt_file=ckpt_file,
     data_module=data_module,
-    metrics=args.compute_metrics,
+    metrics=compute_metrics,
 )
 
 # output labeled videos
-if args.label_video_full:
+if make_labeled_video_full:
     make_labeled_video(
         video_file=video_file,
         preds_df=preds_df,
@@ -90,7 +106,7 @@ if args.label_video_full:
         confidence_thresh=cfg.eval.confidence_thresh_for_vid,
     )
 
-if args.label_video_snippet:
+if make_labeled_video_clip:
     # make short labeled snippet for manual inspection
     video_file_snippet, snippet_start_idx, snippet_start_sec = make_video_snippet(
         video_file=video_file,
@@ -105,7 +121,7 @@ if args.label_video_snippet:
         preds_file=preds_file_snippet,
         ckpt_file=ckpt_file,
         data_module=data_module,
-        metrics=args.compute_metrics,
+        metrics=compute_metrics,
     )
     # create labeled video
     make_labeled_video(
