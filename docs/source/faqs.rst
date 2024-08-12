@@ -77,6 +77,21 @@ General
     more specific error message.
 
 
+.. _faq_missing_port_viewer_api_builder:
+
+.. dropdown:: What should I do if I can't find the Port Viewer and API Builder plugins?
+
+    If you have an old version of the studio or for some other reason you dont see the port viewer 
+    or the API builder plugins you will need to install them using the "Add plugin" plugin. Click
+    on the + button in the plugins panel. In the "Serving" menu you can find the API builder - 
+    install it. In the "Web apps" menu you can find the Port viewer - install it as well
+
+    If you are using an older version of the studio or for any other reason cannot find the Port
+    Viewer or API Builder plugins, you will need to install them manually using the "Add Plugin" 
+    feature. To do this, click on the + button in the plugins panel. Under the "Serving" menu, you 
+    can find and install the API Builder. Similarly, under the "Web Apps" menu, you will find the 
+    Port Viewer—install it as well.
+
 Data labeling
 -------------
 
