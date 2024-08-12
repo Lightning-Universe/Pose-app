@@ -58,9 +58,10 @@ and run:
 
 Once the app launches you will begin to see printouts in the terminal.
 Navigate to the app output by clicking on the "port" plugin on the right-hand tool bar
-(see image below), type in port number 7501, and click "update".
+(see image below), In the Port Viewer, select the "LP Port" and ensure it is set to port 7501 
+before proceeding. After confirming the port, click on it and allow the app to load.
 
-.. image:: https://imgur.com/0XxDcpZ.png
+.. image:: https://imgur.com/a/e4DvzGA
     :width: 400
 
 IMPORTANT! You will need to click on the "Share" button, which will open the app in a separate
