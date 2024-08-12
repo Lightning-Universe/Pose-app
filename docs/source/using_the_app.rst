@@ -58,19 +58,24 @@ and run:
 
 Once the app launches you will begin to see printouts in the terminal.
 Navigate to the app output by clicking on the "port" plugin on the right-hand tool bar
-(see image below), type in port number 7501, and click "update".
+(see image below). In the Port Viewer, ensure that "LP Port" is set to port 7501. 
+After confirming the port, click on it and allow the app to load.
 
-.. image:: https://imgur.com/0XxDcpZ.png
+.. image:: https://imgur.com/a/e4DvzGA.png
     :width: 400
 
-IMPORTANT! You will need to click on the "Share" button, which will open the app in a separate
-browser window.
-This is crucial to getting all of the components visualized properly.
-In the original browser page you can return to the terminal to see printouts by clicking on the
-VS Code icon in the right-hand tool bar.
+Once the app has loaded, you can click on "Open" to launch the app in a new browser window or 
+share a link to the app with your colleagues.
 
-.. image:: https://imgur.com/lINajyE.png
-    :width: 200
+.. image:: https://imgur.com/a/QSJjU11.png
+    :width: 400
+
+IMPORTANT! We recommend opening the app in a separate browser window. This will ensure that all 
+components are properly visualized. You can return to the terminal to see printouts by clicking on 
+the VS Code icon in the right-hand toolbar.
+
+If you have an older version of the app or can't find the Port Viewer or API Builder plugins, 
+please see our :ref:`FAQ's section <faq_missing_port_viewer_api_builder>` for more information.
 
 Click on the links below to find more information about specific tabs.
 

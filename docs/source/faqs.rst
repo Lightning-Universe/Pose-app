@@ -26,18 +26,7 @@ General
     `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
 
 
-.. _faq_change_machine:
 
-.. dropdown:: How can I switch the cloud machine type (CPU to/from GPU)?
-
-    In the upper right corner of the Lightning Studio, click on the compute icon
-    (which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
-    connected to a CPU-only machine).
-    Select the GPU or CPU box to see available options.
-    We recommend a default CPU machine (not data prep) for labeling tasks.
-
-    .. image:: https://imgur.com/HGtYm0g.png
-        :width: 400
 
 
 .. _faq_upload_limit:
@@ -75,6 +64,34 @@ General
     error has occurred somewhere in the app, the app has closed down, and the Streamlit tab is no
     longer connected. Navigate to the command line where you launched the app and you should see a
     more specific error message.
+
+
+Lightning Studios
+-----------------
+
+.. _faq_change_machine:
+
+.. dropdown:: How can I switch the cloud machine type (CPU to/from GPU)?
+
+    In the upper right corner of the Lightning Studio, click on the compute icon
+    (which will read ``1 T4`` if you are connected to the default T4 GPU, or ``4 CPU`` if you are
+    connected to a CPU-only machine).
+    Select the GPU or CPU box to see available options.
+    We recommend a default CPU machine (not data prep) for labeling tasks.
+
+    .. image:: https://imgur.com/HGtYm0g.png
+        :width: 400
+
+
+.. _faq_missing_port_viewer_api_builder:
+
+.. dropdown:: What should I do if I can't find the Port Viewer and API Builder plugins?
+
+    If you are using an older version of the studio or for any other reason cannot find the Port
+    Viewer or API Builder plugins, you will need to install them manually using the "Add Plugin" 
+    feature. To do this, click on the + button in the plugins panel. Under the "Serving" menu, you 
+    can find and install the API Builder. Similarly, under the "Web Apps" menu, you will find the 
+    Port Viewer—install it as well.
 
 
 Data labeling
