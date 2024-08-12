@@ -62,13 +62,13 @@ Navigate to the app output by clicking on the "port" plugin on the right-hand to
 After confirming the port, click on it and allow the app to load.
 
 .. image:: https://imgur.com/yy8AHS7.png
-    :width: 400
+    :width: 600
 
 Once the app has loaded, you can click on "Open" to launch the app in a new browser window or 
 share a link to the app with your colleagues.
 
 .. image:: https://imgur.com/lNk5ock.png
-    :width: 400
+    :width: 600
 
 IMPORTANT! We recommend opening the app in a separate browser window. This will ensure that all 
 components are properly visualized. You can return to the terminal to see printouts by clicking on 
