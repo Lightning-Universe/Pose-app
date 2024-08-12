@@ -64,6 +64,12 @@ before proceeding. After confirming the port, click on it and allow the app to l
 .. image:: https://imgur.com/a/e4DvzGA
     :width: 400
 
+Once the app has loaded, you can click on "Open" to launch the app in a new browser window or 
+share a link to the app with your colleagues.
+
+.. image:: https://imgur.com/a/QSJjU11
+    :width: 400
+
 IMPORTANT! You will need to click on the "Share" button, which will open the app in a separate
 browser window.
 This is crucial to getting all of the components visualized properly.
