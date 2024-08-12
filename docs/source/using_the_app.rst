@@ -61,13 +61,13 @@ Navigate to the app output by clicking on the "port" plugin on the right-hand to
 (see image below). In the Port Viewer, ensure that "LP Port" is set to port 7501. 
 After confirming the port, click on it and allow the app to load.
 
-.. image:: https://imgur.com/a/e4DvzGA.png
+.. image:: https://imgur.com/yy8AHS7.png
     :width: 400
 
 Once the app has loaded, you can click on "Open" to launch the app in a new browser window or 
 share a link to the app with your colleagues.
 
-.. image:: https://imgur.com/a/QSJjU11.png
+.. image:: https://imgur.com/lNk5ock.png
     :width: 400
 
 IMPORTANT! We recommend opening the app in a separate browser window. This will ensure that all 
