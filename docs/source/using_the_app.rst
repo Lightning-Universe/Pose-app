@@ -70,13 +70,12 @@ share a link to the app with your colleagues.
 .. image:: https://imgur.com/a/QSJjU11
     :width: 400
 
-IMPORTANT! We recomend to open the app in a separate browser window.
-This will help to get all of the components visualized properly.
-In the original browser page you can return to the terminal to see printouts by clicking on the
-VS Code icon in the right-hand tool bar.
+IMPORTANT! We recommend opening the app in a separate browser window. This will ensure that all 
+components are properly visualized. You can return to the terminal to see printouts by clicking on 
+the VS Code icon in the right-hand toolbar.
 
-If you have an older version of the app or can't find the port viewrer or the API buldier plugins
-See our FAQ's section 
+If you have an older version of the app or can't find the Port Viewer or API Builder plugins, 
+please See our :ref:`FAQ's section <faq_missing_port_viewer_api_builder>` for more information.
 
 Click on the links below to find more information about specific tabs.
 
