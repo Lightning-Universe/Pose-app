@@ -35,7 +35,7 @@ for model_dir in "${model_dirs[@]}"; do
 done
 
 # If compute_eks flag is true, loop through each video file and call the run_eks.py script
-if [ "$compute_eks" = "True" ]; then
+if [ "${compute_eks,,}" = "true" ]; then
     echo "Running Ensemble Kalman Smoother (EKS) on each video"
     for video_file in "$video_dir"/*.mp4 "$video_dir"/*.avi; do
         if [ -f "$video_file" ]; then
