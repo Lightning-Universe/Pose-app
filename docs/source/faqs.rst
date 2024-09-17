@@ -26,9 +26,6 @@ General
     `open an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
 
 
-
-
-
 .. _faq_upload_limit:
 
 .. dropdown:: How do I increase the file upload size limit?
@@ -51,6 +48,24 @@ General
 .. dropdown:: How do I update the app to the most recent version?
 
     The process is outlined at the bottom of the :ref:`Getting started page <update_app>`.
+
+
+.. _faq_update_lightning_oops:
+
+.. dropdown:: I accidentally upgraded my lightning version, what should I do?
+
+    Have no fear, all you need to do is quit the app (ctrl + c twice),
+    then do the following: uninstall lightning
+
+    .. code-block:: console
+
+        pip uninstall lightning
+
+    and then update to the correct version:
+
+    .. code-block:: console
+
+        pip install lightning==2.2.5
 
 
 .. _faq_connection_error:

@@ -52,9 +52,9 @@ and run:
 .. note::
 
     You may get a message alerting you that a new version of Lightning is available.
-    There is a possibility that upgrading will cause breaking changes, and you can always decline.
-    If you **do** upgrade and an error occurs, please notify the maintainers by
-    `raising an issue <https://github.com/Lightning-Universe/Pose-app/issues>`_.
+    There is a possibility that upgrading will cause breaking changes, and you should always decline.
+    If you **do** accidentally upgrade, see the :ref:`FAQ <faq_update_lightning_oops>` for how to
+    reinstall the correct version.
 
 Once the app launches you will begin to see printouts in the terminal.
 Navigate to the app output by clicking on the "port" plugin on the right-hand tool bar
