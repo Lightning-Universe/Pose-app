@@ -11,6 +11,7 @@ import pandas as pd
 from PIL import Image
 import cv2
 import csv
+from typing import Any
 
 from lightning_pose_app import COLLECTED_DATA_FILENAME, LABELED_DATA_DIR, VIDEOS_DIR
 
@@ -19,7 +20,7 @@ _logger = logging.getLogger('APP.BACKEND.PROJECT')
 
 def extract_frames_from_pkg_slp(file_path, base_output_dir):
     """
-    Extracts frames and keypoint data from a .slp (SLEAP) file, saving them to specified directories.
+    Extracts frames and keypoint data from a .slp file, saving them to specified directories.
     Also generates CSV files for frame paths and keypoint coordinates.
 
     Args:
@@ -68,10 +69,12 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                             print(f"Found video: {video_filename} in group {video_group_name}")
 
                             # Extract frame dimensions from the first frame
-                            video_data = hdf_file[f'{video_group_name}/video'][:]
-                            if len(video_data) > 0:
+                            video_data = hdf_file[f'{video_group_name}/video']
+                            if len(video_data) > 0: # type: ignore
                                 # Convert the first frame's byte data to an image
-                                img = Image.open(io.BytesIO(np.array(video_data[0], dtype=np.uint8)))
+                                img = Image.open(
+                                    io.BytesIO(np.array(video_data[0], dtype=np.uint8)) # type: ignore
+                                )
                                 frame_dimensions[video_group_name] = img.size  # (width, height)
                                 print(f"Frame dimensions for {video_group_name}: {img.size}")
                             else:
@@ -105,18 +108,18 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
             # Check if the 'video' dataset exists within the current group
             if f'{video_group}/video' in hdf_file:
-                video_data = hdf_file[f'{video_group}/video'][:]           # Frame image data
-                frame_numbers = hdf_file[f'{video_group}/frame_numbers'][:]  # Frame indices
-                frame_names = []                                         # List to store saved frame filenames
+                video_data = hdf_file[f'{video_group}/video']
+                frame_numbers = hdf_file[f'{video_group}/frame_numbers']
+                frame_names = []
 
                 # Original frame dimensions for the current video
                 original_width, original_height = frame_dimensions[video_group]
 
                 # Iterate over each frame in the video
-                for img_bytes, frame_number in zip(video_data, frame_numbers):
+                for img_bytes, frame_number in zip(video_data, frame_numbers): # type: ignore
                     try:
                         # Convert frame bytes to an image
-                        img = Image.open(io.BytesIO(np.array(img_bytes, dtype=np.uint8)))
+                        img = Image.open(io.BytesIO(np.array(img_bytes, dtype=np.uint8))) # type: ignore
 
                         # Resize the image if its dimensions differ from the maximum dimensions
                         if (original_width, original_height) != (max_width, max_height):
@@ -126,7 +129,7 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
                         # Convert the PIL image to a NumPy array for saving with OpenCV
                         img_array = np.array(img)
-                        frame_name = f"img{str(frame_number).zfill(8)}.png"  # e.g., img00000001.png
+                        frame_name = f"img{str(frame_number).zfill(8)}.png"
                         frame_path = os.path.join(output_dir, frame_name)
                         cv2.imwrite(frame_path, img_array)  # Save the frame as a PNG file
                         frame_names.append(frame_name)
@@ -161,17 +164,20 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                 try:
                     video_id = int(video_group.replace('video', ''))
                 except ValueError:
-                    print(f"Invalid video group name format: {video_group}. Skipping keypoint extraction.")
+                    print(
+                        f"Invalid video group name format: {video_group}. "
+                        "Skipping keypoint extraction."
+                    )
                     continue
 
                 frame_references = {
                     frame['frame_id']: frame['frame_idx']
-                    for frame in frames_dataset
+                    for frame in frames_dataset # type: ignore
                     if frame['video'] == video_id
                 }
 
                 # Create a dictionary to quickly access instances by frame_id
-                instances_dict = {inst['frame_id']: inst for inst in instances_dataset}
+                instances_dict = {inst['frame_id']: inst for inst in instances_dataset} # type: ignore
 
                 data = []  # List to store keypoint data rows
 
@@ -183,11 +189,11 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
                     point_id_start = instance['point_id_start']
                     point_id_end = instance['point_id_end']
-                    points = points_dataset[point_id_start:point_id_end]
+                    points = points_dataset[point_id_start:point_id_end] # type: ignore
 
                     keypoints_flat = []  # Flattened list of keypoint coordinates
 
-                    for kp in points:
+                    for kp in points: # type: ignore
                         x, y, vis = kp['x'], kp['y'], kp['visible']
 
                         # Adjust keypoint coordinates if frames were resized
@@ -213,7 +219,7 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                         skeletons = metadata_dict.get('skeletons', [{}])
 
                         if not skeletons or 'nodes' not in skeletons[0]:
-                            print("Skeleton nodes not found in metadata. Skipping keypoint DataFrame creation.")
+                            print("Skeleton nodes not found in metadata")
                             continue
 
                         keypoints = [node['name'] for node in nodes]
@@ -226,11 +232,13 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                             columns.extend([f'{kp}_x', f'{kp}_y'])
 
                         # Create a DataFrame with the extracted keypoint data
-                        labels_df = pd.DataFrame(data, columns=columns)
+                        labels_df = pd.DataFrame(data, columns=columns) # type: ignore
 
                         # Update the 'frame' column to include the relative path to the frame image
                         labels_df['frame'] = labels_df['frame'].apply(
-                            lambda x: f"labeled-data/{video_base_name}/img{str(int(x)).zfill(8)}.png"
+                            lambda x: (
+                                f"labeled-data/{video_base_name}/img{str(int(x)).zfill(8)}.png"
+                            )
                         )
 
                         # Remove duplicate frames by keeping the first occurrence
@@ -244,7 +252,10 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                 else:
                     print("Metadata JSON not found. Skipping keypoint DataFrame creation.")
             else:
-                print("Required datasets ('frames', 'points', 'instances') not found. Skipping keypoint extraction.")
+                print(
+                    "Required datasets ('frames', 'points', 'instances') not found. "
+                    "Skipping keypoint extraction."
+                )
 
     # ===========================
     # Step 5: Consolidate and Save Keypoint Data
@@ -271,12 +282,20 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
             if not valid_combined_df.empty:
                 # Construct header rows for the final CSV
-                scorer_row = ['scorer'] + ['lightning_tracker'] * (len(valid_combined_df.columns) - 1)
-                bodyparts_row = ['bodyparts'] + [col.split('_')[0] for col in valid_combined_df.columns[1:]]
-                coords_row = ['coords'] + [col.split('_')[1] for col in valid_combined_df.columns[1:]]
+                scorer_row = ['scorer'] + [
+                    'lightning_tracker'] * (len(valid_combined_df.columns) - 1)
+                bodyparts_row = ['bodyparts'] + [
+                    col.split('_')[0] for col in valid_combined_df.columns[1:]
+                ]
+                coords_row = ['coords'] + [
+                    col.split('_')[1] for col in valid_combined_df.columns[1:]
+                ]
 
                 # Create a header DataFrame
-                header_df = pd.DataFrame([scorer_row, bodyparts_row, coords_row], columns=valid_combined_df.columns)
+                header_df = pd.DataFrame(
+                    [scorer_row, bodyparts_row, coords_row],
+                    columns=valid_combined_df.columns
+                )
 
                 # Combine header and data
                 final_df = pd.concat([header_df, valid_combined_df], ignore_index=True)
@@ -307,7 +326,7 @@ def get_keypoints_from_pkg_slp(file_path: str) -> list:
     with h5py.File(file_path, 'r') as hdf_file:
         # Extract instance names from metadata JSON
         metadata_json = hdf_file['metadata'].attrs['json']
-        metadata_dict = json.loads(metadata_json)
+        metadata_dict = json.loads(metadata_json) # type: ignore
         nodes = metadata_dict['nodes']
         keypoints = [node['name'] for node in nodes]
 
@@ -400,12 +419,12 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
                     os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
                 )[0]
                 df_tmp = pd.read_hdf(h5_file)
-                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):
+                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex): # type: ignore
                     # new DLC labeling scheme that splits video/image in different cells
-                    imgs = [i[2] for i in df_tmp.index]
-                    vids = [df_tmp.index[0][1] for _ in imgs]
+                    imgs = [i[2] for i in df_tmp.index] # type: ignore
+                    vids = [df_tmp.index[0][1] for _ in imgs] # type: ignore
                     new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                    df_tmp1 = df_tmp.reset_index().drop(
+                    df_tmp1 = df_tmp.reset_index().drop( # type: ignore
                         columns="level_0").drop(columns="level_1").drop(columns="level_2")
                     df_tmp1.index = new_col
                     df_tmp = df_tmp1
