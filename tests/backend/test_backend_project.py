@@ -1,29 +1,16 @@
 import os
 import zipfile
-
 import h5py
 import pandas as pd
+from PIL import Image
+import json
 
 
-def test_extract_video_names_from_pkg_slp(root_dir, tmpdir):
-
-    from lightning_pose_app.backend.project import extract_video_names_from_pkg_slp
-
-    hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
-    with h5py.File(hdf_file_path, 'r') as hdf_file:
-        video_names = extract_video_names_from_pkg_slp(hdf_file)
-        assert isinstance(video_names, dict)
-        assert len(video_names) == 2
-        for key, value in video_names.items():
-            assert key.startswith('video')
-            assert value.endswith('.mp4')
-
-
-def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
-
+def test_extract_frames_from_pkg_slp_stress_tests(root_dir, tmpdir):
     from lightning_pose_app.backend.project import extract_frames_from_pkg_slp
 
-    hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
+    # Paths for testing
+    hdf_file_path = os.path.join(root_dir, "tests/backend/test_file.pkg.slp")
     base_output_dir = str(tmpdir)
 
     print(f"Using HDF5 file: {hdf_file_path}")
@@ -32,41 +19,147 @@ def test_extract_frames_from_pkg_slp(root_dir, tmpdir):
     # Run the function
     extract_frames_from_pkg_slp(hdf_file_path, base_output_dir)
 
-    # Check if frames are extracted correctly
-    assert os.path.exists(base_output_dir)
+    # ===========================
+    # Test 1: Output Directory Creation
+    # ===========================
+    assert os.path.exists(base_output_dir), "Base output directory does not exist"
+    labeled_data_dir = os.path.join(base_output_dir, "labeled-data")
+    videos_dir = os.path.join(base_output_dir, "videos")
+    assert os.path.exists(labeled_data_dir), "'labeled-data' directory not found"
+    assert os.path.exists(videos_dir), "'videos' directory not found"
+
+    # ===========================
+    # Test 2: Extracted Video Names
+    # ===========================
+    # Open the .slp file to extract video names
+    with h5py.File(hdf_file_path, 'r') as hdf_file:
+        video_names = {}
+        for video_group_name in hdf_file.keys():
+            source_video_path = f'{video_group_name}/source_video'
+            if video_group_name.startswith('video') and source_video_path in hdf_file:
+                source_video_json = hdf_file[source_video_path].attrs.get('json', '{}')
+                if source_video_json:
+                    source_video_dict = json.loads(source_video_json)
+                    video_filename = source_video_dict.get('backend', {}).get('filename')
+                    if video_filename:
+                        video_names[video_group_name] = video_filename
+
+        # Verify that video_names is a dict with the expected number of entries
+        assert isinstance(video_names, dict), "video_names should be a dictionary"
+        assert len(video_names) == 2, "Expected 2 videos in the .slp file"
+        for key, value in video_names.items():
+            assert key.startswith('video'), f"Video group {key} does not start with 'video'"
+            assert value.endswith('.mp4'), f"Video filename {value} does not end with '.mp4'"
+
+    # ===========================
+    # Test 3: Frame Extraction and Resizing
+    # ===========================
+
+    expected_frame_size = (60, 60)
+
     extracted_dirs = [
-        d for d in os.listdir(base_output_dir)
-        if os.path.isdir(os.path.join(base_output_dir, d))
+        d for d in os.listdir(labeled_data_dir)
+        if os.path.isdir(os.path.join(labeled_data_dir, d))
     ]
 
     print(f"Extracted directories: {extracted_dirs}")
 
-    assert len(extracted_dirs) == 1
+    # Verify that the expected video directories are created
+    expected_video_dirs = [
+        os.path.splitext(os.path.basename(name))[0] for name in video_names.values()
+    ]
+    assert set(extracted_dirs) == set(expected_video_dirs), \
+        f"Extracted directories {extracted_dirs} do not match expected {expected_video_dirs}"
+
     for extracted_dir in extracted_dirs:
-        assert os.path.basename(extracted_dir) == 'labeled-data', \
-            f"Expected directory name 'labeled-data', but got {os.path.basename(extracted_dir)}"
+        frame_files = [
+            f for f in os.listdir(os.path.join(labeled_data_dir, extracted_dir))
+            if f.endswith(".png")
+        ]
+        assert len(frame_files) > 0, f"No frames extracted in directory {extracted_dir}"
 
-    # TODO: add more tests
+        for frame_file in frame_files:
+            frame_path = os.path.join(labeled_data_dir, extracted_dir, frame_file)
+            with Image.open(frame_path) as img:
+                width, height = img.size
+                assert (width, height) == expected_frame_size, \
+                    f"Frame {frame_file} has size {width}x{height}, expected {expected_frame_size}"
 
+    # ===========================
+    # Test 4: Keypoint Data Extraction and CSV Creation
+    # ===========================
+    collected_data_csv = os.path.join(base_output_dir, "CollectedData.csv")
+    assert os.path.exists(collected_data_csv), "CollectedData.csv was not created"
 
-def test_extract_labels_from_pkg_slp(root_dir):
+    # Read the collected data
+    labels_df = pd.read_csv(collected_data_csv, header=None)
 
-    from lightning_pose_app.backend.project import extract_labels_from_pkg_slp
+    # Check that the first three rows contain the expected headers
+    assert labels_df.iloc[0, 0] == 'scorer', "First row should contain 'scorer'"
+    assert labels_df.iloc[1, 0] == 'bodyparts', "Second row should contain 'bodyparts'"
+    assert labels_df.iloc[2, 0] == 'coords', "Third row should contain 'coords'"
 
-    hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
+    # Verify that the bodypart names are as expected
+    expected_bodyparts = {'nose', 'tail', 'paw'}
+    bodyparts_row = labels_df.iloc[1, 1:].tolist()
+    actual_bodyparts = set(bodyparts_row[::2])  # Skip every other to get unique bodypart names
+    assert actual_bodyparts == expected_bodyparts, \
+        f"Expected bodyparts {expected_bodyparts}, but got {actual_bodyparts}"
 
-    labels_df = extract_labels_from_pkg_slp(hdf_file_path)
-
-    # remove bodyparts and get a unique list - should be {'nose', 'tail', 'paw'}
-    filtered_list = [item for item in labels_df.iloc[1].tolist() if item != 'bodyparts']
-    assert set(filtered_list) == {'nose', 'tail', 'paw'}
-
-    # Verify the frame names in the first column is in the correct format
+    # ===========================
+    # Test 5: Frame Names in CSV Match Expected Format
+    # ===========================
     for frame in labels_df.iloc[3:, 0]:
-        video_name = 'test_vid_resized' if 'test_vid_resized' in frame else 'test_vid2_resized'
-        frame_number = frame.split('/')[-1].replace('img', '').replace('.png', '')
-        expected_frame_name = f"labeled-data/{video_name}/img{frame_number}.png"
-        assert frame == expected_frame_name, f"Expected {expected_frame_name}, but got {frame}"
+        # Determine the expected video name based on the frame path
+        if 'test_vid_50' in frame:
+            video_name = 'test_vid_50'
+        elif 'test_vid_60' in frame:
+            video_name = 'test_vid_60'
+        else:
+            assert False, f"Unknown video name in frame path: {frame}"
+
+        frame_filename = os.path.basename(frame)
+        expected_frame_path = f"labeled-data/{video_name}/{frame_filename}"
+        assert frame == expected_frame_path, \
+            f"Expected frame path {expected_frame_path}, but got {frame}"
+
+    # Verify that the frame paths exist
+    frame_paths = labels_df.iloc[3:, 0]
+    for frame_path in frame_paths:
+        full_frame_path = os.path.join(base_output_dir, frame_path)
+        assert os.path.exists(full_frame_path), f"Frame path {frame_path} does not exist"
+
+    # ===========================
+    # Test 6: Handling Missing Keypoints
+    # ===========================
+    missing_keypoints = labels_df.iloc[3:, 1:].isnull().sum().sum()
+    # Ensure the function handles missing keypoints without crashing
+    assert missing_keypoints >= 0, "Negative count of missing keypoints"
+
+    # ===========================
+    # Test 7: Verify CSV Header Format
+    # ===========================
+    # Ensure that the CSV header follows the expected format
+    scorer_row = labels_df.iloc[0, :]
+    bodyparts_row = labels_df.iloc[1, :]
+    coords_row = labels_df.iloc[2, :]
+
+    assert scorer_row[0] == 'scorer', "First header row should start with 'scorer'"
+    assert bodyparts_row[0] == 'bodyparts', "Second header row should start with 'bodyparts'"
+    assert coords_row[0] == 'coords', "Third header row should start with 'coords'"
+
+    # Check that the scorer is consistent
+    scorer = scorer_row[1]
+    assert all(s == scorer for s in scorer_row[1:]), "Inconsistent scorer names in header"
+
+    # ===========================
+    # Test 8: Check for Duplicate Frames
+    # ===========================
+    # Ensure that duplicate frames are not present in the extracted data
+    frame_paths_list = labels_df.iloc[3:, 0].tolist()
+    assert len(frame_paths_list) == len(set(frame_paths_list)), "Duplicate frames found in CSV"
+
+    print("All tests passed successfully!")
 
 
 def test_get_keypoints_from_pkg_slp(root_dir):

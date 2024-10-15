@@ -11,7 +11,6 @@ import pandas as pd
 from PIL import Image
 import cv2
 import csv
-from typing import Any
 
 from lightning_pose_app import COLLECTED_DATA_FILENAME, LABELED_DATA_DIR, VIDEOS_DIR
 
@@ -70,10 +69,12 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
                             # Extract frame dimensions from the first frame
                             video_data = hdf_file[f'{video_group_name}/video']
-                            if len(video_data) > 0: # type: ignore
+                            if len(video_data) > 0:  # type: ignore
                                 # Convert the first frame's byte data to an image
                                 img = Image.open(
-                                    io.BytesIO(np.array(video_data[0], dtype=np.uint8)) # type: ignore
+                                    io.BytesIO(
+                                        np.array(video_data[0], dtype=np.uint8)  # type: ignore
+                                    )
                                 )
                                 frame_dimensions[video_group_name] = img.size  # (width, height)
                                 print(f"Frame dimensions for {video_group_name}: {img.size}")
@@ -116,10 +117,12 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                 original_width, original_height = frame_dimensions[video_group]
 
                 # Iterate over each frame in the video
-                for img_bytes, frame_number in zip(video_data, frame_numbers): # type: ignore
+                for img_bytes, frame_number in zip(video_data, frame_numbers):  # type: ignore
                     try:
                         # Convert frame bytes to an image
-                        img = Image.open(io.BytesIO(np.array(img_bytes, dtype=np.uint8))) # type: ignore
+                        img = Image.open(
+                            io.BytesIO(np.array(img_bytes, dtype=np.uint8))  # type: ignore
+                        )
 
                         # Resize the image if its dimensions differ from the maximum dimensions
                         if (original_width, original_height) != (max_width, max_height):
@@ -172,12 +175,14 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
                 frame_references = {
                     frame['frame_id']: frame['frame_idx']
-                    for frame in frames_dataset # type: ignore
+                    for frame in frames_dataset  # type: ignore
                     if frame['video'] == video_id
                 }
 
                 # Create a dictionary to quickly access instances by frame_id
-                instances_dict = {inst['frame_id']: inst for inst in instances_dataset} # type: ignore
+                instances_dict = {
+                    inst['frame_id']: inst for inst in instances_dataset  # type: ignore
+                }
 
                 data = []  # List to store keypoint data rows
 
@@ -189,11 +194,11 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
 
                     point_id_start = instance['point_id_start']
                     point_id_end = instance['point_id_end']
-                    points = points_dataset[point_id_start:point_id_end] # type: ignore
+                    points = points_dataset[point_id_start:point_id_end]  # type: ignore
 
                     keypoints_flat = []  # Flattened list of keypoint coordinates
 
-                    for kp in points: # type: ignore
+                    for kp in points:  # type: ignore
                         x, y, vis = kp['x'], kp['y'], kp['visible']
 
                         # Adjust keypoint coordinates if frames were resized
@@ -232,7 +237,7 @@ def extract_frames_from_pkg_slp(file_path, base_output_dir):
                             columns.extend([f'{kp}_x', f'{kp}_y'])
 
                         # Create a DataFrame with the extracted keypoint data
-                        labels_df = pd.DataFrame(data, columns=columns) # type: ignore
+                        labels_df = pd.DataFrame(data, columns=columns)  # type: ignore
 
                         # Update the 'frame' column to include the relative path to the frame image
                         labels_df['frame'] = labels_df['frame'].apply(
@@ -326,7 +331,7 @@ def get_keypoints_from_pkg_slp(file_path: str) -> list:
     with h5py.File(file_path, 'r') as hdf_file:
         # Extract instance names from metadata JSON
         metadata_json = hdf_file['metadata'].attrs['json']
-        metadata_dict = json.loads(metadata_json) # type: ignore
+        metadata_dict = json.loads(metadata_json)  # type: ignore
         nodes = metadata_dict['nodes']
         keypoints = [node['name'] for node in nodes]
 
@@ -419,12 +424,12 @@ def collect_dlc_labels(dlc_dir: str) -> pd.DataFrame:
                     os.path.join(dlc_dir, "labeled-data", d, "CollectedData*.h5")
                 )[0]
                 df_tmp = pd.read_hdf(h5_file)
-                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex): # type: ignore
+                if isinstance(df_tmp.index, pd.core.indexes.multi.MultiIndex):  # type: ignore
                     # new DLC labeling scheme that splits video/image in different cells
-                    imgs = [i[2] for i in df_tmp.index] # type: ignore
-                    vids = [df_tmp.index[0][1] for _ in imgs] # type: ignore
+                    imgs = [i[2] for i in df_tmp.index]  # type: ignore
+                    vids = [df_tmp.index[0][1] for _ in imgs]  # type: ignore
                     new_col = [f"labeled-data/{v}/{i}" for v, i in zip(vids, imgs)]
-                    df_tmp1 = df_tmp.reset_index().drop( # type: ignore
+                    df_tmp1 = df_tmp.reset_index().drop(  # type: ignore
                         columns="level_0").drop(columns="level_1").drop(columns="level_2")
                     df_tmp1.index = new_col
                     df_tmp = df_tmp1
