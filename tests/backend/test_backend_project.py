@@ -166,10 +166,10 @@ def test_get_keypoints_from_pkg_slp(root_dir):
 
     from lightning_pose_app.backend.project import get_keypoints_from_pkg_slp
 
-    hdf_file_path = os.path.join(root_dir, "tests/backend/test_sleap.pkg.slp")
+    hdf_file_path = os.path.join(root_dir, "tests/backend/test_file.pkg.slp")
     keypoints = get_keypoints_from_pkg_slp(hdf_file_path)
     assert isinstance(keypoints, list)
-    assert keypoints == ["nose", "tail", "paw"]
+    assert keypoints == ['paw', 'nose', 'tail']
 
 
 def test_get_keypoints_from_zipfile(tmpdir, root_dir, tmp_proj_dir):

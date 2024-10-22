@@ -160,6 +160,7 @@ class ProjectUI(LightningFlow):
             # copy default config
             config_dict = copy.deepcopy(self.default_config_dict)
             # empty out project-specific entries
+            config_dict["data"]["image_orig_dims"] = {}
             config_dict["data"]["image_orig_dims"]["width"] = None
             config_dict["data"]["image_orig_dims"]["height"] = None
             config_dict["data"]["image_resize_dims"]["width"] = None
@@ -392,6 +393,9 @@ class ProjectUI(LightningFlow):
                 # Extract frames from the slp file - labele data folder been created in the process
                 extract_frames_from_pkg_slp(file_path, self.proj_dir_abs)
 
+                # Create a videos folder for future use
+                videos_dir = os.path.join(self.proj_dir_abs, 'videos')
+                os.makedirs(videos_dir, exist_ok=True)
                 # flag finish copying all files
                 finished_copy_files = True
 
