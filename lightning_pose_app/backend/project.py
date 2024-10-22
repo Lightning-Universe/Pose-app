@@ -1,3 +1,4 @@
+import csv
 import glob
 import io
 import json
@@ -5,12 +6,11 @@ import logging
 import os
 import zipfile
 
+import cv2
 import h5py
 import numpy as np
 import pandas as pd
 from PIL import Image
-import cv2
-import csv
 
 from lightning_pose_app import COLLECTED_DATA_FILENAME, LABELED_DATA_DIR, VIDEOS_DIR
 
