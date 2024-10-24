@@ -28,7 +28,6 @@ from lightning_pose_app.backend.project import (
     check_project_has_labels,
     collect_dlc_labels,
     extract_frames_from_pkg_slp,
-    extract_labels_from_pkg_slp,
     find_models,
     get_keypoints_from_pkg_slp,
     get_keypoints_from_zipfile,
@@ -161,6 +160,7 @@ class ProjectUI(LightningFlow):
             # copy default config
             config_dict = copy.deepcopy(self.default_config_dict)
             # empty out project-specific entries
+            config_dict["data"]["image_orig_dims"] = {}
             config_dict["data"]["image_orig_dims"]["width"] = None
             config_dict["data"]["image_orig_dims"]["height"] = None
             config_dict["data"]["image_resize_dims"]["width"] = None
@@ -390,18 +390,12 @@ class ProjectUI(LightningFlow):
                 file_path = self.st_upload_existing_project_slp
                 os.makedirs(self.proj_dir_abs, exist_ok=True)
 
-                # Extract and save CollectedData.csv
-                csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
-                df = extract_labels_from_pkg_slp(file_path)
-                df.to_csv(csv_file, index=False, header=False)
-
                 # Extract frames from the slp file - labele data folder been created in the process
                 extract_frames_from_pkg_slp(file_path, self.proj_dir_abs)
 
                 # Create a videos folder for future use
                 videos_dir = os.path.join(self.proj_dir_abs, 'videos')
                 os.makedirs(videos_dir, exist_ok=True)
-
                 # flag finish copying all files
                 finished_copy_files = True
 
