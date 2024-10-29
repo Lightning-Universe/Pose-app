@@ -1053,7 +1053,11 @@ def _render_streamlit_fn(state: AppState):
             if video_select_option == VIDEO_SELECT_NEW:
 
                 # initialize the file uploader
-                uploaded_files = st.file_uploader("Select video files", accept_multiple_files=True)
+                uploaded_files = st.file_uploader(
+                    "Select video files",
+                    type=["mp4", "avi"],
+                    accept_multiple_files=True,
+                )
 
                 # for each of the uploaded files
                 st_videos = []
