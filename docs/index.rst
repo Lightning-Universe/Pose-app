@@ -8,15 +8,18 @@ Lightning Pose App documentation
 
 The **Lightning Pose App** is a browser-based GUI that facilitates the deveopment of pose
 estimation projects.
+The app can run on a local workstation or in the cloud using `Lightning.ai <https://lightning.ai>`_.
 
-The app runs in the cloud using `Lightning.ai <https://lightning.ai>`_.
+To get started, see our
+`YouTube tutorial series <https://www.youtube.com/playlist?list=PLc9j4PzJKWcdryQPuYULsTh-9qJKJoneL>`_
+or the documentation below.
 
-For more information on the Lightning Pose algorithm, see our
-`2024 Nature Methods paper <https://rdcu.be/dLP3z>`_
-and the
-`Lightning Pose github repo <https://github.com/danbider/lightning-pose>`_.
+For more information on the Lightning Pose algorithm, see
 
-See also: `Lightning Pose algorithm ReadTheDocs <https://lightning-pose.readthedocs.io>`_.
+* `2024 Nature Methods paper <https://rdcu.be/dLP3z>`_
+* `YouTube lecture on animal pose estimation and Lightning Pose <https://www.youtube.com/watch?v=sVXAQXTlP0E>`_
+* `Lightning Pose algorithm github repo <https://github.com/paninski-lab/lightning-pose>`_
+* `Lightning Pose algorithm ReadTheDocs <https://lightning-pose.readthedocs.io>`_
 
 .. toctree::
    :maxdepth: 2

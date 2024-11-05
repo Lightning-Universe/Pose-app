@@ -53,6 +53,7 @@ extras_require = {
         "sphinx-automodapi",
         "sphinx-copybutton",
         "sphinx-design",
+        "sphinxcontrib.youtube",
     },
 }
 

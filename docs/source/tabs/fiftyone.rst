@@ -4,6 +4,9 @@
 Image Viewer
 ############
 
+.. youtube:: z2_Pr6kdIRA?si=BNxkszweMBoTQ_U7
+    :align: center
+
 In the Image viewer tab we use `FiftyOne <https://voxel51.com/fiftyone/>`_ which is a powerful diagnostic tool that allows you to plot
 predictions from each model you train directly on images, with corresponding ground truth labels.
 The flexible user interface allows you to filter labels by keypoint, confidence range, etc., and

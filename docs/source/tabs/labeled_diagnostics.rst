@@ -4,6 +4,9 @@
 Image Diagnostics
 ###################
 
+.. youtube:: JE94OSNf5s8?si=HMVuf6j-Gu7o43BT
+    :align: center
+
 This tab compares various metrics on labeled data across multiple models.
 
 .. image:: https://imgur.com/9h9cmTl.png

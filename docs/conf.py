@@ -26,10 +26,13 @@ extensions = [
     'sphinx.ext.viewcode',  # links documentation to source code
     'sphinx.ext.githubpages',  # allows integration with github
     'sphinx.ext.napoleon',  # parsing of different docstring styles
+    'sphinx.ext.intersphinx',  # for youtube embedding
+    'sphinxcontrib.youtube',
     'sphinx_automodapi.automodapi',
     'sphinx_copybutton',  # add copy button to code blocks
     'sphinx_design',  # dropdowns
     'sphinx_rtd_dark_mode',
+    'sphinx'
 ]
 
 templates_path = ['_templates']

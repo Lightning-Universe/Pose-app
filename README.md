@@ -19,9 +19,16 @@ As of June 2024, Lightning Pose is now [published in Nature Methods](https://rdc
 
 ## Getting started
 
-Please see the [Pose app documentation](https://pose-app.readthedocs.io/) for instructions on how to install and run the app.
+Please see the 
+[YouTube tutorial series](https://www.youtube.com/watch?v=qE0iVZ40yBQ&list=PLc9j4PzJKWcdryQPuYULsTh-9qJKJoneL) 
+or 
+[Pose app documentation](https://pose-app.readthedocs.io/) 
+for instructions on how to install and run the app.
 
-We also provide [Lightning Pose documenation](https://lightning-pose.readthedocs.io/) for the core algorithm powering the app.
+Learn more about the core algorithm powering the app via the
+[Lightning Pose github](https://github.com/paninski-lab/lightning-pose)
+or
+[Lightning Pose documenation](https://lightning-pose.readthedocs.io).
 
 ## Community
 The Lightning Pose app is primarily maintained by 

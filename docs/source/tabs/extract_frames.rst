@@ -4,6 +4,9 @@
 Extract Frames
 ##############
 
+.. youtube:: /jlKpATZ2BsM?si=afYVTiXtnbvRDdbW
+    :align: center
+
 The Extract Frames tab allows you to select frames for labeling using various methods.
 
 * :ref:`Upload videos and automatically extract random frames <upload_video_random>`
@@ -119,14 +122,17 @@ Once all frames have been extracted you will see "Proceed to the next tab to lab
 Automatically extract frames using a given model (active learning)
 ==================================================================
 
-.. note::
-
-    This option will not appear until at least one model has been trained.
+.. youtube:: 8w_n7mk0PBo?si=wd89UaDHBU2JBVuZ
+    :align: center
 
 This option allows you to choose frames to label that are "difficult" for a given model.
 Since there is no ground truth, frames are selected based on likelihood values and other metrics
 that are correlated with pixel error (large temporal jumps and PCA reprojection errors;
 see the original Lightning Pose paper for technical details).
+
+.. note::
+
+    This option will not appear until at least one model has been trained.
 
 First you will need to determine which videos you would like to extract frames from.
 Next, you will need to run inference on those videos with a given model in the "Train/Infer" tab;

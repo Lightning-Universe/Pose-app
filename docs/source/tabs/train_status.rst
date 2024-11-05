@@ -4,6 +4,8 @@
 Train Status
 ############
 
+.. youtube:: uO8dPkNHjV4?si=I7V3VfapRgfOMbXn
+    :align: center
 
 This tab displays a dashboard where you can inspect the individual losses for each model throughout
 training

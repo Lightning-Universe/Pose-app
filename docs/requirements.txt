@@ -4,6 +4,7 @@ sphinx-rtd-dark-mode
 sphinx-automodapi
 sphinx-copybutton
 sphinx-design
+sphinxcontrib.youtube
 lightning[app]
 numpy
 opencv-python

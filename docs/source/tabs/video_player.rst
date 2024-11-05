@@ -4,10 +4,13 @@
 Video Player
 ############
 
-.. image:: https://imgur.com/n2A6tBO.png
-    :width: 600
+.. youtube:: p1JLoxkw44s?si=Rsals11H8E33Stq2
+    :align: center
 
 This tab allows you to view labeled videos produced after running inference.
+
+.. image:: https://imgur.com/n2A6tBO.png
+    :width: 600
 
 On the left panel, select a model from the drop-down menu.
 Below that, you will see a drop-down menu listing all available labeled videos for that model.

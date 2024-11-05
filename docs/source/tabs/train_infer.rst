@@ -4,6 +4,9 @@
 Train/Infer
 ###########
 
+.. youtube:: C551bzlyKQ8?si=eUUJ54Za4Obz9K53
+    :align: center
+
 This tab is the interface for training models and running inference on new videos.
 
 .. image:: https://imgur.com/1lLek6E.png
@@ -123,6 +126,9 @@ See :ref:`Accessing your data <directory_structure>` for the location of inferen
 
 Create an ensemble of models
 ============================
+
+.. youtube:: MURU9YwBwps?si=lkJi4nQi0Ds_fvf3
+    :align: center
 
 Ensembling is a classical machine learning technique that combines predictions from multiple
 models to provide enhanced performance.

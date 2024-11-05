@@ -2,6 +2,9 @@
 Getting started
 ###############
 
+.. youtube:: qE0iVZ40yBQ?si=-OItSaWO3qnzRMSG
+    :align: center
+
 There are several options for getting started with the Lightning Pose app:
 
 * :ref:`Duplicate Lightning Studio <lightning_studio>` is a no-install option - simply clone a cloud-based environment that comes with the app already installed. Requires creating a Lightning account.
