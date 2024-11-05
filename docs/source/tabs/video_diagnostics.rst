@@ -4,6 +4,9 @@
 Video Diagnostics
 #################
 
+.. youtube:: pIwXGb6ETfs?si=DOSzy-AI5NbWlKz3
+    :align: center
+
 This tab compares predictions and various metrics computed on unlabeled videos across multiple
 models.
 

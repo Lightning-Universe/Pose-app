@@ -4,6 +4,9 @@
 Label Frames
 ############
 
+.. youtube:: ROPng5iewAo?si=GNxul1gANk-4trIj
+    :align: center
+
 This tab provides access to LabelStudio, an industry-grade annotation tool.
 
 .. note::

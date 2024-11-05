@@ -4,6 +4,9 @@
 Run inference on large datasets
 ###############################
 
+.. youtube:: NvVUsaRon_E?si=pOm_Jt3gki5pcCCM
+    :align: center
+
 Once you are satisfied with your model's performance, you will often want to use that model to
 run inference on a large number of videos.
 While the app allows you to upload videos through the browser and run inference, this is not the

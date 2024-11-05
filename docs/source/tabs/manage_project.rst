@@ -4,6 +4,9 @@
 Manage Project
 ##############
 
+.. youtube:: nMaEeH9CYWQ?si=L1igZSs7skHHG7GZ
+    :align: center
+
 The first tab of the app is a project manager that allows you to create, load, and delete projects.
 
 * :ref:`Create new project <create_new_project>`
@@ -66,6 +69,9 @@ and a new set of tabs will appear at the top of the app.
 
 Create new project from source
 ==============================
+
+.. youtube:: AOItYbBsg8I?si=YfTIst4aOwHlUzTv
+    :align: center
 
 .. image:: https://imgur.com/499rk2a.png
     :width: 600
