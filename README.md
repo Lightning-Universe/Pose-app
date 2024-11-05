@@ -28,7 +28,7 @@ for instructions on how to install and run the app.
 Learn more about the core algorithm powering the app via the
 [Lightning Pose github](https://github.com/paninski-lab/lightning-pose)
 or
-[Lightning Pose documenation](https://lightning-pose.readthedocs.io).
+[Lightning Pose documentation](https://lightning-pose.readthedocs.io).
 
 ## Community
 The Lightning Pose app is primarily maintained by 
