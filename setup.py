@@ -38,8 +38,8 @@ install_requires = [
     "tqdm",
     "watchdog",
     "google-auth-oauthlib",
-    "label-studio==1.12.1",
-    "label-studio-sdk==0.0.34",  # freeze for compatibility with label-studio
+    "label-studio==1.13.1",
+    "label-studio-sdk==1.0.5",  # freeze for compatibility with label-studio
 ]
 
 # additional requirements
