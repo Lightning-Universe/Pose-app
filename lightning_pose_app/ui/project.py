@@ -424,7 +424,6 @@ class ProjectUI(LightningFlow):
                 f"Could not determine relative path structure in CollectedData.csv file. "
                 f"The relative path should be of the form 'labeled-data/<video_name>/<img>.png; "
                 f"You have {frames[0]}"
-
             )
         vids = np.unique([f.split(sep)[1] for f in frames])
         for vid in vids:
