@@ -412,9 +412,22 @@ class ProjectUI(LightningFlow):
         csv_file = os.path.join(self.proj_dir_abs, COLLECTED_DATA_FILENAME)
         df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0)
         frames = np.array(df.index)
-        vids = np.unique([f.split('/')[1] for f in frames])
+        # find separator; data may have been labeled on windows
+        if len(frames[0].split('/')) == 1 and len(frames[0].split('\\')) == 3:
+            # no '/' in relative path, labeled on windows, structure is fine though
+            sep = '\\'
+        elif len(frames[0].split('/')) == 3:
+            # labeled on linux
+            sep = '/'
+        else:
+            raise RuntimeError(
+                f"Could not determine relative path structure in CollectedData.csv file. "
+                f"The relative path should be of the form 'labeled-data/<video_name>/<img>.png; "
+                f"You have {frames[0]}"
+            )
+        vids = np.unique([f.split(sep)[1] for f in frames])
         for vid in vids:
-            frames_to_label = np.array([f.split('/')[2] for f in frames if f.split('/')[1] in vid])
+            frames_to_label = np.array([f.split(sep)[2] for f in frames if f.split(sep)[1] == vid])
             save_dir = os.path.join(
                 self.proj_dir_abs, LABELED_DATA_DIR, vid, SELECTED_FRAMES_FILENAME)
             _logger.debug(f"Saving selected frames to {save_dir}")
