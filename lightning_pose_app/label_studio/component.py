@@ -84,7 +84,7 @@ class LitLabelStudio(LightningFlow):
                 "LABEL_STUDIO_BASE_DATA_DIR": abspath(self.database_dir),
                 "LABEL_STUDIO_SESSION_COOKIE_SAMESITE": "Lax",
                 "LABEL_STUDIO_CSRF_COOKIE_SAMESITE": "Lax",
-                "LABEL_STUDIO_SESSION_COOKIE_SECURE": "1",
+                "LABEL_STUDIO_SESSION_COOKIE_SECURE": "0",
                 "LABEL_STUDIO_USE_ENFORCE_CSRF_CHECKS": "0",
             },
         )
