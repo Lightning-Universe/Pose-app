@@ -9,13 +9,24 @@ _logger = logging.getLogger('APP.LABELSTUDIO')
 
 def build_xml(bodypart_names):
     """Builds the XML file for Label Studio"""
-    # 25 colors
-    colors = ["red", "blue", "green", "yellow", "orange", "purple", "brown", "pink", "gray",
-              "black", "white", "cyan", "magenta", "lime", "maroon", "olive", "navy", "teal",
-              "aqua", "fuchsia", "silver", "gold", "indigo", "violet", "coral"]
+    # 25 unique colors
+    colors = [
+        "red", "blue", "green", "yellow", "orange", "purple", "brown", "pink", "gray",
+        "black", "white", "cyan", "magenta", "lime", "maroon", "olive", "navy", "teal",
+        "aqua", "fuchsia", "silver", "gold", "indigo", "violet", "coral",
+    ]
+    # 34 unique hotkeys
+    hotkeys = [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p",
+        "a", "s", "d", "f", "g", "j", "k", "l",
+        "z", "x", "c", "b", "n", "m",
+    ]
     # replicate just to be safe
     colors = colors + colors + colors + colors
+    hotkeys = hotkeys + hotkeys
     colors_to_use = colors[:len(bodypart_names)]  # practically ignoring colors
+    hotkeys_to_use = hotkeys[:len(bodypart_names)]  # note: if >34 kps, hotkeys overwrite
     view_str = "<!--Basic keypoint image labeling configuration for multiple regions-->"
     view_str += "\n<View>"
     view_str += "\n<Header value=\"Select keypoint name with the cursor/number button, " \
@@ -28,8 +39,10 @@ def build_xml(bodypart_names):
     view_str += "\n<Text name=\"text4\" value=\"To copy keypoints to another frame: hold CTRL " \
                 "and select all keypoints; CTRL+c to copy; move to new frame; CTRL+v to paste\"/>"
     view_str += "\n  <KeyPointLabels name=\"kp-1\" toName=\"img-1\" strokeWidth=\"3\">"  # indent 2
-    for keypoint, color in zip(bodypart_names, colors_to_use):
-        view_str += f"\n    <Label value=\"{keypoint}\" />"  # indent 4
+    for keypoint, color, hotkey in zip(bodypart_names, colors_to_use, hotkeys_to_use):
+        # indent 4
+        view_str += f"\n    " \
+                    f"<Label value=\"{keypoint}\" background=\"{color}\" hotkey=\"{hotkey}\" />"
     view_str += "\n  </KeyPointLabels>"  # indent 2
     view_str += "\n  <Image name=\"img-1\" value=\"$img\" />"  # indent 2
     view_str += "\n</View>"  # indent 0
