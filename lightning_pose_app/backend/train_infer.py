@@ -275,11 +275,6 @@ def inference_with_metrics(
     metrics: bool = True,
 ) -> pd.DataFrame:
 
-    # update video size in config
-    video_clip = VideoFileClip(video_file)
-    cfg.data.image_orig_dims.width = video_clip.w
-    cfg.data.image_orig_dims.height = video_clip.h
-
     # compute predictions if they don't already exist
     if not os.path.exists(preds_file):
         preds_df = predict_single_video(
@@ -300,8 +295,6 @@ def inference_with_metrics(
         except Exception as e:
             _logger.error(f"Error predicting on {video_file}:\n{e}")
 
-    video_clip.close()
-    del video_clip
     gc.collect()
 
     return preds_df

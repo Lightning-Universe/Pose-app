@@ -57,6 +57,9 @@ def test_project_ui(root_dir, tmp_proj_dir):
     # NOT save out config
     config_init = flow.default_config_dict.copy()
     config_init["data"]["keypoints"] = None
+    # add image_orig_dims which are no longer in LP default but are set for LabelStudio
+    config_init["data"]["image_orig_dims"] = {"width": None, "height": None}
+    config_init["data"]["data_dir"] = None
     flow.run(action="update_project_config", new_vals=None)
     assert flow.config_dict == config_init
     assert not os.path.exists(os.path.join(root_dir, flow.config_file[1:]))

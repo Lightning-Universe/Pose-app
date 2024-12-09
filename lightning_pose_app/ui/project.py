@@ -208,7 +208,7 @@ class ProjectUI(LightningFlow):
             )
             self._update_project_config(new_vals_dict={
                 "data": {
-                    "image_orig_dims": {
+                    "image_orig_dims": {  # this needs to stay for labelstudio task creation
                         "height": image.height,
                         "width": image.width,
                     },
