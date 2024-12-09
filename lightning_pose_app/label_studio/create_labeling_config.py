@@ -42,7 +42,8 @@ def build_xml(bodypart_names):
     for keypoint, color, hotkey in zip(bodypart_names, colors_to_use, hotkeys_to_use):
         # indent 4
         view_str += f"\n    " \
-                    f"<Label value=\"{keypoint}\" background=\"{color}\" hotkey=\"{hotkey}\" />"
+                    f"<Label value=\"{keypoint}\" background=\"{color}\" " \
+                    f"hotkey=\"{hotkey}\" maxUsages=\"1\"/>"
     view_str += "\n  </KeyPointLabels>"  # indent 2
     view_str += "\n  <Image name=\"img-1\" value=\"$img\" />"  # indent 2
     view_str += "\n</View>"  # indent 0
