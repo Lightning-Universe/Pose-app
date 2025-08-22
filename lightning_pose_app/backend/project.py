@@ -339,12 +339,12 @@ def get_keypoints_from_pkg_slp(file_path: str) -> list:
 
 
 def get_keypoints_from_zipfile(file_path: str, project_type: str = "Lightning Pose") -> list:
-    if project_type not in ["DLC", "Lightning Pose"]:
+    if project_type not in ["DLC", "DeepLabCut", "Lightning Pose"]:
         raise NotImplementedError
     keypoints = []
     with zipfile.ZipFile(file_path) as z:
         for filename in z.namelist():
-            if project_type in ["DLC", "Lightning Pose"]:
+            if project_type in ["DLC", "DeepLabCut", "Lightning Pose"]:
                 if filename.endswith('.csv'):
                     with z.open(filename) as f:
                         for idx, line in enumerate(f):
@@ -363,10 +363,10 @@ def get_keypoints_from_zipfile(file_path: str, project_type: str = "Lightning Po
 
 
 def check_files_in_zipfile(filepath: str, project_type: str = "Lightning Pose") -> tuple:
-    if project_type not in ["DLC", "Lightning Pose"]:
+    if project_type not in ["DLC", "DeepLabCut", "Lightning Pose"]:
         raise NotImplementedError
 
-    if project_type == "DLC":
+    if project_type in ["DLC", "DeepLabCut"]:
         expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR]
     else:
         expected_dirs = [VIDEOS_DIR, LABELED_DATA_DIR, COLLECTED_DATA_FILENAME]
