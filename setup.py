@@ -36,6 +36,7 @@ install_requires = [
     "streamlit_autorefresh",
     "tables",
     "tqdm",
+    "unvicorn==0.34.0",
     "watchdog",
     "google-auth-oauthlib",
     "label-studio==1.13.1",
