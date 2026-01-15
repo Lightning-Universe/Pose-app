@@ -3,8 +3,18 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Lightning Pose App documentation
-================================
+⚠️ WARNING: THIS APP IS NOW DEPRECATED ⚠️
+=========================================
+
+A completely redesigned Lightning Pose app, which now supports multi-view projects, can be found `here <https://github.com/paninski-lab/lightning-pose-app>`_.
+
+The documentation for the new app is now bundled with the Lightning Pose CLI docs `here <https://pose-app.readthedocs.io>`_.
+
+As of January 2026 this app will no longer be supported.
+
+
+DEPRECATED Lightning Pose App documentation
+===========================================
 
 The **Lightning Pose App** is a browser-based GUI that facilitates the deveopment of pose
 estimation projects.
