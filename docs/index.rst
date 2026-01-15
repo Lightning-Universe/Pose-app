@@ -8,7 +8,7 @@
 
 A completely redesigned Lightning Pose app, which now supports multi-view projects, can be found `here <https://github.com/paninski-lab/lightning-pose-app>`_.
 
-The documentation for the new app is now bundled with the Lightning Pose CLI docs `here <https://pose-app.readthedocs.io>`_.
+The documentation for the new app is now bundled with the Lightning Pose CLI docs `here <https://lightning-pose.readthedocs.io>`_.
 
 As of January 2026 this app will no longer be supported.
 
