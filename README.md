@@ -1,10 +1,12 @@
-# ⚠️ WARNING: THIS REPOSITORY IS NOW DEPRECATED ⚠️
+# ⚠️ THIS REPOSITORY IS NOW DEPRECATED ⚠️
 
 A completely redesigned Lightning Pose app, which now supports multi-view projects, can be found [here](https://github.com/paninski-lab/lightning-pose-app).
 
 The documentation for the new app is now bundled with the Lightning Pose CLI docs [here](https://pose-app.readthedocs.io/).
 
 As of January 2026 this repository will no longer be supported.
+
+The original README is retained below for posterity.
 
 ![](https://github.com/danbider/lightning-pose/raw/main/docs/images/LightningPose_horizontal_light.png)
 
